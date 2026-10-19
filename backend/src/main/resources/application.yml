@@ -1,3 +1,7 @@
+# Common settings shared by every profile.
+# Profiles: local (developer PC), prod (production server).
+# A packaged jar refuses to start unless exactly one of them is set via
+# SPRING_PROFILES_ACTIVE or --spring.profiles.active. IDE runs and bootRun fall back to local.
 spring:
   application:
     name: mozzi

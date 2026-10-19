@@ -1,3 +1,10 @@
+# Developer PC. Error messages are shown to make API debugging easier.
+server:
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+
 logging:
   level:
     com.ssafy.mozzi: DEBUG
