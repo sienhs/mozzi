@@ -1,16 +1,18 @@
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-// Android emulator: 10.0.2.2 is the host PC. For a physical device, use
-// `adb reverse tcp:8080 tcp:8080` and change this URL to http://localhost:8080.
-const developmentApiBaseUrl = Platform.select({
-  android: 'http://10.0.2.2:8080',
-  default: 'http://localhost:8080',
-});
+// Priority:
+// 1. EXPO_PUBLIC_API_BASE_URL in frontend/.env.local (e.g. a deployed server)
+// 2. Development: the PC running `expo start` (same Wi-Fi as the phone), port 8080
+const API_PORT = 8080;
 
-// Set the HTTPS API URL here when a deployment environment is available.
-const productionApiBaseUrl = '';
+function developmentApiBaseUrl(): string {
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  return host ? `http://${host}:${API_PORT}` : `http://localhost:${API_PORT}`;
+}
+
+const configuredApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.trim() ?? '';
 
 export const appConfig = {
-  apiBaseUrl: __DEV__ ? developmentApiBaseUrl : productionApiBaseUrl,
+  apiBaseUrl: configuredApiBaseUrl || (__DEV__ ? developmentApiBaseUrl() : ''),
   requestTimeoutMs: 5000,
 };
