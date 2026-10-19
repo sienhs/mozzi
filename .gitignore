@@ -1,0 +1,35 @@
+# Editors and operating systems
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+!**/debug.keystore
+
+# Generated files
+.gradle/
+.kotlin/
+build/
+out/
+node_modules/
+coverage/
+*.log
+*.tsbuildinfo
+
+# Packages and deployment outputs
+*.apk
+*.aab
+*.ipa
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
