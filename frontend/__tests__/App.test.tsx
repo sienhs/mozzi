@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import App from '../App';
+import { HomeScreen } from '../src/features/home/HomeScreen';
 import { checkServerHealth } from '../src/shared/api/health';
 
 jest.mock('../src/shared/api/health', () => ({
@@ -15,7 +15,7 @@ afterEach(() => {
 
 test('checks the server connection from the start screen', async () => {
   mockedCheckServerHealth.mockResolvedValue(undefined);
-  await render(<App />);
+  await render(<HomeScreen />);
 
   await fireEvent.press(screen.getByRole('button', { name: '서버 연결 확인' }));
 
@@ -27,7 +27,7 @@ test('checks the server connection from the start screen', async () => {
 
 test('shows connection errors and allows another attempt', async () => {
   mockedCheckServerHealth.mockRejectedValue(new Error('연결 실패'));
-  await render(<App />);
+  await render(<HomeScreen />);
 
   await fireEvent.press(screen.getByRole('button', { name: '서버 연결 확인' }));
 
