@@ -1,2 +1,35 @@
-# Reserved for frontend CI jobs. No frontend checks run yet.
-{}
+.frontend-node:
+  # Keep the Node version aligned with frontend/.node-version.
+  image: node:24.18.0-bookworm-slim
+  interruptible: true
+  timeout: 15 minutes
+  variables:
+    CI: "true"
+    npm_config_cache: "$CI_PROJECT_DIR/.npm"
+  cache:
+    key:
+      prefix: frontend-npm-node24
+      files:
+        - frontend/package-lock.json
+        - frontend/.node-version
+    paths:
+      - .npm/
+    policy: pull-push
+  before_script:
+    - cd "$CI_PROJECT_DIR/frontend"
+    - npm ci --prefer-offline --no-audit --no-fund
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - frontend/**/*
+        - .gitlab-ci.yml
+        - .editorconfig
+        - .gitattributes
+
+frontend:check:
+  extends: .frontend-node
+  stage: test
+  script:
+    # Run lint, type checking and Jest once, in that order.
+    - npm run check
