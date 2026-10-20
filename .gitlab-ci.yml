@@ -1,0 +1,14 @@
+# Keep shared pipeline policy here; each application owns its jobs.
+stages:
+  - test
+
+workflow:
+  rules:
+    # Validate in merge requests only; do not repeat tests after merging.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH'
+    - when: never
+
+include:
+  - local: /backend/ci.yml
+  - local: /frontend/ci.yml
