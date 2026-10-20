@@ -6,7 +6,6 @@ const globals = require('globals');
 
 module.exports = defineConfig([
   expoConfig,
-  prettierConfig,
   {
     files: ['jest.setup.js', '__tests__/**'],
     languageOptions: {
@@ -14,6 +13,14 @@ module.exports = defineConfig([
     },
   },
   {
-    ignores: ['dist/*', '.expo/*'],
+    ignores: [
+      'dist/**',
+      '.expo/**',
+      'web-build/**',
+      'coverage/**',
+      'android/**',
+      'ios/**',
+    ],
   },
+  prettierConfig,
 ]);

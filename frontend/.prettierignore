@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+web-build/
+coverage/
+android/
+ios/
+expo-env.d.ts
+package-lock.json
+.env
+.env.*
+AGENTS.md
