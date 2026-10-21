@@ -1,0 +1,69 @@
+.terraform:
+  image:
+    name: hashicorp/terraform:1.9.8
+    entrypoint: [""]
+  timeout: 10 minutes
+  variables:
+    TF_IN_AUTOMATION: "true"
+    TF_INPUT: "false"
+    TF_STATE_NAME: "bootstrap"
+  before_script:
+    - cd "$CI_PROJECT_DIR/infra/terraform"
+
+.terraform-remote:
+  extends: .terraform
+  before_script:
+    - !reference [.terraform, before_script]
+    # Use each job's current token; never embed credentials in a saved plan.
+    - export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+    - export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+    - export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+    - export TF_HTTP_USERNAME="gitlab-ci-token"
+    - export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
+    - export TF_HTTP_LOCK_METHOD="POST"
+    - export TF_HTTP_UNLOCK_METHOD="DELETE"
+    - export TF_HTTP_RETRY_WAIT_MIN="5"
+    - terraform init -reconfigure
+
+terraform:validate:
+  extends: .terraform
+  stage: test
+  script:
+    - terraform fmt -check -recursive
+    - terraform init -backend=false
+    - terraform validate
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
+
+terraform:plan:
+  extends: .terraform-remote
+  stage: test
+  resource_group: terraform-bootstrap
+  script:
+    - terraform plan -lock-timeout=60s -out=bootstrap.tfplan
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - infra/terraform/bootstrap.tfplan
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+terraform:apply:
+  extends: .terraform-remote
+  stage: deploy
+  resource_group: terraform-bootstrap
+  needs:
+    - job: terraform:validate
+    - job: terraform:plan
+      artifacts: true
+  script:
+    - terraform apply -lock-timeout=60s bootstrap.tfplan
+    - terraform output backend_smoke_test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+      allow_failure: false
