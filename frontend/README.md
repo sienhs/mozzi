@@ -143,6 +143,16 @@ npm start
 | `npx expo install --check` | Expo SDK 의존성 버전 확인             |
 | `npm ls --all`             | 전체 의존성 트리 확인                 |
 
+## GitLab CI
+
+루트 `.gitlab-ci.yml`이 `frontend/ci.yml`을 포함하며, `frontend:check` 작업에서 Node.js 24.18.0으로 `npm ci` 후 `npm run check`를 실행합니다. npm 다운로드 캐시는 잠금 파일과 `.node-version`을 기준으로 재사용합니다.
+
+- MR에서는 `frontend/` 또는 루트 `.gitlab-ci.yml`, `.editorconfig`, `.gitattributes`가 변경되면 실행합니다.
+- 브랜치를 선택해 **Run pipeline**으로 직접 실행하면 변경 파일과 관계없이 실행합니다.
+- 머지 후 push에서는 파이프라인을 실행하지 않습니다.
+- 검사 순서는 린트 → 포맷 검사 → 타입 검사 → Jest 테스트이며, 실패하면 해당 작업이 실패합니다.
+- 백엔드 서버나 에뮬레이터는 필요하지 않습니다. Android/iOS 앱 빌드 및 배포는 포함하지 않습니다.
+
 ## 설정 연결
 
 - Router: `package.json`의 `main`은 `expo-router/entry`, 라우트는 `src/app/`입니다. `app.json`의 Router 플러그인과 `typedRoutes`가 활성화되어 있습니다.
