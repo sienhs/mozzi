@@ -23,7 +23,6 @@
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - frontend/**/*
-        - .gitlab-ci.yml
         - .editorconfig
         - .gitattributes
 

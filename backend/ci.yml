@@ -22,7 +22,6 @@
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - backend/**/*
-        - .gitlab-ci.yml
         - .editorconfig
         - .gitattributes
 
@@ -39,3 +38,63 @@ backend:test:
       junit: backend/build/test-results/test/TEST-*.xml
     paths:
       - backend/build/reports/tests/test/
+
+.backend-release:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - backend/**/*
+
+backend:package:
+  extends: .backend-gradle
+  stage: build
+  rules: !reference [.backend-release, rules]
+  script:
+    - sh ./gradlew --no-daemon --console=plain bootJar
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - backend/build/libs/app.jar
+
+backend:publish:
+  image: docker:27.5.1-cli
+  stage: publish
+  resource_group: backend-ecr-publish
+  timeout: 15 minutes
+  services:
+    - name: docker:27.5.1-dind
+      alias: docker
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    AWS_DEFAULT_REGION: ap-northeast-2
+    AWS_PAGER: ""
+  needs:
+    - job: backend:package
+      artifacts: true
+  rules: !reference [.backend-release, rules]
+  before_script:
+    - apk add --no-cache aws-cli
+  script:
+    - ': "${BACKEND_ECR_REPOSITORY_URL:?Set BACKEND_ECR_REPOSITORY_URL in GitLab CI/CD variables}"'
+    - export BACKEND_IMAGE="${BACKEND_ECR_REPOSITORY_URL}:${CI_COMMIT_SHA}"
+    # The Terraform repository is immutable; retrying a published commit is a no-op.
+    - |
+      if aws ecr describe-images --repository-name "${BACKEND_ECR_REPOSITORY_URL#*/}" \
+        --image-ids "imageTag=${CI_COMMIT_SHA}" > /dev/null 2> ecr-error.txt; then
+        echo "Image already published: ${BACKEND_IMAGE}"
+      elif grep -q 'ImageNotFoundException' ecr-error.txt; then
+        aws ecr get-login-password | docker login --username AWS --password-stdin "${BACKEND_ECR_REPOSITORY_URL%%/*}"
+        docker build --pull -t "$BACKEND_IMAGE" backend
+        docker push "$BACKEND_IMAGE"
+      else
+        cat ecr-error.txt >&2
+        exit 1
+      fi
+    - printf 'BACKEND_IMAGE=%s\n' "$BACKEND_IMAGE" > backend-image.env
+  artifacts:
+    expire_in: 7 days
+    reports:
+      dotenv: backend-image.env
