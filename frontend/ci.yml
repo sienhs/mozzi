@@ -4,8 +4,8 @@
   interruptible: true
   timeout: 15 minutes
   variables:
-    CI: "true"
-    npm_config_cache: "$CI_PROJECT_DIR/.npm"
+    CI: 'true'
+    npm_config_cache: '$CI_PROJECT_DIR/.npm'
   cache:
     key:
       prefix: frontend-npm-node24
@@ -31,5 +31,5 @@ frontend:check:
   extends: .frontend-node
   stage: test
   script:
-    # Run lint, type checking and Jest once, in that order.
+    # Run lint, formatting, type checking and Jest once, in that order.
     - npm run check
