@@ -34,6 +34,10 @@ terraform:validate:
     - terraform validate
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - infra/**/*
@@ -51,6 +55,10 @@ terraform:plan:
       - infra/terraform/bootstrap.tfplan
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
 
 terraform:apply:
   extends: .terraform-remote
@@ -62,8 +70,14 @@ terraform:apply:
       artifacts: true
   script:
     - terraform apply -lock-timeout=60s bootstrap.tfplan
-    - terraform output backend_smoke_test
+    - terraform output backend_ecr_repository_url
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+      allow_failure: false
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
       when: manual
       allow_failure: false

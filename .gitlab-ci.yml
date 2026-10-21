@@ -8,6 +8,10 @@ workflow:
     # Validate in merge requests only; do not repeat tests after merging.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
     - when: never
 
 include:
