@@ -1,17 +1,25 @@
 # Keep shared pipeline policy here; each application owns its jobs.
 stages:
   - test
+  - build
+  - publish
   - deploy
 
 workflow:
   rules:
     # Validate in merge requests only; do not repeat tests after merging.
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - backend/**/*
+        - frontend/**/*
+        - infra/**/*
+        - .editorconfig
+        - .gitattributes
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
+        - backend/**/*
         - infra/**/*
-        - .gitlab-ci.yml
     - when: never
 
 include:

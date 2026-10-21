@@ -37,11 +37,9 @@ terraform:validate:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - infra/**/*
-        - .gitlab-ci.yml
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - infra/**/*
-        - .gitlab-ci.yml
 
 terraform:plan:
   extends: .terraform-remote
@@ -58,7 +56,6 @@ terraform:plan:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - infra/**/*
-        - .gitlab-ci.yml
 
 terraform:apply:
   extends: .terraform-remote
@@ -77,5 +74,4 @@ terraform:apply:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - infra/**/*
-        - .gitlab-ci.yml
       when: on_success
