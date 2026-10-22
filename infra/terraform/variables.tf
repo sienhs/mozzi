@@ -2,4 +2,68 @@ variable "aws_region" {
   description = "AWS region for infrastructure resources."
   type        = string
   default     = "ap-northeast-2"
+  validation {
+    condition     = var.aws_region == "ap-northeast-2"
+    error_message = "This deployment uses Seoul AZ IDs and must remain in ap-northeast-2."
+  }
+}
+
+variable "aws_account_id" {
+  description = "Optional AWS account guard. Null uses the account of the existing AWS credentials."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.aws_account_id == null || can(regex("^[0-9]{12}$", var.aws_account_id))
+    error_message = "Provide a 12-digit personal AWS account ID."
+  }
+}
+
+variable "name_prefix" {
+  description = "Prefix for resource names and project tags."
+  type        = string
+  default     = "mozzi-dev"
+}
+
+variable "ssh_key_name" {
+  description = "Existing EC2 key pair name in the personal account's Seoul region. No private key is stored in Terraform."
+  type        = string
+  validation {
+    condition     = length(trimspace(var.ssh_key_name)) > 0
+    error_message = "An existing key pair name is required."
+  }
+}
+
+variable "wireguard_allowed_cidrs" {
+  description = "SSAFY public IPv4 CIDRs allowed to reach UDP 51820; worker-to-worker ingress is added separately."
+  type        = set(string)
+  validation {
+    condition     = length(var.wireguard_allowed_cidrs) > 0 && alltrue([for cidr in var.wireguard_allowed_cidrs : can(cidrnetmask(cidr)) && try(tonumber(split("/", cidr)[1]) >= 24, false)])
+    error_message = "Provide IPv4 CIDRs with /24 or narrower prefixes; prefer the SSAFY public IP /32."
+  }
+}
+
+variable "worker_instance_type" {
+  description = "Worker instance type. This configuration uses an x86_64 Ubuntu AMI."
+  type        = string
+  default     = "t3.small"
+  validation {
+    condition     = contains(["t3.small", "t3.medium", "t3.large", "t3.xlarge"], var.worker_instance_type)
+    error_message = "Choose a supported x86_64 t3 worker size: small, medium, large or xlarge."
+  }
+}
+
+variable "worker_ami_id" {
+  description = "Optional pinned Ubuntu 24.04 x86_64 AMI. Null resolves the current Canonical image through SSM."
+  type        = string
+  default     = null
+}
+
+variable "worker_root_volume_size" {
+  description = "Encrypted gp3 root volume size per worker, in GiB."
+  type        = number
+  default     = 30
+  validation {
+    condition     = var.worker_root_volume_size >= 20 && floor(var.worker_root_volume_size) == var.worker_root_volume_size
+    error_message = "Use an integer root volume size of at least 20 GiB."
+  }
 }

@@ -6,12 +6,22 @@
   variables:
     TF_IN_AUTOMATION: "true"
     TF_INPUT: "false"
+    # Preserve the existing ECR state; all infrastructure shares this state.
     TF_STATE_NAME: "bootstrap"
   before_script:
     - cd "$CI_PROJECT_DIR/infra/terraform"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/**/*
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - infra/**/*
 
-.terraform-remote:
+.terraform-deploy:
   extends: .terraform
+  resource_group: terraform-bootstrap
   before_script:
     - !reference [.terraform, before_script]
     # Use each job's current token; never embed credentials in a saved plan.
@@ -23,7 +33,15 @@
     - export TF_HTTP_LOCK_METHOD="POST"
     - export TF_HTTP_UNLOCK_METHOD="DELETE"
     - export TF_HTTP_RETRY_WAIT_MIN="5"
+    # One GitLab File variable supplies all non-secret deployment settings.
+    - ': "${TFVARS:?Set TFVARS as a GitLab File variable using terraform.tfvars.example}"'
+    - cp "$TFVARS" terraform.tfvars
     - terraform init -reconfigure
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/**/*
 
 terraform:validate:
   extends: .terraform
@@ -32,46 +50,27 @@ terraform:validate:
     - terraform fmt -check -recursive
     - terraform init -backend=false
     - terraform validate
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      changes:
-        - infra/**/*
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - infra/**/*
+    - terraform test
 
 terraform:plan:
-  extends: .terraform-remote
+  extends: .terraform-deploy
   stage: test
-  resource_group: terraform-bootstrap
+  needs:
+    - job: terraform:validate
+      artifacts: false
   script:
-    - terraform plan -lock-timeout=60s -out=bootstrap.tfplan
+    - terraform plan -lock-timeout=60s -out=terraform.tfplan
   artifacts:
     expire_in: 1 day
     paths:
-      - infra/terraform/bootstrap.tfplan
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      changes:
-        - infra/**/*
+      - infra/terraform/terraform.tfplan
 
 terraform:apply:
-  extends: .terraform-remote
+  extends: .terraform-deploy
   stage: deploy
-  resource_group: terraform-bootstrap
   needs:
-    - job: terraform:validate
     - job: terraform:plan
       artifacts: true
   script:
-    - terraform apply -lock-timeout=60s bootstrap.tfplan
-    - terraform output backend_ecr_repository_url
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      when: on_success
-    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      changes:
-        - infra/**/*
-      when: on_success
+    - terraform apply -lock-timeout=60s terraform.tfplan
+    - terraform output
