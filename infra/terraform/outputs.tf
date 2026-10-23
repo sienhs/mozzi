@@ -7,24 +7,35 @@ output "vpc_id" {
   value = module.vpc.id
 }
 
-output "private_subnet_ids" {
-  description = "Isolated subnets reserved for a future RDS subnet group; no RDS is created."
-  value       = { for az, subnet in module.private_subnet : az => subnet.id }
+output "availability_zone_id" {
+  value = var.availability_zone_id
 }
 
-output "worker_security_group_id" {
-  value = module.worker_security_group.id
+output "subnet_ids" {
+  value = {
+    public  = module.public_subnet.id
+    private = module.private_subnet.id
+  }
+}
+
+output "gateway" {
+  description = "Public VPN/NAT gateway and SSH jump host. WireGuard peer setup is a separate step."
+  value = {
+    instance_id = module.gateway.id
+    public_ip   = aws_eip.gateway.public_ip
+    private_ip  = module.gateway.private_ip
+    ssh_command = "ssh -i <personal-key.pem> ubuntu@${aws_eip.gateway.public_ip}"
+  }
 }
 
 output "workers" {
-  description = "Worker inventory, including physical AZ IDs and SSH endpoints."
+  description = "Private workers; use the public gateway as an SSH ProxyJump."
   value = {
-    for az, worker in module.worker : az => {
+    for name, worker in module.worker : name => {
       instance_id = worker.id
-      public_ip   = worker.public_ip
       private_ip  = worker.private_ip
-      subnet_id   = module.public_subnet[az].id
-      ssh_command = "ssh -i <personal-key.pem> ubuntu@${worker.public_ip}"
+      subnet_id   = module.private_subnet.id
+      ssh_command = "ssh -o IdentitiesOnly=yes -o 'ProxyCommand=ssh -i <personal-key.pem> -W %h:%p ubuntu@${aws_eip.gateway.public_ip}' -i <personal-key.pem> ubuntu@${worker.private_ip}"
     }
   }
 }

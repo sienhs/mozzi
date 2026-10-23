@@ -19,3 +19,19 @@ variable "key_name" {
 variable "root_volume_size" {
   type = number
 }
+variable "associate_public_ip_address" {
+  type    = bool
+  default = false
+}
+variable "source_dest_check" {
+  type    = bool
+  default = true
+}
+variable "role" {
+  type    = string
+  default = "k3s-worker"
+}
+variable "user_data" {
+  type    = string
+  default = null
+}

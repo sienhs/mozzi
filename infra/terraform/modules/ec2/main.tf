@@ -4,7 +4,10 @@ resource "aws_instance" "this" {
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [var.security_group_id]
   key_name                    = var.key_name
-  associate_public_ip_address = true
+  associate_public_ip_address = var.associate_public_ip_address
+  source_dest_check           = var.source_dest_check
+  user_data                   = var.user_data
+  user_data_replace_on_change = true
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -23,5 +26,5 @@ resource "aws_instance" "this" {
     cpu_credits = "standard"
   }
 
-  tags = { Name = var.name, Role = "k3s-worker" }
+  tags = { Name = var.name, Role = var.role }
 }

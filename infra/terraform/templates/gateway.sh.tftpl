@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y wireguard nftables
+
+cat > /etc/sysctl.d/90-vpn-nat.conf <<'SYSCTL'
+net.ipv4.ip_forward=1
+net.ipv4.conf.all.rp_filter=2
+net.ipv4.conf.default.rp_filter=2
+SYSCTL
+sysctl --system
+
+IFACE=$(ip -4 route show default | awk 'NR == 1 {print $5}')
+test -n "$IFACE"
+# This host is dedicated to routing; WireGuard keys and wg0 are configured later.
+cat > /etc/nftables.conf <<NFT
+#!/usr/sbin/nft -f
+flush ruleset
+
+table inet gateway_filter {
+  chain forward {
+    type filter hook forward priority 0; policy drop;
+    ct state established,related accept
+    ip saddr ${private_cidr} accept
+    iifname "wg0" ip saddr 10.200.0.0/24 ip daddr ${private_cidr} accept
+  }
+}
+
+table ip gateway_nat {
+  chain postrouting {
+    type nat hook postrouting priority 100; policy accept;
+    ip saddr ${private_cidr} ip daddr != { 10.50.0.0/16, 10.200.0.0/24 } oifname "$IFACE" masquerade
+  }
+}
+NFT
+nft --check --file /etc/nftables.conf
+systemctl enable nftables
+systemctl restart nftables
