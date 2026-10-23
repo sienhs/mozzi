@@ -1,0 +1,9 @@
+---
+k3s_version: v1.34.11+k3s1
+k3s_pod_cidr: 10.42.0.0/16
+k3s_service_cidr: 10.43.0.0/16
+vpn_cidr: 10.200.0.0/24
+vpn_port: 51820
+vpn_mtu: 1380
+vpn_interface: wg0
+private_subnet_cidr: 10.50.11.0/24

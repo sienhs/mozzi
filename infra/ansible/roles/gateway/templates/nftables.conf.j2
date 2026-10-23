@@ -1,0 +1,17 @@
+#!/usr/sbin/nft -f
+flush ruleset
+table inet gateway_filter {
+  chain forward {
+    type filter hook forward priority 0; policy drop;
+    ct state established,related accept
+    ip saddr {{ private_subnet_cidr }} accept
+    iifname "{{ vpn_interface }}" oifname "{{ vpn_interface }}" ip saddr {{ vpn_cidr }} ip daddr {{ vpn_cidr }} accept
+    iifname "{{ vpn_interface }}" ip saddr {{ vpn_cidr }} ip daddr {{ private_subnet_cidr }} accept
+  }
+}
+table ip gateway_nat {
+  chain postrouting {
+    type nat hook postrouting priority 100; policy accept;
+    ip saddr {{ private_subnet_cidr }} ip daddr != { 10.50.0.0/16, {{ vpn_cidr }} } oifname "{{ ansible_facts.default_ipv4.interface }}" masquerade
+  }
+}

@@ -31,7 +31,3 @@ variable "role" {
   type    = string
   default = "k3s-worker"
 }
-variable "user_data" {
-  type    = string
-  default = null
-}

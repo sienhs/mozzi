@@ -37,3 +37,9 @@ coverage/
 *.tfplan
 crash.log
 crash.*.log
+
+# Ansible local inventories, runtime and infrastructure output
+infra/ansible/inventory.generated.json
+infra/ansible/.venv/
+infra/ansible/**/__pycache__/
+infra/terraform/terraform-output.json

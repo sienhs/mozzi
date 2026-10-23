@@ -1,0 +1,28 @@
+---
+- name: Create protected WireGuard directory
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Generate a private key only if absent
+  ansible.builtin.shell: umask 077; wg genkey > /etc/wireguard/private.key.tmp && mv /etc/wireguard/private.key.tmp /etc/wireguard/private.key
+  args:
+    creates: /etc/wireguard/private.key
+  no_log: true
+
+- name: Read existing private key for local configuration
+  ansible.builtin.slurp:
+    src: /etc/wireguard/private.key
+  register: vpn_private_key
+  no_log: true
+
+- name: Derive the public key without persisting secrets on the controller
+  ansible.builtin.command: wg pubkey
+  args:
+    stdin: '{{ vpn_private_key.content | b64decode | trim }}'
+  register: vpn_public_key
+  changed_when: false
+  no_log: true

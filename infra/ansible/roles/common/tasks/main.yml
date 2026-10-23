@@ -1,0 +1,65 @@
+---
+- name: Require Ubuntu and an explicitly pinned K3s version
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Ubuntu'
+      - k3s_version is match('^v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+$')
+      - groups['k3s_server'] | length == 1
+      - groups['k3s_agents'] | length == 2
+
+- name: Wait for Ubuntu image initialization to finish
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+  when: inventory_hostname != 'ssafy'
+
+- name: Install networking prerequisites
+  ansible.builtin.apt:
+    name: [wireguard, curl, iputils-ping, ca-certificates, iptables]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    lock_timeout: 300
+
+- name: Preserve SSH while allowing trusted interfaces through existing UFW
+  ansible.builtin.command: ufw status
+  register: ufw_status
+  changed_when: false
+  failed_when: false
+
+- name: Require the expected SSAFY firewall before exposing the Kubernetes API
+  ansible.builtin.assert:
+    that: "'Status: active' in ufw_status.stdout"
+    fail_msg: SSAFY UFW must be active with SSH already allowed; inspect its firewall before proceeding.
+  when: inventory_hostname in groups['k3s_server']
+
+- name: Disable active swap for Kubernetes
+  ansible.builtin.command: swapoff -a
+  when: ansible_facts.swaptotal_mb | int > 0
+  changed_when: true
+
+- name: Keep swap disabled after reboot
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(?!#)(.*\s+swap\s+.*)$'
+    replace: '# \1'
+
+- name: Allow VPN and pod traffic in UFW without disabling it
+  ansible.builtin.command: '{{ item }}'
+  loop:
+    - ufw allow in on wg0 from 10.200.0.0/24
+    - ufw allow in on flannel.1 from 10.42.0.0/16
+    - ufw allow in on cni0 from 10.42.0.0/16
+    - ufw route allow from 10.42.0.0/16
+    - ufw route allow to 10.42.0.0/16
+  when: "'Status: active' in ufw_status.stdout"
+  register: ufw_rules
+  changed_when: "'Skipping' not in ufw_rules.stdout"
+
+- name: Allow web ingress on SSAFY only
+  ansible.builtin.command: 'ufw allow {{ item }}/tcp'
+  loop: [80, 443]
+  when:
+    - inventory_hostname in groups['k3s_server']
+    - "'Status: active' in ufw_status.stdout"
+  register: ufw_web
+  changed_when: "'Skipping' not in ufw_web.stdout"
