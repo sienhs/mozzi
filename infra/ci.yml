@@ -87,6 +87,7 @@ ansible:validate:
   image: python:3.12-slim
   before_script:
     - cd "$CI_PROJECT_DIR/infra/ansible"
+    - export ANSIBLE_CONFIG="$CI_PROJECT_DIR/infra/ansible/ansible.cfg"
     - pip install --disable-pip-version-check -r requirements.txt
   script:
     - python -m unittest discover -s tests
@@ -105,6 +106,7 @@ ansible:configure:
       artifacts: false
   before_script:
     - cd "$CI_PROJECT_DIR/infra/ansible"
+    - export ANSIBLE_CONFIG="$CI_PROJECT_DIR/infra/ansible/ansible.cfg"
     - apt-get update && apt-get install -y --no-install-recommends openssh-client
     - pip install --disable-pip-version-check -r requirements.txt
     - ': "${SSAFY_HOST:?Set the SSAFY public hostname or IPv4 address}"'
@@ -116,5 +118,5 @@ ansible:configure:
     - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
   script:
     - python scripts/inventory.py --terraform-output ../terraform/terraform-output.json
-    - ansible-playbook site.yml
+    - ansible-playbook -i inventory.generated.json site.yml
   rules: !reference [.terraform-deploy, rules]

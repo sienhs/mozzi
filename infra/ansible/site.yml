@@ -1,4 +1,20 @@
 ---
+- name: Reject missing or incomplete inventory before touching servers
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  tags: [inventory-check]
+  tasks:
+    - name: Require all four expected hosts and groups
+      ansible.builtin.assert:
+        that:
+          - groups.get('vpn_gateway', []) == ['gateway']
+          - groups.get('k3s_server', []) == ['ssafy']
+          - groups.get('k3s_agents', []) | sort == ['worker-1', 'worker-2']
+          - groups.get('all', []) | sort == ['gateway', 'ssafy', 'worker-1', 'worker-2']
+        fail_msg: Inventory is missing or incomplete. Generate inventory.generated.json and pass it explicitly with -i.
+
 - name: Prepare the public gateway and establish private subnet internet access
   hosts: vpn_gateway
   become: true
