@@ -124,7 +124,6 @@ module "gateway" {
   root_volume_size            = 20
   associate_public_ip_address = true
   source_dest_check           = false
-  user_data                   = templatefile("${path.module}/templates/gateway.sh.tftpl", { private_cidr = local.private_cidr })
 }
 
 resource "aws_eip" "gateway" {

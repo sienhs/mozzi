@@ -1,0 +1,18 @@
+node-name: {{ k3s_node_name | to_json }}
+node-ip: {{ vpn_ip | to_json }}
+flannel-iface: {{ vpn_interface | to_json }}
+node-label:
+  - "infra.mozzi/role={{ 'control-plane' if k3s_is_server else 'worker' }}"
+{% if k3s_is_server %}
+  - "svccontroller.k3s.cattle.io/enablelb=true"
+advertise-address: {{ vpn_ip | to_json }}
+tls-san:
+  - {{ vpn_ip | to_json }}
+cluster-cidr: {{ k3s_pod_cidr | to_json }}
+service-cidr: {{ k3s_service_cidr | to_json }}
+flannel-backend: vxlan
+write-kubeconfig-mode: "0600"
+{% else %}
+server: "https://{{ hostvars['ssafy'].vpn_ip }}:6443"
+token: {{ hostvars['ssafy'].k3s_join_token.content | b64decode | trim | to_json }}
+{% endif %}

@@ -1,0 +1,17 @@
+---
+- name: Write protected VPN configuration
+  ansible.builtin.template:
+    src: wg0.conf.j2
+    dest: /etc/wireguard/wg0.conf
+    owner: root
+    group: root
+    mode: '0600'
+  register: wireguard_config
+  no_log: true
+  diff: false
+
+- name: Enable the tunnel and apply peer changes
+  ansible.builtin.systemd_service:
+    name: wg-quick@wg0
+    enabled: true
+    state: "{{ 'restarted' if wireguard_config.changed else 'started' }}"

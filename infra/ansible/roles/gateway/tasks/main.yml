@@ -1,0 +1,35 @@
+---
+- name: Install nftables
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+    lock_timeout: 300
+
+- name: Enable forwarding and loose reverse path filtering
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/90-vpn-nat.conf
+    content: |
+      net.ipv4.ip_forward=1
+      net.ipv4.conf.all.rp_filter=2
+      net.ipv4.conf.default.rp_filter=2
+    mode: '0644'
+  register: gateway_sysctl
+
+- name: Apply forwarding settings
+  ansible.builtin.command: sysctl --system
+  when: gateway_sysctl.changed
+  changed_when: true
+
+- name: Configure NAT and hub forwarding
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    mode: '0644'
+    validate: nft --check --file %s
+  register: gateway_rules
+
+- name: Apply gateway firewall
+  ansible.builtin.systemd_service:
+    name: nftables
+    enabled: true
+    state: "{{ 'restarted' if gateway_rules.changed else 'started' }}"

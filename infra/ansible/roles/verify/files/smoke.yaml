@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mozzi-network-check
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: echo
+  namespace: mozzi-network-check
+spec:
+  selector:
+    matchLabels:
+      app: network-echo
+  template:
+    metadata:
+      labels:
+        app: network-echo
+    spec:
+      nodeSelector:
+        infra.mozzi/role: worker
+      containers:
+        - name: http
+          image: busybox:1.37.0
+          command: [sh, -c, 'mkdir -p /www; hostname > /www/index.html; httpd -f -p 8080 -h /www']
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+          resources:
+            requests: {cpu: 10m, memory: 8Mi}
+            limits: {cpu: 100m, memory: 32Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo
+  namespace: mozzi-network-check
+spec:
+  selector:
+    app: network-echo
+  ports:
+    - port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-peers
+  namespace: mozzi-network-check
+spec:
+  clusterIP: None
+  selector:
+    app: network-echo
+  ports:
+    - port: 8080
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: network
+  namespace: mozzi-network-check
+spec:
+  backoffLimit: 2
+  suspend: true
+  activeDeadlineSeconds: 240
+  template:
+    spec:
+      nodeSelector:
+        infra.mozzi/role: control-plane
+      restartPolicy: Never
+      containers:
+        - name: check
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -ec
+            - |
+              nslookup echo.mozzi-network-check.svc.cluster.local
+              wget -T 10 -qO- http://echo:8080
+              peers=$(nslookup echo-peers.mozzi-network-check.svc.cluster.local | grep -Eo '10\.42\.[0-9]+\.[0-9]+' | sort -u)
+              test "$(printf '%s\n' "$peers" | wc -l)" -eq 2
+              for ip in $peers; do wget -T 10 -qO- "http://$ip:8080"; done
+          resources:
+            requests: {cpu: 10m, memory: 8Mi}
+            limits: {cpu: 100m, memory: 32Mi}

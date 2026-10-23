@@ -1,0 +1,35 @@
+---
+# Syntax-check example only. Generate the real inventory from Terraform outputs.
+all:
+  vars:
+    ansible_user: ubuntu
+    ansible_become: true
+    gateway_public_ip: 198.51.100.10
+    gateway_private_ip: 10.50.1.10
+  hosts:
+    ssafy:
+      ansible_host: ssafy.example.invalid
+      vpn_ip: 10.200.0.1
+      k3s_node_name: mozzi-server
+    gateway:
+      ansible_host: 198.51.100.10
+      vpn_ip: 10.200.0.2
+    worker-1:
+      ansible_host: 10.50.11.10
+      vpn_ip: 10.200.0.11
+      k3s_node_name: worker-1
+    worker-2:
+      ansible_host: 10.50.11.11
+      vpn_ip: 10.200.0.12
+      k3s_node_name: worker-2
+  children:
+    vpn_gateway:
+      hosts:
+        gateway:
+    k3s_server:
+      hosts:
+        ssafy:
+    k3s_agents:
+      hosts:
+        worker-1:
+        worker-2:

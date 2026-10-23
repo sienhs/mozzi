@@ -1,0 +1,79 @@
+---
+- name: Prepare the public gateway and establish private subnet internet access
+  hosts: vpn_gateway
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Wait for gateway SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+    - name: Gather gateway network facts
+      ansible.builtin.setup:
+  roles:
+    - common
+    - gateway
+
+- name: Prepare Kubernetes hosts after the gateway is ready
+  hosts: k3s_server:k3s_agents
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Wait for direct or gateway-routed SSH access
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+    - name: Gather Kubernetes host facts
+      ansible.builtin.setup:
+    - name: Verify private worker internet access before package installation
+      ansible.builtin.wait_for:
+        host: archive.ubuntu.com
+        port: 80
+        timeout: 120
+      when: inventory_hostname in groups['k3s_agents']
+  roles:
+    - common
+
+- name: Create persistent WireGuard keys on each host
+  hosts: all
+  become: true
+  roles:
+    - vpn_keys
+
+- name: Connect all nodes through the WireGuard hub
+  hosts: all
+  become: true
+  roles:
+    - wireguard
+
+- name: Check VPN paths before installing Kubernetes
+  hosts: k3s_server:k3s_agents
+  become: true
+  tasks:
+    - name: Verify VPN reachability to every Kubernetes peer
+      ansible.builtin.command:
+        argv: [ping, -I, '{{ vpn_interface }}', -c, '2', -W, '3', '{{ hostvars[item].vpn_ip }}']
+      loop: "{{ groups['k3s_server'] + groups['k3s_agents'] }}"
+      when: item != inventory_hostname
+      changed_when: false
+      register: vpn_ping
+      retries: 10
+      delay: 3
+      until: vpn_ping.rc == 0
+
+- name: Configure the SSAFY control plane
+  hosts: k3s_server
+  become: true
+  roles:
+    - k3s
+
+- name: Join private workers
+  hosts: k3s_agents
+  become: true
+  serial: 1
+  roles:
+    - k3s
+
+- name: Verify the cluster
+  hosts: k3s_server
+  become: true
+  roles:
+    - verify

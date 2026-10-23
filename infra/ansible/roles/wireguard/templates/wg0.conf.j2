@@ -1,0 +1,20 @@
+[Interface]
+Address = {{ vpn_ip }}/24
+PrivateKey = {{ vpn_private_key.content | b64decode | trim }}
+ListenPort = {{ vpn_port }}
+MTU = {{ vpn_mtu }}
+
+{% if inventory_hostname in groups['vpn_gateway'] %}
+{% for peer in groups['all'] | sort if peer != inventory_hostname %}
+[Peer]
+PublicKey = {{ hostvars[peer].vpn_public_key.stdout }}
+AllowedIPs = {{ hostvars[peer].vpn_ip }}/32
+
+{% endfor %}
+{% else %}
+[Peer]
+PublicKey = {{ hostvars['gateway'].vpn_public_key.stdout }}
+Endpoint = {{ gateway_public_ip if inventory_hostname in groups['k3s_server'] else gateway_private_ip }}:{{ vpn_port }}
+AllowedIPs = {{ vpn_cidr }}
+PersistentKeepalive = 25
+{% endif %}

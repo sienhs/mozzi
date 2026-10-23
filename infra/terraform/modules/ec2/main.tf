@@ -6,8 +6,6 @@ resource "aws_instance" "this" {
   key_name                    = var.key_name
   associate_public_ip_address = var.associate_public_ip_address
   source_dest_check           = var.source_dest_check
-  user_data                   = var.user_data
-  user_data_replace_on_change = true
 
   metadata_options {
     http_endpoint               = "enabled"

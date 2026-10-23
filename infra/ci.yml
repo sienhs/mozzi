@@ -58,6 +58,8 @@ terraform:plan:
   needs:
     - job: terraform:validate
       artifacts: false
+    - job: ansible:validate
+      artifacts: false
   script:
     - terraform plan -lock-timeout=60s -out=terraform.tfplan
   artifacts:
@@ -74,3 +76,45 @@ terraform:apply:
   script:
     - terraform apply -lock-timeout=60s terraform.tfplan
     - terraform output
+    - terraform output -json > terraform-output.json
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - infra/terraform/terraform-output.json
+
+ansible:validate:
+  extends: .terraform
+  image: python:3.12-slim
+  before_script:
+    - cd "$CI_PROJECT_DIR/infra/ansible"
+    - pip install --disable-pip-version-check -r requirements.txt
+  script:
+    - python -m unittest discover -s tests
+    - ansible-playbook -i inventory.example.yml site.yml --syntax-check
+
+ansible:configure:
+  extends: .terraform
+  image: python:3.12-slim
+  stage: deploy
+  timeout: 30 minutes
+  resource_group: terraform-bootstrap
+  needs:
+    - job: terraform:apply
+      artifacts: true
+    - job: ansible:validate
+      artifacts: false
+  before_script:
+    - cd "$CI_PROJECT_DIR/infra/ansible"
+    - apt-get update && apt-get install -y --no-install-recommends openssh-client
+    - pip install --disable-pip-version-check -r requirements.txt
+    - ': "${SSAFY_HOST:?Set the SSAFY public hostname or IPv4 address}"'
+    - ': "${SSAFY_SSH_KEY:?Set a GitLab File variable containing the SSAFY SSH private key}"'
+    - ': "${PERSONAL_SSH_KEY:?Set a GitLab File variable containing the personal SSH private key}"'
+    - ': "${SSH_KNOWN_HOSTS:?Set a GitLab File variable containing verified host keys for all four servers}"'
+    - chmod 600 "$SSAFY_SSH_KEY" "$PERSONAL_SSH_KEY"
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
+  script:
+    - python scripts/inventory.py --terraform-output ../terraform/terraform-output.json
+    - ansible-playbook site.yml
+  rules: !reference [.terraform-deploy, rules]
