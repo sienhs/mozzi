@@ -34,11 +34,31 @@ variable "ssh_key_name" {
 }
 
 variable "wireguard_allowed_cidrs" {
-  description = "SSAFY public IPv4 CIDRs allowed to reach UDP 51820; worker-to-worker ingress is added separately."
+  description = "SSAFY public IPv4 CIDRs allowed to reach gateway UDP 51820."
   type        = set(string)
   validation {
     condition     = length(var.wireguard_allowed_cidrs) > 0 && alltrue([for cidr in var.wireguard_allowed_cidrs : can(cidrnetmask(cidr)) && try(tonumber(split("/", cidr)[1]) >= 24, false)])
     error_message = "Provide IPv4 CIDRs with /24 or narrower prefixes; prefer the SSAFY public IP /32."
+  }
+}
+
+variable "availability_zone_id" {
+  description = "Single physical AZ for gateway, subnets and workers; defaults to the SSAFY server's AZ."
+  type        = string
+  default     = "apne2-az1"
+  validation {
+    condition     = can(regex("^apne2-az[0-9]+$", var.availability_zone_id))
+    error_message = "Use a Seoul physical availability zone ID such as apne2-az1."
+  }
+}
+
+variable "gateway_instance_type" {
+  description = "x86_64 T3 size for the shared VPN/NAT/bastion server."
+  type        = string
+  default     = "t3.micro"
+  validation {
+    condition     = contains(["t3.micro", "t3.small", "t3.medium", "t3.large"], var.gateway_instance_type)
+    error_message = "Choose an x86_64 t3.micro, small, medium or large gateway."
   }
 }
 
