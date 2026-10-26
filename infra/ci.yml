@@ -11,16 +11,14 @@
   before_script:
     - cd "$CI_PROJECT_DIR/infra/terraform"
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $INFRA_ACTION != "ansible"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - infra/terraform/**/*
-        - infra/ansible/**/*
         - infra/ci.yml
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - infra/terraform/**/*
-        - infra/ansible/**/*
         - infra/ci.yml
 
 .terraform-deploy:
@@ -42,11 +40,10 @@
     - cp "$TFVARS" terraform.tfvars
     - terraform init -reconfigure
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $INFRA_ACTION != "ansible"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - infra/terraform/**/*
-        - infra/ansible/**/*
         - infra/ci.yml
 
 terraform:validate:
@@ -63,8 +60,6 @@ terraform:plan:
   stage: test
   needs:
     - job: terraform:validate
-      artifacts: false
-    - job: ansible:validate
       artifacts: false
   script:
     - terraform plan -lock-timeout=60s -out=terraform.tfplan
@@ -88,7 +83,31 @@ terraform:apply:
     paths:
       - infra/terraform/terraform-output.json
 
+.ansible-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $INFRA_ACTION != "terraform"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - infra/ansible/**/*
+        - infra/terraform/**/*
+        - infra/ci.yml
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/ansible/**/*
+        - infra/terraform/**/*
+        - infra/ci.yml
+
+.ansible-deploy-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $INFRA_ACTION != "terraform"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - infra/ansible/**/*
+        - infra/terraform/**/*
+        - infra/ci.yml
+
 ansible:validate:
+  rules: !reference [.ansible-rules, rules]
   extends: .terraform
   image: python:3.12-slim
   before_script:
@@ -107,7 +126,8 @@ ansible:configure:
   resource_group: terraform-bootstrap
   needs:
     - job: terraform:apply
-      artifacts: true
+      artifacts: false
+      optional: true
     - job: ansible:validate
       artifacts: false
   before_script:
@@ -123,6 +143,7 @@ ansible:configure:
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
   script:
+    - python scripts/fetch_outputs.py --output ../terraform/terraform-output.json
     - python scripts/inventory.py --terraform-output ../terraform/terraform-output.json
     - ansible-playbook -i inventory.generated.json site.yml
-  rules: !reference [.terraform-deploy, rules]
+  rules: !reference [.ansible-deploy-rules, rules]
