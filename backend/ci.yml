@@ -159,4 +159,6 @@ backend:deploy:
       remote_kubectl apply -f - < "$secret_dir/deployment.yaml"
       remote_kubectl apply -f - < infra/k8s/backend/service.yaml
       remote_kubectl rollout status deployment/backend -n mozzi --timeout=300s
+      remote_kubectl apply -f - < infra/k8s/backend/ingress.yaml
       remote_kubectl get pods -n mozzi -l app=mozzi-backend -o wide
+      remote_kubectl get ingress/backend -n mozzi
