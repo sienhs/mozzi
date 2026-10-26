@@ -73,9 +73,14 @@ variable "worker_instance_type" {
 }
 
 variable "worker_ami_id" {
-  description = "Optional pinned Ubuntu 24.04 x86_64 AMI. Null resolves the current Canonical image through SSM."
+  description = "Pinned Ubuntu 24.04 x86_64 AMI in Seoul, shared by gateway and workers. Use the currently running instances' AMI to avoid replacement."
   type        = string
-  default     = null
+  default     = "ami-05b2d28c4a1614552"
+  nullable    = false
+  validation {
+    condition     = can(regex("^ami-[0-9a-f]{17}$", var.worker_ami_id))
+    error_message = "Set worker_ami_id to a fixed Ubuntu 24.04 x86_64 AMI ID (ami- followed by 17 hexadecimal characters)."
+  }
 }
 
 variable "worker_root_volume_size" {
