@@ -29,7 +29,7 @@ locals {
   vpc_cidr     = "10.50.0.0/16"
   public_cidr  = "10.50.1.0/24"
   private_cidr = "10.50.11.0/24"
-  ami_id       = var.worker_ami_id != null ? var.worker_ami_id : data.aws_ssm_parameter.ubuntu[0].value
+  ami_id       = var.worker_ami_id
 }
 
 module "vpc" {
@@ -104,11 +104,6 @@ module "worker_security_group" {
       protocol    = "-1"
     }
   }
-}
-
-data "aws_ssm_parameter" "ubuntu" {
-  count = var.worker_ami_id == null ? 1 : 0
-  name  = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
 }
 
 module "gateway" {

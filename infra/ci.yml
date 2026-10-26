@@ -14,10 +14,14 @@
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
-        - infra/**/*
+        - infra/terraform/**/*
+        - infra/ansible/**/*
+        - infra/ci.yml
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
-        - infra/**/*
+        - infra/terraform/**/*
+        - infra/ansible/**/*
+        - infra/ci.yml
 
 .terraform-deploy:
   extends: .terraform
@@ -41,7 +45,9 @@
     - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
-        - infra/**/*
+        - infra/terraform/**/*
+        - infra/ansible/**/*
+        - infra/ci.yml
 
 terraform:validate:
   extends: .terraform
