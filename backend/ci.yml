@@ -45,6 +45,7 @@ backend:test:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - backend/**/*
+        - infra/k8s/backend/**/*
 
 backend:package:
   extends: .backend-gradle
@@ -98,3 +99,64 @@ backend:publish:
     expire_in: 7 days
     reports:
       dotenv: backend-image.env
+
+backend:deploy:
+  image: alpine:3.21
+  stage: deploy
+  resource_group: backend-production
+  timeout: 10 minutes
+  needs:
+    - job: backend:publish
+      artifacts: true
+    # If infrastructure is configured in this pipeline, wait for it first.
+    - job: ansible:configure
+      artifacts: false
+      optional: true
+  rules: !reference [.backend-release, rules]
+  environment:
+    name: production/backend
+  variables:
+    AWS_DEFAULT_REGION: ap-northeast-2
+    AWS_PAGER: ""
+  before_script:
+    - apk add --no-cache aws-cli openssh-client gettext jq
+    - ': "${SSAFY_HOST:?Set SSAFY_HOST}"'
+    - ': "${SSAFY_SSH_KEY:?Set SSAFY_SSH_KEY as a GitLab File variable}"'
+    - ': "${SSH_KNOWN_HOSTS:?Set SSH_KNOWN_HOSTS as a verified GitLab File variable}"'
+    - ': "${BACKEND_IMAGE:?Missing image artifact from backend:publish}"'
+    - chmod 600 "$SSAFY_SSH_KEY"
+  script:
+    - |
+      set -eu
+      case "$SSAFY_HOST" in
+        ''|*[!a-zA-Z0-9.-]*) echo 'Invalid SSAFY_HOST' >&2; exit 1 ;;
+      esac
+      remote_kubectl() {
+        ssh -i "$SSAFY_SSH_KEY" -o BatchMode=yes -o IdentitiesOnly=yes \
+          -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$SSH_KNOWN_HOSTS" \
+          "ubuntu@$SSAFY_HOST" "sudo -n /usr/local/bin/k3s kubectl $*"
+      }
+      printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: mozzi\n' | remote_kubectl apply -f -
+
+      # Keep the ECR token out of logs, command arguments and job artifacts.
+      umask 077
+      secret_dir=$(mktemp -d)
+      trap 'rm -rf "$secret_dir"' EXIT
+      aws ecr get-authorization-token --output json > "$secret_dir/token.json"
+      jq -e --arg registry "${BACKEND_IMAGE%%/*}" '
+        .authorizationData[0].authorizationToken
+        | select(type == "string" and length > 0)
+        | {auths: {($registry): {auth: .}}}
+        | tojson | @base64
+        | {apiVersion: "v1", kind: "Secret",
+           metadata: {name: "backend-ecr", namespace: "mozzi"},
+           type: "kubernetes.io/dockerconfigjson",
+           data: {".dockerconfigjson": .}}
+      ' "$secret_dir/token.json" > "$secret_dir/secret.json"
+      remote_kubectl apply --server-side --field-manager=backend-ci -f - < "$secret_dir/secret.json"
+
+      envsubst '${BACKEND_IMAGE}' < infra/k8s/backend/deployment.yaml > "$secret_dir/deployment.yaml"
+      remote_kubectl apply -f - < "$secret_dir/deployment.yaml"
+      remote_kubectl apply -f - < infra/k8s/backend/service.yaml
+      remote_kubectl rollout status deployment/backend -n mozzi --timeout=300s
+      remote_kubectl get pods -n mozzi -l app=mozzi-backend -o wide
