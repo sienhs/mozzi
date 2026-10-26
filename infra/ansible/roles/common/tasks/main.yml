@@ -8,8 +8,25 @@
       - groups['k3s_agents'] | length == 2
 
 - name: Wait for Ubuntu image initialization to finish
-  ansible.builtin.command: cloud-init status --wait
+  ansible.builtin.command: cloud-init status --wait --format json
+  register: cloud_init_status
   changed_when: false
+  failed_when: cloud_init_status.rc not in [0, 2]
+  when: inventory_hostname != 'ssafy'
+
+- name: Require completed initialization and allow only the known IPv6 metadata warning
+  ansible.builtin.assert:
+    that:
+      - cloud_init_report.status == 'done'
+      - cloud_init_report.errors | default([]) | length == 0
+      - cloud_init_recoverable.keys() | list | difference(['WARNING']) | length == 0
+      - cloud_init_warnings | reject('search', 'fd00:ec2::254') | list | length == 0
+      - cloud_init_warnings | reject('search', 'Network is unreachable') | list | length == 0
+    fail_msg: "Unexpected cloud-init failure or warning: {{ cloud_init_report }}"
+  vars:
+    cloud_init_report: '{{ cloud_init_status.stdout | from_json }}'
+    cloud_init_recoverable: '{{ cloud_init_report.recoverable_errors | default({}) }}'
+    cloud_init_warnings: "{{ cloud_init_recoverable.get('WARNING', []) }}"
   when: inventory_hostname != 'ssafy'
 
 - name: Install networking prerequisites
