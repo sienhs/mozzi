@@ -8,18 +8,24 @@ import { Icon } from './Icon';
 import { PictureState } from './Feedback';
 
 export const diaryArtwork = require('../../../assets/figma/warm-evening.png');
+// The frame owns the 3:2 ratio: an Image sized with width + aspectRatio keeps the source's pixel height.
 export function DiaryArtwork({ rounded = true }: { rounded?: boolean }) {
   return (
-    <Image
-      source={diaryArtwork}
-      accessibilityLabel="따뜻한 방에서 오므라이스를 먹는 모찌의 그림일기"
-      resizeMode="cover"
+    <View
       style={{
         width: '100%',
         aspectRatio: 3 / 2,
         borderRadius: rounded ? radii.card : 0,
+        overflow: 'hidden',
       }}
-    />
+    >
+      <Image
+        source={diaryArtwork}
+        accessibilityLabel="따뜻한 방에서 오므라이스를 먹는 모찌의 그림일기"
+        resizeMode="cover"
+        style={{ width: '100%', height: '100%' }}
+      />
+    </View>
   );
 }
 export function DiaryMeta({ entry }: { entry: DiaryEntry }) {

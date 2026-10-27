@@ -25,7 +25,13 @@
       "favicon": "./assets/favicon.png"
     },
     "scheme": "mozzi",
-    "plugins": ["expo-router", "expo-font", "expo-asset", "expo-status-bar"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-asset",
+      "expo-status-bar",
+      ["expo-splash-screen", { "backgroundColor": "#FAF7F2" }]
+    ],
     "experiments": {
       "typedRoutes": true
     }

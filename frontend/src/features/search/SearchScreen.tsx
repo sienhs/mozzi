@@ -55,8 +55,8 @@ export function SearchScreen() {
     router.push({ pathname: '/diary/[id]', params: { id } });
   return (
     <Screen
+      tabbed
       title="감정 검색"
-      back
       contentStyle={{ gap: question ? 16 : 24 }}
       footer={
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

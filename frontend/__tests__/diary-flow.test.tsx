@@ -10,13 +10,15 @@ import { router } from 'expo-router';
 import RootLayout from '@/app/_layout';
 import Welcome from '@/app/index';
 import Onboarding from '@/app/onboarding';
-import Home from '@/app/home';
+import Tabs from '@/app/(tabs)/_layout';
+import Home from '@/app/(tabs)/home';
 import Emotion from '@/app/record/emotion';
 import Memo from '@/app/record/memo';
 import Generation from '@/app/record/generation';
-import Calendar from '@/app/calendar';
+import Calendar from '@/app/(tabs)/calendar';
 import Detail from '@/app/diary/[id]';
-import Search from '@/app/search';
+import Search from '@/app/(tabs)/search';
+import Gacha from '@/app/(tabs)/gacha';
 import Settings from '@/app/settings';
 import Dev from '@/app/dev';
 import { emptyDraft, useAppStore } from '@/stores/useAppStore';
@@ -28,13 +30,15 @@ const routes = {
   _layout: RootLayout,
   index: Welcome,
   onboarding: Onboarding,
-  home: Home,
+  '(tabs)/_layout': Tabs,
+  '(tabs)/home': Home,
   'record/emotion': Emotion,
   'record/memo': Memo,
   'record/generation': Generation,
-  calendar: Calendar,
+  '(tabs)/calendar': Calendar,
   'diary/[id]': Detail,
-  search: Search,
+  '(tabs)/search': Search,
+  '(tabs)/gacha': Gacha,
   settings: Settings,
   dev: Dev,
 };
@@ -96,9 +100,7 @@ test('logs in, writes a diary, waits on home, and opens the completed entry from
   expect(app.getPathname()).toBe('/home');
   await advance(6000);
   expect(screen.getByText('오늘도 한 장 남겼어요')).toBeOnTheScreen();
-  await fireEvent.press(
-    screen.getByRole('button', { name: '캘린더에서 돌아보기' }),
-  );
+  await fireEvent.press(screen.getByRole('tab', { name: '캘린더' }));
   await fireEvent.press(
     screen.getByRole('button', { name: '10월 26일 월요일 평온' }),
   );
