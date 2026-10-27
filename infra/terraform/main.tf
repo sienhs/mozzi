@@ -33,6 +33,20 @@ module "backend_ecr" {
   repository_name = "mozzi-backend"
 }
 
+module "ai_request_queue" {
+  source = "./modules/sqs"
+
+  name                       = "${var.name_prefix}-ai-request"
+  visibility_timeout_seconds = var.ai_request_visibility_timeout_seconds
+}
+
+module "ai_response_queue" {
+  source = "./modules/sqs"
+
+  name                       = "${var.name_prefix}-ai-response"
+  visibility_timeout_seconds = var.ai_response_visibility_timeout_seconds
+}
+
 locals {
   vpc_cidr     = "10.50.0.0/16"
   public_cidr  = "10.50.1.0/24"

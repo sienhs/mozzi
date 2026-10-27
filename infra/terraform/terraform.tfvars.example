@@ -12,3 +12,6 @@ worker_ami_id          = "ami-05b2d28c4a1614552"
 # Supply TF_VAR_db_username and TF_VAR_db_password in your environment,
 # or add db_username and db_password to your ignored local terraform.tfvars.
 # rds_secondary_availability_zone_id = "apne2-az2"
+# SQS visibility timeouts: cover consumer processing time (seconds).
+# ai_request_visibility_timeout_seconds  = 900
+# ai_response_visibility_timeout_seconds = 60

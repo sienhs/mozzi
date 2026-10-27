@@ -13,6 +13,23 @@ output "backend_ecr_repository_url" {
   value       = module.backend_ecr.repository_url
 }
 
+output "ai_queues" {
+  description = "Request: backend sends, AI receives. Response: AI sends, backend receives."
+  value = {
+    request = {
+      name = module.ai_request_queue.name
+      url  = module.ai_request_queue.url
+      arn  = module.ai_request_queue.arn
+    }
+    response = {
+      name = module.ai_response_queue.name
+      url  = module.ai_response_queue.url
+      arn  = module.ai_response_queue.arn
+    }
+    region = var.aws_region
+  }
+}
+
 output "vpc_id" {
   value = module.vpc.id
 }
