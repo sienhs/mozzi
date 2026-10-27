@@ -39,3 +39,8 @@ output "workers" {
     }
   }
 }
+
+output "rds" {
+  description = "Private PostgreSQL connection details; credentials are supplied separately."
+  value       = module.rds.connection
+}

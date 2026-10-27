@@ -92,3 +92,33 @@ variable "worker_root_volume_size" {
     error_message = "Use an integer root volume size of at least 20 GiB."
   }
 }
+variable "db_username" {
+  description = "User-supplied PostgreSQL master username; no default is provided."
+  type        = string
+  nullable    = false
+  validation {
+    condition     = can(regex("^[A-Za-z][A-Za-z0-9_]{0,62}$", var.db_username))
+    error_message = "Use 1-63 characters, starting with a letter, followed by letters, digits or underscores. RDS reserved usernames are not allowed."
+  }
+}
+
+variable "db_password" {
+  description = "User-supplied PostgreSQL master password. Supply through TF_VAR_db_password or a private tfvars file."
+  type        = string
+  sensitive   = true
+  nullable    = false
+  validation {
+    condition     = length(var.db_password) >= 8 && length(var.db_password) <= 128 && can(regex("^[!-~]+$", var.db_password)) && !can(regex("[/\"@]", var.db_password))
+    error_message = "Use 8-128 printable ASCII characters excluding spaces, /, double quotes and @."
+  }
+}
+
+variable "rds_secondary_availability_zone_id" {
+  description = "Second Seoul AZ for the RDS subnet group; must differ from availability_zone_id."
+  type        = string
+  default     = "apne2-az2"
+  validation {
+    condition     = can(regex("^apne2-az[0-9]+$", var.rds_secondary_availability_zone_id))
+    error_message = "Use a Seoul physical availability zone ID such as apne2-az2."
+  }
+}
