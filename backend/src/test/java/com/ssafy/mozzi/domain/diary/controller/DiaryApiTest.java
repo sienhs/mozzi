@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -140,6 +141,20 @@ class DiaryApiTest {
                 .andExpect(jsonPath("$.message").value("오늘은 이미 기록을 남겼어요."))
                 .andExpect(jsonPath("$.fieldErrors").isEmpty())
                 .andExpect(jsonPath("$.traceId").isNotEmpty())
+                .andExpect(jsonPath("$.diaryId").value(first));
+    }
+
+    @Test
+    void conflictBodyIsJsonWhateverTheClientAccepts() throws Exception {
+        long first = body(create(me, today, "CALM", "[]", "null")).get("diaryId").asLong();
+
+        mockMvc.perform(as(me, post("/api/v1/diaries"))
+                .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_XML)
+                .content(createBody(today, "SAD", "[]", "null")))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.diaryId").value(first));
     }
 

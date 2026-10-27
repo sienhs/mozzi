@@ -27,13 +27,20 @@ import com.ssafy.mozzi.domain.diary.dto.DiaryUpdateRequestDto;
 import com.ssafy.mozzi.domain.diary.exception.DiaryAlreadyExistsException;
 import com.ssafy.mozzi.domain.diary.exception.DiaryConflictResponse;
 import com.ssafy.mozzi.domain.diary.service.DiaryService;
+import com.ssafy.mozzi.global.exception.ErrorResponseEntity;
 import com.ssafy.mozzi.global.logging.RequestTrace;
 import com.ssafy.mozzi.global.response.CursorPage;
 import com.ssafy.mozzi.global.security.CurrentMember;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /**
  * API spec 4.4.
  */
+@Tag(name = "일기")
 @RestController
 @RequestMapping("/diaries")
 public class DiaryController {
@@ -55,26 +62,32 @@ public class DiaryController {
      * gets {@code 409 DIARY_ALREADY_EXISTS} with the diary's id, which the app already
      * handles by opening the diary, and the unique index rules out a duplicate either way.
      */
+    @Operation(summary = "일기 작성", description = "같은 날짜의 일기가 이미 있으면 409 와 그 일기의 diaryId 를 준다.")
+    @ApiResponse(responseCode = "201", description = "작성됨")
     @PostMapping
     public ResponseEntity<DiaryCreateResponseDto> create(
             @CurrentMember Long memberId,
+            @Parameter(description = "요청마다 새로 만든 값, 재전송 시에는 같은 값 (최대 64자)")
             @RequestHeader(IDEMPOTENCY_KEY) @NotBlank @Size(max = 64) String idempotencyKey,
             @Valid @RequestBody DiaryCreateRequestDto request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(diaryService.create(memberId, request));
     }
 
     /** D-01, G-02. */
+    @Operation(summary = "일기 상세 조회")
     @GetMapping("/{diaryId}")
     public DiaryDetailResponseDto get(@CurrentMember Long memberId, @PathVariable Long diaryId) {
         return diaryService.get(memberId, diaryId);
     }
 
+    @Operation(summary = "일기 목록 조회", description = "커서 기반 페이지네이션. 다음 페이지는 응답의 nextCursor 를 cursor 로 보낸다.")
     @GetMapping
     public CursorPage<DiarySummaryResponseDto> search(
             @CurrentMember Long memberId, @Valid @ModelAttribute DiarySearchRequestDto request) {
         return diaryService.search(memberId, request);
     }
 
+    @Operation(summary = "일기 수정")
     @PatchMapping("/{diaryId}")
     public DiaryDetailResponseDto update(
             @CurrentMember Long memberId,
@@ -83,6 +96,8 @@ public class DiaryController {
         return diaryService.update(memberId, diaryId, request);
     }
 
+    @Operation(summary = "일기 삭제")
+    @ApiResponse(responseCode = "204", description = "삭제됨")
     @DeleteMapping("/{diaryId}")
     public ResponseEntity<Void> delete(@CurrentMember Long memberId, @PathVariable Long diaryId) {
         diaryService.delete(memberId, diaryId);
@@ -95,8 +110,7 @@ public class DiaryController {
      */
     @ExceptionHandler(DiaryAlreadyExistsException.class)
     public ResponseEntity<DiaryConflictResponse> handleAlreadyExists(DiaryAlreadyExistsException e) {
-        return ResponseEntity.status(e.errorCode().status())
-                .body(DiaryConflictResponse.of(e, RequestTrace.traceId()));
+        return ErrorResponseEntity.of(e.errorCode().status(), DiaryConflictResponse.of(e, RequestTrace.traceId()));
     }
 
 }

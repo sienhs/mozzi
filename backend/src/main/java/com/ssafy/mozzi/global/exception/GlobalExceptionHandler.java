@@ -14,6 +14,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
 import org.springframework.validation.method.ParameterErrors;
 import org.springframework.validation.method.ParameterValidationResult;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -58,8 +59,8 @@ public class GlobalExceptionHandler {
             // "someone has to look at this".
             log.warn("business failure: code={} detail={}", errorCode.code(), e.getMessage());
         }
-        return ResponseEntity.status(errorCode.status())
-                .body(ErrorResponse.of(errorCode, e.userMessage(), RequestTrace.traceId()));
+        return ErrorResponseEntity.of(errorCode.status(),
+                ErrorResponse.of(errorCode, e.userMessage(), RequestTrace.traceId()));
     }
 
     /** {@code @Valid} on a request body. */
@@ -161,6 +162,15 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * The client's {@code Accept} rules out JSON. Without this it fell into
+     * {@link #handleUnexpected} and was logged as an incident.
+     */
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ErrorResponse> handleNotAcceptable() {
+        return status(CommonErrorCode.NOT_ACCEPTABLE);
+    }
+
+    /**
      * Anything unplanned. The exception message is logged with its stack trace and replaced
      * by a fixed sentence, so no internal detail can reach the client through it.
      */
@@ -178,15 +188,14 @@ public class GlobalExceptionHandler {
     }
 
     private static ResponseEntity<ErrorResponse> status(ErrorCode errorCode) {
-        return ResponseEntity.status(errorCode.status())
-                .body(ErrorResponse.of(errorCode, RequestTrace.traceId()));
+        return ErrorResponseEntity.of(errorCode, RequestTrace.traceId());
     }
 
     private static ResponseEntity<ErrorResponse> invalidInput(List<ErrorResponse.FieldError> fieldErrors) {
         // Field names are safe to log; the rejected values are not, so they stay out.
         log.warn("invalid input: fields={}", fieldErrors.stream().map(ErrorResponse.FieldError::field).toList());
-        return ResponseEntity.status(CommonErrorCode.INVALID_INPUT.status())
-                .body(ErrorResponse.of(CommonErrorCode.INVALID_INPUT, fieldErrors, RequestTrace.traceId()));
+        return ErrorResponseEntity.of(CommonErrorCode.INVALID_INPUT.status(),
+                ErrorResponse.of(CommonErrorCode.INVALID_INPUT, fieldErrors, RequestTrace.traceId()));
     }
 
 }

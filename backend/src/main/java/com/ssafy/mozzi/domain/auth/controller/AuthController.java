@@ -23,9 +23,14 @@ import com.ssafy.mozzi.domain.auth.dto.SignupRequestDto;
 import com.ssafy.mozzi.domain.auth.dto.TokenResponseDto;
 import com.ssafy.mozzi.domain.auth.service.AuthService;
 import com.ssafy.mozzi.global.exception.ErrorResponse;
+import com.ssafy.mozzi.global.exception.ErrorResponseEntity;
 import com.ssafy.mozzi.global.logging.RequestTrace;
 import com.ssafy.mozzi.global.security.AuthenticatedMember;
 import com.ssafy.mozzi.global.security.SecurityErrorCode;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Login, sign-up, refresh and logout.
@@ -35,6 +40,7 @@ import com.ssafy.mozzi.global.security.SecurityErrorCode;
  *
  * <p>Responses carrying tokens are marked {@code no-store} so no cache keeps them.
  */
+@Tag(name = "인증", description = "docs/AUTH_API.md")
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -47,6 +53,7 @@ public class AuthController {
         this.authService = authService;
     }
 
+    @Operation(summary = "Google 로그인", description = "기존 회원은 토큰, 신규 회원은 가입 티켓을 받는다.")
     @PostMapping("/google")
     public ResponseEntity<GoogleLoginResponseDto> loginWithGoogle(@Valid @RequestBody GoogleLoginRequestDto request) {
         return ResponseEntity.ok()
@@ -54,6 +61,8 @@ public class AuthController {
                 .body(authService.loginWithGoogle(request.idToken()));
     }
 
+    @Operation(summary = "회원 가입")
+    @ApiResponse(responseCode = "201", description = "가입 후 토큰 발급")
     @PostMapping("/signup")
     public ResponseEntity<TokenResponseDto> signUp(@Valid @RequestBody SignupRequestDto request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -62,6 +71,7 @@ public class AuthController {
                         authService.signUp(request.signupToken(), request.nickname(), request.agreements())));
     }
 
+    @Operation(summary = "토큰 재발급")
     @PostMapping("/refresh")
     public ResponseEntity<TokenResponseDto> refresh(@Valid @RequestBody RefreshRequestDto request) {
         return ResponseEntity.ok()
@@ -69,6 +79,8 @@ public class AuthController {
                 .body(TokenResponseDto.from(authService.refresh(request.refreshToken())));
     }
 
+    @Operation(summary = "로그아웃", description = "현재 세션을 종료한다.")
+    @ApiResponse(responseCode = "204", description = "로그아웃됨")
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(AuthenticatedMember member) {
         authService.logout(member);
@@ -84,7 +96,7 @@ public class AuthController {
     public ResponseEntity<ErrorResponse> handleDatabaseUnavailable(Exception e) {
         log.error("auth request failed on the database", e);
         SecurityErrorCode code = SecurityErrorCode.AUTH_SERVICE_UNAVAILABLE;
-        return ResponseEntity.status(code.status()).body(ErrorResponse.of(code, RequestTrace.traceId()));
+        return ErrorResponseEntity.of(code, RequestTrace.traceId());
     }
 
 }

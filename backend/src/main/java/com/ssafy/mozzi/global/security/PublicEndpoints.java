@@ -18,7 +18,7 @@ import com.ssafy.mozzi.global.config.WebConfig;
  * Each one verifies its own credential: the Google ID token, the sign-up ticket or the
  * refresh token.
  */
-final class PublicEndpoints {
+public final class PublicEndpoints {
 
     private static final Set<String> ENDPOINTS = Set.of(
             "POST " + WebConfig.API_PREFIX + "/auth/google",
@@ -27,14 +27,34 @@ final class PublicEndpoints {
             // Kubernetes probes (deployment.yaml) and the bare health check.
             "GET /actuator/health",
             "GET /actuator/health/liveness",
-            "GET /actuator/health/readiness");
+            "GET /actuator/health/readiness",
+            // Swagger UI: the page, the files index.html loads, and the two documents it
+            // fetches. Listed one by one for the same reason as above; a file a future
+            // swagger-ui adds shows up as a broken page, not as an opened path. The prod
+            // profile turns springdoc off, and then these answer 404.
+            "GET /swagger-ui.html",
+            "GET /swagger-ui/index.html",
+            "GET /swagger-ui/index.css",
+            "GET /swagger-ui/swagger-ui.css",
+            "GET /swagger-ui/swagger-ui-bundle.js",
+            "GET /swagger-ui/swagger-ui-standalone-preset.js",
+            "GET /swagger-ui/swagger-initializer.js",
+            "GET /swagger-ui/favicon-32x32.png",
+            "GET /swagger-ui/favicon-16x16.png",
+            "GET /v3/api-docs",
+            "GET /v3/api-docs/swagger-config");
 
     private PublicEndpoints() {
     }
 
     static boolean matches(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
-        return ENDPOINTS.contains(request.getMethod() + " " + path);
+        return contains(request.getMethod(), path);
+    }
+
+    /** Also read by {@code OpenApiConfig}, so the docs show the lock exactly where the filter wants a token. */
+    public static boolean contains(String method, String path) {
+        return ENDPOINTS.contains(method + " " + path);
     }
 
 }

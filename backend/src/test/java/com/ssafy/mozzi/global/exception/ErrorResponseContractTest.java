@@ -220,6 +220,24 @@ class ErrorResponseContractTest {
         mockMvc.perform(get("/trial/ok")).andExpect(status().isNotFound());
     }
 
+    @Test
+    void errorBodyIsJsonWhateverTheClientAccepts() throws Exception {
+        // Negotiating the error body against Accept found no converter for XML, so the
+        // handler itself failed and the client got an empty 500.
+        mockMvc.perform(get("/api/v1/trial/not-found").accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
+    void unsupportedAcceptOnASuccessfulRequestIsNotAcceptable() throws Exception {
+        mockMvc.perform(get("/api/v1/trial/record").accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));
+    }
+
     @TestConfiguration
     static class TrialConfig {
 
@@ -279,6 +297,16 @@ class ErrorResponseContractTest {
             return request.memo();
         }
 
+        // Not a String: StringHttpMessageConverter writes any media type, so it could not
+        // show a negotiation failure.
+        @GetMapping("/record")
+        TrialRecord record() {
+            return new TrialRecord("ok");
+        }
+
+    }
+
+    record TrialRecord(String value) {
     }
 
     record TrialRequest(@NotNull TrialEmotion emotion, @Size(max = 5) String memo) {
