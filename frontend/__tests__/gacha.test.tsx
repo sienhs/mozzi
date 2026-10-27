@@ -22,7 +22,7 @@ import ExchangeConfirm from '@/app/gacha/exchange-confirm';
 import Exchanged from '@/app/gacha/exchanged';
 import Failed from '@/app/gacha/failed';
 import { EmotionImage } from '@/components/emotion/Emotion';
-import { Splash } from '@/components/ui/Splash';
+import { Splash, splashArtwork } from '@/components/ui/Splash';
 import { emotions } from '@/constants/emotions';
 import { tierOrder, tiers } from '@/constants/gacha';
 import { mockGachaService, rollMochi } from '@/mocks/services';
@@ -246,13 +246,20 @@ test('the tab bar switches between the four tabs', async () => {
   }
 });
 
-test('the splash shows the S-C diary artwork with its title', async () => {
+test('the splash shows only the full-screen diary artwork', async () => {
   await render(<Splash />);
-  expect(screen.getByRole('header', { name: '오늘의 모찌' })).toHaveStyle({
-    fontFamily: 'NanumPenScript_400Regular',
-    fontSize: 48,
+  const splash = screen.getByLabelText('오늘의 모찌를 여는 중');
+  expect(splash.children).toHaveLength(1);
+  expect(splash.children[0]).toMatchObject({
+    type: 'Image',
+    props: { source: splashArtwork, resizeMode: 'cover' },
   });
-  expect(screen.getByText('하루의 장면을 오래도록')).toBeOnTheScreen();
+  expect(screen.queryByText('오늘의 모찌')).toBeNull();
+  expect(screen.queryByText('하루의 장면을 오래도록')).toBeNull();
+  expect(splash).toHaveStyle({
+    flex: 1,
+    backgroundColor: '#FAF7F2',
+  });
 });
 
 test('small emotion faces use the transparent Figma face', async () => {

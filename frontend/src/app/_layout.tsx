@@ -41,7 +41,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
+        <StatusBar style="dark" hidden={!splashDone} />
         {!fontsSettled ? (
           <View style={{ flex: 1, backgroundColor: colors.bg }} />
         ) : !splashDone ? (
