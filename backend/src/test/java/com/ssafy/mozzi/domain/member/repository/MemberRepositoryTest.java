@@ -43,12 +43,12 @@ class MemberRepositoryTest {
     }
 
     @Test
-    void savesAMemberAsPendingProfile() {
+    void savesASignedUpMemberAsActive() {
         Member saved = memberRepository.save(newMember("sub-1"));
 
         assertThat(saved.getId()).isNotNull();
-        assertThat(saved.getStatus()).isEqualTo(MemberStatus.PENDING_PROFILE);
-        assertThat(saved.getNickname()).isNull();
+        assertThat(saved.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+        assertThat(saved.getNickname()).isEqualTo("nsub1");
     }
 
     /** Timestamps are filled by auditing, through the Clock bean rather than the machine clock. */
@@ -69,15 +69,48 @@ class MemberRepositoryTest {
         String status = jdbcTemplate.queryForObject(
                 "select status from member where provider_subject = 'sub-3'", String.class);
 
-        assertThat(status).isEqualTo("PENDING_PROFILE");
+        assertThat(status).isEqualTo("ACTIVE");
     }
 
     @Test
-    void sameGoogleAccountCannotBeStoredTwice() {
+    void sameGoogleAccountCannotBeActiveTwice() {
         memberRepository.saveAndFlush(newMember("sub-4"));
 
-        assertThatThrownBy(() -> memberRepository.saveAndFlush(newMember("sub-4")))
+        assertThatThrownBy(() -> memberRepository.saveAndFlush(
+                Member.signUp("other@gmail.com", AuthProvider.GOOGLE, "sub-4", "other")))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /** Withdrawal does not block signing up again: the new account is a new row. */
+    @Test
+    void withdrawnGoogleAccountCanSignUpAgainAsANewMember() {
+        Member first = memberRepository.saveAndFlush(newMember("sub-10"));
+        first.withdraw(clock);
+        memberRepository.saveAndFlush(first);
+
+        Member second = memberRepository.saveAndFlush(newMember("sub-10"));
+
+        assertThat(second.getId()).isNotEqualTo(first.getId());
+    }
+
+    /** {@code Alice} and {@code alice} are the same nickname, enforced by the database. */
+    @Test
+    void nicknamesDifferingOnlyInCaseCollide() {
+        memberRepository.saveAndFlush(Member.signUp("a@gmail.com", AuthProvider.GOOGLE, "sub-11", "Alice"));
+
+        assertThatThrownBy(() -> memberRepository.saveAndFlush(
+                Member.signUp("b@gmail.com", AuthProvider.GOOGLE, "sub-12", "alice")))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(memberRepository.existsActiveNickname("alice")).isTrue();
+    }
+
+    @Test
+    void nicknameIsStoredAsTyped() {
+        memberRepository.saveAndFlush(Member.signUp("a@gmail.com", AuthProvider.GOOGLE, "sub-13", "Alice"));
+
+        String nickname = jdbcTemplate.queryForObject(
+                "select nickname from member where provider_subject = 'sub-13'", String.class);
+        assertThat(nickname).isEqualTo("Alice");
     }
 
     @Test
@@ -89,20 +122,6 @@ class MemberRepositoryTest {
         assertThat(memberRepository.findByProviderAndProviderSubjectAndDeletedAtIsNull(
                 AuthProvider.GOOGLE, "sub-5")).isEmpty();
         assertThat(memberRepository.findByIdAndDeletedAtIsNull(member.getId())).isEmpty();
-    }
-
-    /**
-     * Re-signup inside the retention period has to see the old row (policy 9), which a
-     * derived query cannot do because {@code @SQLRestriction} filters it out.
-     */
-    @Test
-    void theWithdrawnRowIsStillReachableDeliberately() {
-        Member member = memberRepository.saveAndFlush(newMember("sub-6"));
-        member.withdraw(clock);
-        memberRepository.saveAndFlush(member);
-
-        assertThat(memberRepository.findIncludingWithdrawn(AuthProvider.GOOGLE.name(), "sub-6"))
-                .isPresent();
     }
 
     @Test
@@ -118,17 +137,18 @@ class MemberRepositoryTest {
         assertThat(member.getStatus()).isEqualTo(MemberStatus.WITHDRAWN);
     }
 
+    /** A withdrawn member's nickname is free for someone else. */
     @Test
     void nicknameLookupIgnoresWithdrawnMembers() {
-        Member member = memberRepository.saveAndFlush(newMember("sub-8"));
-        member.completeOnboarding("하루");
-        memberRepository.saveAndFlush(member);
-        assertThat(memberRepository.existsByNicknameAndDeletedAtIsNull("하루")).isTrue();
+        Member member = memberRepository.saveAndFlush(
+                Member.signUp("haru@gmail.com", AuthProvider.GOOGLE, "sub-8", "하루"));
+        assertThat(memberRepository.existsActiveNickname("하루")).isTrue();
 
         member.withdraw(clock);
         memberRepository.saveAndFlush(member);
 
-        assertThat(memberRepository.existsByNicknameAndDeletedAtIsNull("하루")).isFalse();
+        assertThat(memberRepository.existsActiveNickname("하루")).isFalse();
+        memberRepository.saveAndFlush(Member.signUp("new@gmail.com", AuthProvider.GOOGLE, "sub-14", "하루"));
     }
 
     /**
@@ -159,7 +179,9 @@ class MemberRepositoryTest {
     }
 
     private static Member newMember(String providerSubject) {
-        return Member.pendingProfile(providerSubject + "@gmail.com", AuthProvider.GOOGLE, providerSubject);
+        // "sub-1" -> "nsub1": unique per subject and within the nickname rules.
+        String nickname = "n" + providerSubject.replace("-", "");
+        return Member.signUp(providerSubject + "@gmail.com", AuthProvider.GOOGLE, providerSubject, nickname);
     }
 
     private static TemporalUnitOffset within1Minute() {

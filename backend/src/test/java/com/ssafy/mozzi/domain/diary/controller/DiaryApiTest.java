@@ -13,19 +13,24 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
 import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
@@ -34,7 +39,7 @@ import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
-import com.ssafy.mozzi.global.security.CurrentMemberArgumentResolver;
+import com.ssafy.mozzi.global.security.AccessTokenProvider;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 import tools.jackson.databind.JsonNode;
@@ -43,8 +48,8 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * API spec 4.4 end to end, against the real schema.
  *
- * <p>Members are picked with the temporary {@code X-Member-Id} header. When Spring Security
- * replaces it, only {@link #as} has to change.
+ * <p>Requests go through the real authentication filter: {@link #as} logs the member in
+ * through {@link MemberSessionService} and sends its access token.
  */
 @IntegrationTest
 @AutoConfigureMockMvc
@@ -69,7 +74,19 @@ class DiaryApiTest {
     private ActivityRepository activityRepository;
 
     @Autowired
+    private MemberSessionService sessionService;
+
+    @Autowired
+    private AccessTokenProvider accessTokenProvider;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Autowired
     private Clock clock;
+
+    /** One login per member per test; a second login would revoke the first token. */
+    private final Map<Long, String> accessTokens = new HashMap<>();
 
     private Long me;
     private Long someoneElse;
@@ -80,7 +97,8 @@ class DiaryApiTest {
         // Cascades to diary, diary_activity and diary_image; the seeded activity rows stay.
         jdbcTemplate.execute("truncate table member cascade");
         me = newMember("me");
-        someoneElse = newMember("someone-else");
+        someoneElse = newMember("someoneElse");
+        accessTokens.clear();
         today = LocalDate.now(clock);
     }
 
@@ -177,9 +195,12 @@ class DiaryApiTest {
     void requestsWithoutAMemberAreUnauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/diaries"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
-        mockMvc.perform(get("/api/v1/diaries").header(CurrentMemberArgumentResolver.MOCK_HEADER, "999999"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(jsonPath("$.code").value("ACCESS_TOKEN_MISSING"));
+        // Correctly signed, but not the member's current session.
+        String stale = accessTokenProvider.issue(me, UUID.randomUUID()).token();
+        mockMvc.perform(get("/api/v1/diaries").header(HttpHeaders.AUTHORIZATION, "Bearer " + stale))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_REVOKED"));
     }
 
     /** Spec 1.3: someone else's diary is answered exactly like a missing one. */
@@ -358,8 +379,10 @@ class DiaryApiTest {
                 .content(json));
     }
 
-    private static MockHttpServletRequestBuilder as(Long memberId, MockHttpServletRequestBuilder request) {
-        return request.header(CurrentMemberArgumentResolver.MOCK_HEADER, memberId);
+    private MockHttpServletRequestBuilder as(Long memberId, MockHttpServletRequestBuilder request) {
+        String token = accessTokens.computeIfAbsent(memberId,
+                id -> transactionTemplate.execute(status -> sessionService.start(id)).accessToken());
+        return request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
     }
 
     private JsonNode body(ResultActions result) throws Exception {
@@ -373,9 +396,8 @@ class DiaryApiTest {
     }
 
     private Long newMember(String subject) {
-        Member member = Member.pendingProfile(subject + "@gmail.com", AuthProvider.GOOGLE, subject);
-        member.completeOnboarding(subject);
-        return memberRepository.saveAndFlush(member).getId();
+        return memberRepository.saveAndFlush(
+                Member.signUp(subject + "@gmail.com", AuthProvider.GOOGLE, subject, subject)).getId();
     }
 
 }

@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5");
     }
 
     @Test
@@ -39,8 +39,10 @@ class SchemaMigrationTest {
 
         assertThat(tables).contains(
                 "member", "member_setting", "terms_agreement", "push_device",
-                "refresh_token", "idempotency_record",
+                "idempotency_record", "member_session", "signup_ticket",
                 "activity", "diary", "diary_activity", "diary_image");
+        // Replaced by member_session in V5; two refresh schemes must not coexist.
+        assertThat(tables).doesNotContain("refresh_token");
     }
 
     /** Columns are snake_case in the database and camelCase in Java (convention 1.1). */
@@ -72,12 +74,43 @@ class SchemaMigrationTest {
         assertThat(types).containsOnly("timestamp with time zone");
     }
 
+    /** Unique among active members only, so a withdrawn account can sign up again at once. */
     @Test
-    void oneAccountPerGoogleUserIsEnforcedByAnIndex() {
-        List<String> indexes = jdbcTemplate.queryForList(
-                "select indexname from pg_indexes where tablename = 'member'", String.class);
+    void oneActiveAccountPerGoogleUserIsEnforcedByAPartialIndex() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_member_active_provider_subject'", String.class);
 
-        assertThat(indexes).contains("uq_member_provider_subject");
+        assertThat(definition)
+                .contains("UNIQUE")
+                .contains("provider_subject")
+                .contains("deleted_at IS NULL");
+    }
+
+    @Test
+    void activeNicknamesAreUniqueIgnoringCase() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_member_active_nickname'", String.class);
+
+        assertThat(definition)
+                .contains("UNIQUE")
+                .contains("lower((nickname)")
+                .contains("deleted_at IS NULL");
+    }
+
+    /** One session per member is the primary key itself; the session id is looked up on refresh. */
+    @Test
+    void memberSessionIsKeyedByMember() {
+        List<String> primaryKey = jdbcTemplate.queryForList("""
+                select a.attname
+                from pg_index i
+                join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+                where i.indrelid = 'member_session'::regclass and i.indisprimary
+                """, String.class);
+        List<String> indexes = jdbcTemplate.queryForList(
+                "select indexname from pg_indexes where tablename = 'member_session'", String.class);
+
+        assertThat(primaryKey).containsExactly("member_id");
+        assertThat(indexes).contains("uq_member_session_session_id", "ix_member_session_refresh_expires_at");
     }
 
     @Test
@@ -120,8 +153,8 @@ class SchemaMigrationTest {
     @Test
     void reminderDefaultsComeFromTheSchema() {
         jdbcTemplate.update("insert into member "
-                + "(email, provider, provider_subject, role, status, created_at, updated_at) "
-                + "values ('defaults@gmail.com', 'GOOGLE', 'sub-defaults', 'USER', 'ACTIVE', now(), now())");
+                + "(email, nickname, provider, provider_subject, role, status, created_at, updated_at) "
+                + "values ('defaults@gmail.com', 'defaults', 'GOOGLE', 'sub-defaults', 'USER', 'ACTIVE', now(), now())");
         Long memberId = jdbcTemplate.queryForObject(
                 "select member_id from member where provider_subject = 'sub-defaults'", Long.class);
         jdbcTemplate.update("insert into member_setting (member_id, updated_at) values (?, now())", memberId);

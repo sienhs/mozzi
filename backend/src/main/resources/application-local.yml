@@ -12,6 +12,15 @@ spring:
   jpa:
     show-sql: false
 
+mozzi:
+  auth:
+    # A fixed key so a local server starts without setup. Tokens it signs are worthless
+    # anywhere else; the prod profile has no default.
+    jwt-secret: ${AUTH_JWT_SECRET:local-only-jwt-secret-not-for-any-real-server}
+  google:
+    # Google login only works locally once this is set to the real Web client id.
+    client-ids: ${GOOGLE_CLIENT_IDS:local-google-client-id-not-set}
+
 server:
   error:
     include-message: always
@@ -21,9 +30,3 @@ server:
 logging:
   level:
     com.ssafy.mozzi: DEBUG
-
-mozzi:
-  auth:
-    # TEMPORARY until Spring Security lands: lets requests pick the member with an
-    # X-Member-Id header (see CurrentMemberArgumentResolver). Never set this in prod.
-    mock-header-enabled: true

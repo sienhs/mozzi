@@ -309,6 +309,8 @@ global
 │               ErrorResponse · GlobalExceptionHandler · ErrorResponseWriter
 ├── logging     RequestTrace(MDC) · TraceIdFilter · RequestLoggingFilter
 ├── response    CursorPage
+├── security    AuthenticationFilter · PublicEndpoints(화이트리스트) · AccessTokenProvider(JWT)
+│               AuthenticatedMember · SecurityErrorCode
 └── util        Masker
 ```
 
@@ -390,10 +392,13 @@ Spring Boot 4 는 **Jackson 3**(`tools.jackson.databind`)을 쓴다. Boot 2/3 �
   `memberId` 조건을 함께 넣어 명세 1.3 의 "남의 리소스도 404" 규칙을 해결한다
   (`findByIdAndMemberIdAndDeletedAtIsNull`).
 - 반대쪽 함정이 있다. 애노테이션이 모든 조회에 걸리므로 **삭제된 행에 일부러 접근해야 하는 경우
-  JPQL·파생 쿼리로는 불가능하다.** 탈퇴 유예 기간 중 재가입 확인(정책 9)처럼 꼭 필요한 곳은
-  네이티브 쿼리로 쓰고, 왜 네이티브인지 주석을 남긴다 (`MemberRepository#findIncludingWithdrawn`).
+  JPQL·파생 쿼리로는 불가능하다.** 꼭 필요하면 네이티브 쿼리로 쓰고, 왜 네이티브인지 주석을
+  남긴다. (탈퇴 후 재가입은 2026-10-27 정책 변경으로 즉시 허용되고 새 회원 ID 로 가입하므로,
+  더 이상 탈퇴한 행을 조회하지 않는다.)
 - PostgreSQL 에서 "하루 1기록, 삭제된 기록은 제외"는 **부분 유니크 인덱스**로 쓴다
   (`create unique index ... on diary (member_id, record_date) where deleted_at is null`).
+  회원도 같다: Google 계정(`uq_member_active_provider_subject`)과 대소문자 무시 닉네임
+  (`uq_member_active_nickname`, `lower(nickname)`)은 활성 회원 사이에서만 유일하다.
   명세 ERD 의 `active_key` 생성 컬럼은 MySQL 용 우회라 필요 없다.
 
 ### 5.6 데이터베이스와 마이그레이션

@@ -1,0 +1,38 @@
+@baseUrl = http://localhost:8080/api/v1
+# Google login needs a real Google ID token issued for GOOGLE_CLIENT_IDS (the Web client id).
+# Paste one here, then copy the tokens from the responses below.
+@idToken = paste-google-id-token-here
+@signupToken = paste-signup-token-here
+@refreshToken = paste-refresh-token-here
+@accessToken = paste-access-token-here
+
+### Google login. Existing member: LOGIN_SUCCESS with tokens. New user: SIGNUP_REQUIRED with signupToken.
+POST {{baseUrl}}/auth/google
+Content-Type: application/json
+
+{"idToken": "{{idToken}}"}
+
+### Sign up with a nickname. Expect 201 with a token pair.
+POST {{baseUrl}}/auth/signup
+Content-Type: application/json
+
+{"signupToken": "{{signupToken}}", "nickname": "하루",
+ "agreedTerms": [{"type": "TERMS", "version": "1.0"}, {"type": "PRIVACY", "version": "1.0"}]}
+
+### Refresh. Expect 200 with a new pair; the refresh token sent here stops working.
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{"refreshToken": "{{refreshToken}}"}
+
+### My account.
+GET {{baseUrl}}/members/me
+Authorization: Bearer {{accessToken}}
+
+### Log out. Expect 204.
+POST {{baseUrl}}/auth/logout
+Authorization: Bearer {{accessToken}}
+
+### Withdraw. Expect 204.
+DELETE {{baseUrl}}/members/me
+Authorization: Bearer {{accessToken}}
