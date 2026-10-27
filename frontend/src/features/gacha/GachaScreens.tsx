@@ -3,10 +3,14 @@ import {
   AccessibilityInfo,
   Animated,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
+import { useEventListener } from 'expo';
+import * as Haptics from 'expo-haptics';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,11 +27,15 @@ import {
 } from '@/components/gacha/GachaUI';
 import {
   gachaArt,
+  getOpeningClip,
+  highestTier,
   mochiName,
+  openingClips,
   mochiOrder,
   mochis,
   season,
   tiers,
+  type OpeningClip,
 } from '@/constants/gacha';
 import { colors } from '@/theme/tokens';
 import type { MochiId } from '@/types/gacha';
@@ -44,59 +52,35 @@ const openDetail = (id: MochiId) =>
 const toCollection = () => router.replace('/gacha/collection');
 const fixed = { minHeight: 54 };
 
-// P-02 개봉: the request runs while the scene plays; tap or 건너뛰기 skips once it's back.
+// P-02 개봉: 뽑기 요청이 끝나면 개봉 영상을 틀고, 빛이 터지는 순간 하얗게 번쩍이며 결과로 넘어간다.
+// 화면 아무 곳이나 '건너뛰기'를 누르면 결과가 온 뒤 바로 넘어간다.
 export function OpeningScreen() {
   const params = useLocalSearchParams<{ count?: string }>();
-  const count = Math.max(1, Math.min(10, Number(params.count) || 1));
-  const [glow] = useState(() => new Animated.Value(0.85));
+  const count = Math.max(
+    1,
+    Math.min(10, Math.floor(Number(params.count) || 1)),
+  );
   const [result, setResult] = useState<'pending' | 'done' | 'failed'>(
     'pending',
   );
-  const [minimumShown, setMinimumShown] = useState(false);
+  const [flash] = useState(() => new Animated.Value(0));
+  const [clip, setClip] = useState<OpeningClip>(openingClips.basic);
+  // 결과를 받기 전에는 영상을 로드하지 않는다. 확정된 최고 등급 영상만 준비한다.
+  const player = useVideoPlayer(null, video => {
+    video.muted = true;
+    video.loop = false;
+    video.timeUpdateEventInterval = 0.05;
+  });
   const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    if (count > useGachaStore.getState().tickets) {
-      router.back();
-      return;
-    }
-    useGachaStore
-      .getState()
-      .pull(count)
-      .then(items => setResult(items.length ? 'done' : 'failed'))
-      .catch(() => setResult('failed'));
-  }, [count]);
-  useEffect(() => {
-    const timer = setTimeout(() => setMinimumShown(true), 1800);
-    let loop: Animated.CompositeAnimation | undefined;
-    let cancelled = false;
-    void AccessibilityInfo.isReduceMotionEnabled().then(reduce => {
-      if (reduce || cancelled) return;
-      loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(glow, {
-            toValue: 1,
-            duration: 240,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glow, {
-            toValue: 0.85,
-            duration: 480,
-            useNativeDriver: true,
-          }),
-        ]),
-      );
-      loop.start();
-    });
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      loop?.stop();
-    };
-  }, [glow]);
-  const finish = () => {
-    if (result === 'pending') return;
+  const finished = useRef(false);
+  const begun = useRef(false);
+  const mounted = useRef(true);
+  const reduceMotion = useRef(false);
+  const beatsDone = useRef(new Set<number>());
+  const sourceLoaded = useRef(false);
+
+  // 영상 재생 중 결과 화면으로 넘어간다. 한 번만 실행된다.
+  const go = () => {
     if (result === 'failed') {
       router.replace({
         pathname: '/gacha/failed',
@@ -110,13 +94,154 @@ export function OpeningScreen() {
     // A single duplicate goes home, where its shards fly to the chip (P-12).
     else router.back();
   };
+  const finish = () => {
+    if (result === 'pending' || finished.current) return;
+    finished.current = true;
+    player.pause();
+    if (result === 'failed' || reduceMotion.current) {
+      go();
+      return;
+    }
+    Animated.timing(flash, {
+      toValue: 1,
+      duration: 140,
+      useNativeDriver: true,
+    }).start(() => {
+      if (mounted.current) go();
+    });
+  };
+  // 영상이 재생 준비가 된 뒤에 시작점으로 옮기고 튼다(준비 전에 옮기면 무시될 수 있다).
+  const begin = () => {
+    if (
+      !sourceLoaded.current ||
+      player.status !== 'readyToPlay' ||
+      begun.current ||
+      finished.current ||
+      !mounted.current
+    )
+      return;
+    begun.current = true;
+    // currentTime을 직접 쓰지 않는 건 React 컴파일러 규칙 때문. 처음(0초)에서 앞으로 옮긴다.
+    if (clip.startAt > 0) player.seekBy(clip.startAt);
+    player.play();
+  };
   useEffect(() => {
-    if (minimumShown) finish();
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    if (count > useGachaStore.getState().tickets) {
+      router.back();
+      return;
+    }
+    let cancelled = false;
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then(reduce => {
+        reduceMotion.current = reduce;
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (cancelled) return;
+        useGachaStore
+          .getState()
+          .pull(count)
+          .then(items => {
+            if (cancelled) return;
+            if (items.length) {
+              setClip(getOpeningClip(highestTier(items.map(item => item.id))));
+              setResult('done');
+            } else setResult('failed');
+          })
+          .catch(() => {
+            if (!cancelled) setResult('failed');
+          });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [count]);
+
+  // 한 묶음에 영상은 한 번만 재생한다. 실패/동작 줄이기는 영상 없이 결과로 이동한다.
+  useEffect(() => {
+    if (result === 'pending') return;
+    if (result === 'failed' || reduceMotion.current) {
+      finish();
+      return;
+    }
+    let cancelled = false;
+    // 비동기 교체 완료와 재생 가능 상태를 둘 다 확인해 이전/빈 소스 재생을 막는다.
+    void player
+      .replaceAsync(clip.source)
+      .then(() => {
+        if (cancelled || !mounted.current || finished.current) return;
+        sourceLoaded.current = true;
+        begin();
+      })
+      .catch(() => {
+        if (!cancelled && mounted.current) finish();
+      });
+    // 재생 오류나 종료 이벤트 누락 시에도 뽑기 결과를 잃지 않는다.
+    const fallback = setTimeout(
+      finish,
+      (clip.duration - clip.startAt + 3) * 1000,
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(fallback);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minimumShown, result]);
+  }, [result, clip]);
+
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    if (!begun.current || finished.current) return;
+    for (const beat of clip.beats) {
+      if (
+        beat.at >= clip.startAt &&
+        currentTime >= beat.at &&
+        !beatsDone.current.has(beat.at)
+      ) {
+        beatsDone.current.add(beat.at);
+        pulse(beat.strength);
+      }
+    }
+    if (currentTime >= clip.flashAt) finish();
+  });
+  useEventListener(player, 'playToEnd', finish);
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status === 'readyToPlay' && result === 'done') begin();
+    if (status === 'error') finish();
+  });
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.gachaNavy }}>
+    <View style={{ flex: 1, backgroundColor: colors.gachaCocoa }}>
       <StatusBar style="light" />
+      <View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { alignItems: 'center' }]}
+      >
+        <View style={styles.stage}>
+          <Image
+            accessible={false}
+            source={clip.poster}
+            resizeMode="cover"
+            style={StyleSheet.absoluteFill}
+          />
+          <VideoView
+            player={player}
+            nativeControls={false}
+            contentFit="cover"
+            playsInline
+            // Android: TextureView라야 위에 얹은 번쩍임·버튼이 영상과 제대로 겹친다.
+            surfaceType="textureView"
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
+      </View>
       {/* The whole scene skips too; it sits behind the chip so buttons don't nest. */}
       <Pressable
         accessibilityRole="button"
@@ -124,33 +249,38 @@ export function OpeningScreen() {
         onPress={finish}
         style={StyleSheet.absoluteFill}
       />
-      <View
+      <SafeAreaView
         pointerEvents="box-none"
-        style={{ flex: 1, paddingHorizontal: 20, gap: 100 }}
+        style={{ paddingHorizontal: 20, paddingTop: 6 }}
       >
-        <View pointerEvents="box-none" style={{ paddingTop: 6 }}>
-          <GachaChip label="건너뛰기" dark width={98} onPress={finish} />
-        </View>
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            width: '100%',
-            maxWidth: 560,
-            alignSelf: 'center',
-            aspectRatio: 350 / 324,
-            opacity: glow,
-          }}
-        >
-          <Image
-            accessible={false}
-            source={gachaArt.opening}
-            style={{ width: '100%', height: '100%' }}
-          />
-        </Animated.View>
-      </View>
-    </SafeAreaView>
+        <GachaChip label="건너뛰기" dark width={98} onPress={finish} />
+      </SafeAreaView>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: colors.white, opacity: flash },
+        ]}
+      />
+    </View>
   );
 }
+
+// 진동은 휴대폰에서만. 웹이나 진동이 없는 기기에서는 조용히 넘어간다.
+function pulse(strength: 'light' | 'medium' | 'heavy') {
+  if (Platform.OS === 'web') return;
+  const style = {
+    light: Haptics.ImpactFeedbackStyle.Light,
+    medium: Haptics.ImpactFeedbackStyle.Medium,
+    heavy: Haptics.ImpactFeedbackStyle.Heavy,
+  }[strength];
+  void Haptics.impactAsync(style).catch(() => undefined);
+}
+
+const styles = StyleSheet.create({
+  // 영상은 2:3. 넓은 화면(웹)에서도 위아래가 과하게 잘리지 않게 앱 화면 폭(600)까지만 채운다.
+  stage: { flex: 1, width: '100%', maxWidth: 600, overflow: 'hidden' },
+});
 
 // P-03 새로운 모찌 · 1장.
 export function RevealScreen() {
@@ -263,12 +393,10 @@ export function RevealScreen() {
   );
 }
 
-// P-04 / P-04B / P-04C: 10장은 봉인된 카드로 시작해 하나씩 연다.
+// P-04 / P-04B / P-04C: 2~10장은 봉인된 카드로 시작해 하나씩 또는 모두 연다.
 export function ResultsScreen() {
   const items = useGachaStore(state => state.lastPull);
-  const [opened, setOpened] = useState<boolean[]>(() =>
-    items.map(() => items.length < 10),
-  );
+  const [opened, setOpened] = useState<boolean[]>(() => items.map(() => false));
   if (!items.length) return <Redirect href="/gacha" />;
   const remaining = opened.filter(open => !open).length;
   return (

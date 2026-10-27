@@ -30,7 +30,8 @@
       "expo-font",
       "expo-asset",
       "expo-status-bar",
-      ["expo-splash-screen", { "backgroundColor": "#FAF7F2" }]
+      ["expo-splash-screen", { "backgroundColor": "#FAF7F2" }],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
