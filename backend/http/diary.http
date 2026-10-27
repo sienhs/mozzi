@@ -1,0 +1,37 @@
+@baseUrl = http://localhost:8080/api/v1
+# TEMPORARY: until Spring Security lands, the member comes from X-Member-Id (local profile
+# only). Create one first, for example:
+#   docker compose exec db psql -U mozzi -c "insert into member (email, nickname, provider, provider_subject, role, status, created_at, updated_at) values ('dev@gmail.com', 'dev', 'GOOGLE', 'dev', 'USER', 'ACTIVE', now(), now()) returning member_id;"
+@memberId = 1
+
+### Save today's diary (change recordDate to today). Expect 201 with image.status PENDING.
+POST {{baseUrl}}/diaries
+X-Member-Id: {{memberId}}
+Idempotency-Key: {{$uuid}}
+Content-Type: application/json
+
+{
+  "recordDate": "2026-10-27",
+  "emotion": "CALM",
+  "activities": ["REST", "FAMILY"],
+  "memo": "퇴근하고 오므라이스를 만들어 먹었어"
+}
+
+### Detail
+GET {{baseUrl}}/diaries/1
+X-Member-Id: {{memberId}}
+
+### List, newest first, with optional filters
+GET {{baseUrl}}/diaries?size=20&emotion=CALM&activity=FAMILY&from=2026-10-01&to=2026-10-31
+X-Member-Id: {{memberId}}
+
+### Change only the fields sent ("" clears the memo, [] clears the activities)
+PATCH {{baseUrl}}/diaries/1
+X-Member-Id: {{memberId}}
+Content-Type: application/json
+
+{ "emotion": "HAPPY", "activities": ["REST"], "memo": "수정한 한 줄" }
+
+### Soft delete. Expect 204; the day can be written again afterwards.
+DELETE {{baseUrl}}/diaries/1
+X-Member-Id: {{memberId}}

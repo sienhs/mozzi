@@ -1,12 +1,16 @@
 package com.ssafy.mozzi.global.config;
 
+import java.util.List;
 import java.util.function.Predicate;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerTypePredicate;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import com.ssafy.mozzi.global.security.CurrentMemberArgumentResolver;
 
 /**
  * Applies the {@code /api/v1} base path from spec 1 in one place.
@@ -25,6 +29,17 @@ public class WebConfig implements WebMvcConfigurer {
     public static final String API_PREFIX = "/api/v1";
 
     private static final String BASE_PACKAGE = "com.ssafy.mozzi";
+
+    private final CurrentMemberArgumentResolver currentMemberArgumentResolver;
+
+    public WebConfig(CurrentMemberArgumentResolver currentMemberArgumentResolver) {
+        this.currentMemberArgumentResolver = currentMemberArgumentResolver;
+    }
+
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(currentMemberArgumentResolver);
+    }
 
     @Override
     public void configurePathMatch(PathMatchConfigurer configurer) {

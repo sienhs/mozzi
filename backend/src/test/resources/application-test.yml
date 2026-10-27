@@ -1,7 +1,12 @@
 # Tests get their database from Testcontainers (see support/PostgresTestContainer), which
-# supplies the connection details through @ServiceConnection. Nothing is configured here on
-# purpose — a hardcoded URL would let a test run against a developer's local database and
-# leave rows behind in it.
+# supplies the connection details through @ServiceConnection. No datasource is configured
+# here on purpose — a hardcoded URL would let a test run against a developer's local database
+# and leave rows behind in it.
 spring:
   application:
     name: mozzi-test
+
+mozzi:
+  auth:
+    # TEMPORARY until Spring Security lands; see CurrentMemberArgumentResolver.
+    mock-header-enabled: true

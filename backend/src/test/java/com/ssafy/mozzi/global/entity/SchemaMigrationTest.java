@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2");
+        assertThat(versions).containsExactly("1", "2", "3");
     }
 
     @Test
@@ -39,7 +39,8 @@ class SchemaMigrationTest {
 
         assertThat(tables).contains(
                 "member", "member_setting", "terms_agreement", "push_device",
-                "refresh_token", "idempotency_record");
+                "refresh_token", "idempotency_record",
+                "activity", "diary", "diary_activity", "diary_image");
     }
 
     /** Columns are snake_case in the database and camelCase in Java (convention 1.1). */
@@ -89,6 +90,30 @@ class SchemaMigrationTest {
                 .contains("member_id")
                 .contains("endpoint")
                 .contains("idempotency_key");
+    }
+
+    /**
+     * One diary per day, ignoring soft-deleted rows (policy 6). Without the predicate a
+     * deleted diary would block its day forever; without UNIQUE, a double tap writes two.
+     */
+    @Test
+    void oneDiaryPerDayIsAPartialUniqueIndex() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_diary_member_record_date'", String.class);
+
+        assertThat(definition)
+                .contains("UNIQUE")
+                .contains("(member_id, record_date)")
+                .contains("WHERE (deleted_at IS NULL)");
+    }
+
+    /** Spec 2.2: the eight chips, in display order. */
+    @Test
+    void activityChipsAreSeeded() {
+        List<String> codes = jdbcTemplate.queryForList(
+                "select code from activity where is_active order by sort_order", String.class);
+
+        assertThat(codes).containsExactly("STUDY", "WORK", "EXERCISE", "REST", "FRIEND", "HOBBY", "FAMILY", "ETC");
     }
 
     /** Spec 4.2 defaults the reminder to 21:00 with notifications on. */
