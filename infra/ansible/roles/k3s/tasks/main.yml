@@ -9,6 +9,13 @@
     path: /usr/local/bin/k3s
   register: existing_k3s
 
+- name: Require an email for the Traefik ACME account
+  ansible.builtin.assert:
+    that:
+      - traefik_acme_email is match('^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    fail_msg: Set TRAEFIK_ACME_EMAIL to the real email address for the Let's Encrypt account.
+  when: k3s_is_server
+
 - name: Inspect ownership marker
   ansible.builtin.stat:
     path: /etc/rancher/k3s/mozzi-managed
@@ -57,20 +64,31 @@
     mode: '0755'
   when: k3s_is_server
 
-- name: Place Traefik on SSAFY and limit ServiceLB to its labeled node
-  ansible.builtin.copy:
+- name: Create persistent private certificate storage on SSAFY
+  ansible.builtin.file:
+    path: '{{ traefik_acme_directory }}'
+    state: directory
+    owner: '65532'
+    group: '65532'
+    mode: '0700'
+  when: k3s_is_server
+
+- name: Preserve ACME account and certificates across Traefik restarts
+  ansible.builtin.file:
+    path: '{{ traefik_acme_directory }}/acme.json'
+    state: touch
+    owner: '65532'
+    group: '65532'
+    mode: '0600'
+    access_time: preserve
+    modification_time: preserve
+  when: k3s_is_server
+
+- name: Configure Traefik placement and automatic HTTPS certificates
+  ansible.builtin.template:
+    src: traefik-config.yaml.j2
     dest: /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
     mode: '0644'
-    content: |
-      apiVersion: helm.cattle.io/v1
-      kind: HelmChartConfig
-      metadata:
-        name: traefik
-        namespace: kube-system
-      spec:
-        valuesContent: |-
-          nodeSelector:
-            infra.mozzi/role: control-plane
   when: k3s_is_server
 
 - name: Read currently installed version
@@ -124,6 +142,20 @@
   retries: 30
   delay: 5
   until: api_readiness.rc == 0
+  when: k3s_is_server
+
+- name: Wait for the Helm controller to configure Traefik ACME storage
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get deployment traefik -n kube-system -o json
+  register: traefik_deployment
+  changed_when: false
+  retries: 60
+  delay: 5
+  until: traefik_deployment.rc == 0 and '/acme/acme.json' in traefik_deployment.stdout
+  when: k3s_is_server
+
+- name: Wait for the TLS-enabled Traefik rollout
+  ansible.builtin.command: /usr/local/bin/k3s kubectl rollout status deployment/traefik -n kube-system --timeout=180s
+  changed_when: false
   when: k3s_is_server
 
 - name: Read generated server join token

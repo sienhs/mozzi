@@ -1,0 +1,34 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    nodeSelector:
+      infra.mozzi/role: control-plane
+    deployment:
+      replicas: 1
+      additionalVolumes:
+        - name: acme
+          hostPath:
+            path: {{ traefik_acme_directory | to_json }}
+            type: Directory
+    # ACME file storage must have a single writer, including during upgrades.
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    podSecurityContext:
+      runAsUser: 65532
+      runAsGroup: 65532
+      runAsNonRoot: true
+    additionalVolumeMounts:
+      - name: acme
+        mountPath: /acme
+    certificatesResolvers:
+      letsencrypt:
+        acme:
+          email: {{ traefik_acme_email | to_json }}
+          storage: /acme/acme.json
+          httpChallenge:
+            entryPoint: web

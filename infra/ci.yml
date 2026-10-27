@@ -139,6 +139,7 @@ ansible:configure:
     - apt-get update && apt-get install -y --no-install-recommends openssh-client
     - pip install --disable-pip-version-check -r requirements.txt
     - ': "${SSAFY_HOST:?Set the SSAFY public hostname or IPv4 address}"'
+    - ': "${TRAEFIK_ACME_EMAIL:?Set the email for the ACME account}"'
     - ': "${SSAFY_SSH_KEY:?Set a GitLab File variable containing the SSAFY SSH private key}"'
     - ': "${PERSONAL_SSH_KEY:?Set a GitLab File variable containing the personal SSH private key}"'
     - ': "${SSH_KNOWN_HOSTS:?Set a GitLab File variable containing verified host keys for all four servers}"'

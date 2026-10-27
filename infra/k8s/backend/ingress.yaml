@@ -8,7 +8,34 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - http:
+    - host: k15d102.p.ssafy.io
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-https
+  namespace: mozzi
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - k15d102.p.ssafy.io
+  rules:
+    - host: k15d102.p.ssafy.io
+      http:
         paths:
           - path: /api
             pathType: Prefix
