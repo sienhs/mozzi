@@ -108,6 +108,7 @@ Response `201` — 저장과 함께 첫 그림 생성을 요청한다.
 E-02 "다시 저장하기"는 같은 `Idempotency-Key`로 재전송한다. 첫 요청이 이미 저장됐다면 지금은 위 409가 오고, 앱은 상세로 이동하면 된다.
 
 > 예정: 첫 기록이면 뽑기권 지급 결과 `"reward": { "ticketGranted": 1, "ticketCount": 2 }`를 응답에 추가한다.
+> 보상은 `recordDate`당 한 번이다. 일기를 지우고 같은 날짜로 다시 써도 다시 주지 않는다 (`ticketGranted: 0`).
 
 ## `GET /diaries/{diaryId}` — 일기 상세 (D-01, G-02)
 
