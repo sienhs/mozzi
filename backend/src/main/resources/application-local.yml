@@ -1,4 +1,17 @@
-# Developer PC. Error messages are shown to make API debugging easier.
+# Developer PC. The database comes from backend/compose.yaml:
+#   cd backend && docker compose up -d
+#
+# Error messages are shown to make API debugging easier. These only affect Spring's own
+# fallback error page; API errors always come from GlobalExceptionHandler, which never
+# echoes a payload on any profile.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mozzi}
+    username: ${DB_USERNAME:mozzi}
+    password: ${DB_PASSWORD:mozzi}
+  jpa:
+    show-sql: false
+
 server:
   error:
     include-message: always

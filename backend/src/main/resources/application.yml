@@ -7,6 +7,53 @@ spring:
     name: mozzi
   profiles:
     default: local
+  datasource:
+    hikari:
+      # Hikari's 30s default makes the readiness probe hang instead of answering when the
+      # database is unreachable: the probe holds a request thread for half a minute and
+      # Kubernetes records a timeout rather than a 503 (verified by stopping the container).
+      # Getting a connection from a healthy pool takes under a millisecond, so 3s only ever
+      # trips when something is actually wrong.
+      connection-timeout: 3000
+      validation-timeout: 2000
+  jpa:
+    hibernate:
+      # Flyway owns the schema. 'update' would let Hibernate and Flyway both change it, and
+      # Hibernate cannot express what the migrations need anyway (partial unique indexes,
+      # comments). 'validate' instead turns a drifted entity into a startup failure.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    # Refuse to start when a migration file has been edited after it ran. The alternative is
+    # a database whose schema no longer matches the files in git, on one machine only.
+    validate-on-migrate: true
+  jackson:
+    # Spec 1.1 keeps keys the client branches on present even when empty
+    # ("todayDiary": null, "nextCursor": null), so nulls must not be dropped.
+    default-property-inclusion: always
+    # Spec 1: timestamps carry the Asia/Seoul offset (2026-10-22T21:12:00+09:00).
+    # Without this Jackson normalises an OffsetDateTime to the mapper's zone, which
+    # defaults to UTC and would render the same instant as ...T12:12:00Z.
+    time-zone: Asia/Seoul
+    datatype:
+      datetime:
+        # Jackson 3 moved WRITE_DATES_AS_TIMESTAMPS out of SerializationFeature into
+        # DateTimeFeature, so this has to sit under datatype.datetime. The Boot 2/3 key
+        # spring.jackson.serialization.write-dates-as-timestamps now fails startup with a
+        # ConversionFailedException (verified), so a copied snippet breaks loudly, not
+        # silently. Dates must be ISO-8601 strings, never epoch numbers.
+        write-dates-as-timestamps: false
+    deserialization:
+      # A misspelled request field is a client bug; answering 400 surfaces it immediately
+      # instead of silently applying a default.
+      fail-on-unknown-properties: true
+  mvc:
+    problemdetails:
+      # The project returns the error body from spec 1.2, not RFC 9457 ProblemDetail.
+      # Leaving this on would produce two different error shapes depending on which layer
+      # rejected the request.
+      enabled: false
 
 server:
   port: ${SERVER_PORT:8080}
@@ -20,3 +67,38 @@ management:
   endpoint:
     health:
       show-details: never
+      probes:
+        # Kubernetes needs liveness and readiness separately: a dependency that is only
+        # needed to serve traffic must fail readiness, not restart the pod.
+        enabled: true
+      group:
+        liveness:
+          # Process health only. Putting the database here would restart every pod during a
+          # database blip, which fixes nothing and loses the in-flight requests.
+          include: livenessState
+        readiness:
+          # Every endpoint in the spec needs the database, so a pod that cannot reach it has
+          # nothing useful to serve and should be taken out of the Service.
+          # Trade-off: a database outage empties the Service of endpoints, so clients get a
+          # connection error instead of a 500. If that is the wrong call for an incident,
+          # drop 'db' here rather than disabling the probe.
+          #
+          # Measured with the database stopped: liveness answers 200 in 9ms, readiness
+          # answers 503 after ~3s (bounded by the Hikari connection-timeout above). The
+          # Deployment manifest therefore needs readinessProbe.timeoutSeconds of 5 or more,
+          # otherwise Kubernetes records a probe timeout instead of reading the 503.
+          include: readinessState, db
+
+logging:
+  level:
+    # On a malformed request line Tomcat logs the raw request target, query string and all,
+    # at INFO — before any filter runs, so RequestLoggingFilter cannot keep it out (verified
+    # by sending an unencoded character in a query parameter). Spec 4.2 puts a nickname in a
+    # query string, so that line would put personal data in the log store. Malformed request
+    # lines come from scanners and client bugs, so WARN loses nothing we would act on.
+    org.apache.coyote.http11.Http11Processor: WARN
+  structured:
+    json:
+      context:
+        # Carries the MDC (traceId, memberId) into each JSON log line.
+        include: true

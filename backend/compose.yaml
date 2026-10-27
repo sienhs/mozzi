@@ -1,0 +1,40 @@
+# Local development database. Production runs its own PostgreSQL; this file is only for
+# a developer PC.
+#
+#   docker compose up -d        start
+#   docker compose down         stop, keeping the data
+#   docker compose down -v      stop and wipe the data (re-runs every migration next time)
+#
+# Tests do NOT use this container. They start their own through Testcontainers, pinned to
+# the same image tag below, so a test can never pass against a database that local
+# development has drifted away from.
+services:
+  postgres:
+    # Pinned to an exact patch so every developer, CI and production agree. Bumping it is a
+    # deliberate commit, not something that happens on a fresh `docker compose pull`.
+    image: postgres:17.11-alpine
+    container_name: mozzi-postgres
+    environment:
+      POSTGRES_DB: mozzi
+      POSTGRES_USER: mozzi
+      POSTGRES_PASSWORD: mozzi
+      # The server timezone is fixed to Asia/Seoul (API spec 1). Keeping the database on the
+      # same zone means a timestamp read in psql matches what the application logged.
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    ports:
+      - "5432:5432"
+    volumes:
+      - mozzi-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # `docker compose up -d` returns as soon as the container starts, which is before
+      # PostgreSQL accepts connections. Without this the first application start after a
+      # cold boot fails on connection refused.
+      test: ["CMD-SHELL", "pg_isready -U mozzi -d mozzi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  mozzi-postgres-data:

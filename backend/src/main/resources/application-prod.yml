@@ -1,3 +1,11 @@
+spring:
+  datasource:
+    # No defaults on purpose: a missing value must stop the server, not silently point it
+    # at a developer database.
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
 server:
   error:
     include-message: never
@@ -6,4 +14,10 @@ server:
 
 logging:
   level:
+    # Keep this at INFO. DEBUG on com.ssafy.mozzi prints bound request objects, which for
+    # this service means diary text and Google id tokens land in the log store.
     com.ssafy.mozzi: INFO
+  structured:
+    format:
+      # One JSON object per line on stdout, which is what the k3s log collector reads.
+      console: ecs
