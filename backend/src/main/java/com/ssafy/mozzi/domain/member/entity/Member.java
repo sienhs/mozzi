@@ -24,9 +24,12 @@ import com.ssafy.mozzi.global.entity.BaseTimeEntity;
  *
  * <p>{@link SQLRestriction} filters withdrawn members out of <em>every</em> read Hibernate
  * generates, primary-key lookups included — verified on Hibernate 7 by
- * {@code MemberRepositoryTest}. The flip side is that a soft-deleted row becomes
- * unreachable through JPA entirely, so the one place that legitimately needs it (re-signup
- * inside the retention period) uses a native query. See {@code MemberRepository}.
+ * {@code MemberRepositoryTest}. A withdrawn row stays in the table, but nothing needs to
+ * reach it: signing up again with the same Google account creates a new member, so earlier
+ * data is never reattached.
+ *
+ * <p>A row is created only once sign-up completes, so every member has a nickname. The
+ * nickname cannot be changed afterwards and there is deliberately no method to do so.
  */
 @Entity
 @Table(name = "member")
@@ -41,8 +44,8 @@ public class Member extends BaseTimeEntity {
     @Column(nullable = false)
     private String email;
 
-    /** Null until onboarding completes (spec 4.2). */
-    @Column(length = 20)
+    /** Fixed at sign-up. See {@link Nickname} for the rules. */
+    @Column(nullable = false, length = Nickname.MAX_LENGTH)
     private String nickname;
 
     @Enumerated(EnumType.STRING)
@@ -68,36 +71,30 @@ public class Member extends BaseTimeEntity {
         // JPA
     }
 
-    private Member(String email, AuthProvider provider, String providerSubject) {
+    private Member(String email, AuthProvider provider, String providerSubject, String nickname) {
         this.email = email;
         this.provider = provider;
         this.providerSubject = providerSubject;
-        this.role = MemberRole.USER;
-        this.status = MemberStatus.PENDING_PROFILE;
-    }
-
-    /**
-     * A member created by a first Google sign-in, before a nickname exists.
-     *
-     * @see MemberStatus#PENDING_PROFILE
-     */
-    public static Member pendingProfile(String email, AuthProvider provider, String providerSubject) {
-        return new Member(email, provider, providerSubject);
-    }
-
-    /** Onboarding: sets the nickname and opens the account up (spec 4.2). */
-    public void completeOnboarding(String nickname) {
         this.nickname = nickname;
+        this.role = MemberRole.USER;
         this.status = MemberStatus.ACTIVE;
     }
 
-    public void changeNickname(String nickname) {
-        this.nickname = nickname;
+    /**
+     * A member whose sign-up has just completed: Google verified the identity and the
+     * nickname was submitted.
+     *
+     * @param email           Google's verified email; stored, never used to find or merge accounts
+     * @param providerSubject Google's {@code sub}, the account's identity
+     */
+    public static Member signUp(String email, AuthProvider provider, String providerSubject, String nickname) {
+        return new Member(email, provider, providerSubject, nickname);
     }
 
     /**
-     * Withdrawal (spec 4.2). Rows stay until the retention batch removes them, so the
-     * timestamp is what makes the retention period computable.
+     * Withdrawal (spec 4.2). The row stays until the retention batch removes it, so the
+     * timestamp is what makes the retention period computable. It does not block signing up
+     * again: the unique indexes only cover rows that are not deleted.
      */
     public void withdraw(Clock clock) {
         this.status = MemberStatus.WITHDRAWN;

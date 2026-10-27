@@ -14,9 +14,9 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * Writes an {@link ErrorResponse} straight onto the servlet response.
  *
- * <p>Spring Security's {@code AuthenticationEntryPoint} and {@code AccessDeniedHandler}
- * run inside the filter chain, where {@link GlobalExceptionHandler} is not reachable.
- * Both sides go through this writer so 401/403 bodies cannot drift from the rest of the API.
+ * <p>{@code AuthenticationFilter} rejects requests inside the filter chain, where
+ * {@link GlobalExceptionHandler} is not reachable. Both sides go through this writer so 401
+ * bodies cannot drift from the rest of the API.
  */
 @Component
 public class ErrorResponseWriter {

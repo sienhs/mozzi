@@ -14,9 +14,9 @@ import java.lang.annotation.Target;
  * DiaryDetailResponseDto get(@CurrentMember Long memberId, @PathVariable Long diaryId)
  * }</pre>
  *
- * <p>Controllers depend on this annotation only, never on how authentication works, so
- * replacing the temporary header-based resolver with Spring Security changes
- * {@link CurrentMemberArgumentResolver} and nothing else.
+ * <p>Controllers depend on this annotation only, never on how authentication works. The id
+ * comes from the access token {@link AuthenticationFilter} verified; a controller that also
+ * needs the session id (logout) takes {@link AuthenticatedMember} instead.
  */
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)

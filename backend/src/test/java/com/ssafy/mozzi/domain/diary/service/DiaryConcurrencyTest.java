@@ -71,9 +71,8 @@ class DiaryConcurrencyTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.execute("truncate table member cascade");
-        Member member = Member.pendingProfile("me@gmail.com", AuthProvider.GOOGLE, "me");
-        member.completeOnboarding("me");
-        memberId = memberRepository.saveAndFlush(member).getId();
+        memberId = memberRepository.saveAndFlush(
+                Member.signUp("me@gmail.com", AuthProvider.GOOGLE, "me", "me")).getId();
         diaryId = diaryService.create(memberId, new DiaryCreateRequestDto(
                 LocalDate.now(clock), Emotion.CALM, List.of(), "처음 메모")).diaryId();
     }

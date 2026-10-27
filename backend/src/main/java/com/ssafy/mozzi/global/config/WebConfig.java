@@ -10,6 +10,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import com.ssafy.mozzi.global.security.AuthenticatedMemberArgumentResolver;
 import com.ssafy.mozzi.global.security.CurrentMemberArgumentResolver;
 
 /**
@@ -31,14 +32,18 @@ public class WebConfig implements WebMvcConfigurer {
     private static final String BASE_PACKAGE = "com.ssafy.mozzi";
 
     private final CurrentMemberArgumentResolver currentMemberArgumentResolver;
+    private final AuthenticatedMemberArgumentResolver authenticatedMemberArgumentResolver;
 
-    public WebConfig(CurrentMemberArgumentResolver currentMemberArgumentResolver) {
+    public WebConfig(CurrentMemberArgumentResolver currentMemberArgumentResolver,
+            AuthenticatedMemberArgumentResolver authenticatedMemberArgumentResolver) {
         this.currentMemberArgumentResolver = currentMemberArgumentResolver;
+        this.authenticatedMemberArgumentResolver = authenticatedMemberArgumentResolver;
     }
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
         resolvers.add(currentMemberArgumentResolver);
+        resolvers.add(authenticatedMemberArgumentResolver);
     }
 
     @Override

@@ -8,5 +8,8 @@ spring:
 
 mozzi:
   auth:
-    # TEMPORARY until Spring Security lands; see CurrentMemberArgumentResolver.
-    mock-header-enabled: true
+    jwt-secret: test-only-jwt-secret-of-at-least-32-bytes
+  google:
+    # Google itself is never called from tests; GoogleIdTokenVerifier is replaced or fed a
+    # local key set.
+    client-ids: test-web-client-id

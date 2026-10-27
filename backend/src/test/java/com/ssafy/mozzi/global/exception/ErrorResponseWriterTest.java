@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.ssafy.mozzi.global.logging.RequestTrace;
+import com.ssafy.mozzi.global.security.SecurityErrorCode;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 /**
@@ -39,13 +40,13 @@ class ErrorResponseWriterTest {
     void writesTheCodesOwnStatusAndMessage() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        writer.write(response, CommonErrorCode.TOKEN_EXPIRED);
+        writer.write(response, SecurityErrorCode.ACCESS_TOKEN_EXPIRED);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
         assertThat(response.getContentType()).startsWith(MediaType.APPLICATION_JSON_VALUE);
         assertThat(response.getContentAsString())
-                .contains("\"code\":\"TOKEN_EXPIRED\"")
-                .contains(CommonErrorCode.TOKEN_EXPIRED.message());
+                .contains("\"code\":\"ACCESS_TOKEN_EXPIRED\"")
+                .contains(SecurityErrorCode.ACCESS_TOKEN_EXPIRED.message());
     }
 
     /** Same four keys as the controller path, including the null that is kept. */
@@ -53,7 +54,7 @@ class ErrorResponseWriterTest {
     void bodyHasTheSameShapeAsTheControllerPath() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        writer.write(response, CommonErrorCode.UNAUTHORIZED);
+        writer.write(response, SecurityErrorCode.ACCESS_TOKEN_MISSING);
 
         assertThat(response.getContentAsString())
                 .contains("\"code\":")
@@ -67,7 +68,7 @@ class ErrorResponseWriterTest {
         MDC.put(RequestTrace.TRACE_ID, "0af7651916cd43dd8448eb211c80319c");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        writer.write(response, CommonErrorCode.UNAUTHORIZED);
+        writer.write(response, SecurityErrorCode.ACCESS_TOKEN_MISSING);
 
         assertThat(response.getContentAsString()).contains("0af7651916cd43dd8448eb211c80319c");
     }
@@ -76,11 +77,11 @@ class ErrorResponseWriterTest {
     void writesKoreanWithoutMangling() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        writer.write(response, CommonErrorCode.ONBOARDING_REQUIRED);
+        writer.write(response, SecurityErrorCode.SESSION_REVOKED);
 
         assertThat(response.getCharacterEncoding()).isEqualToIgnoringCase("UTF-8");
         assertThat(response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
-                .contains(CommonErrorCode.ONBOARDING_REQUIRED.message());
+                .contains(SecurityErrorCode.SESSION_REVOKED.message());
     }
 
     @Test

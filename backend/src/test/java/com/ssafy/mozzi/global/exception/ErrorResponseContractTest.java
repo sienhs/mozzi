@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.UUID;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -16,6 +17,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -27,6 +31,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.ssafy.mozzi.global.logging.RequestTrace;
+import com.ssafy.mozzi.global.security.AccessSessionChecker;
+import com.ssafy.mozzi.global.security.AccessTokenProvider;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 /**
@@ -35,6 +41,10 @@ import com.ssafy.mozzi.support.IntegrationTest;
  * <p>These are contracts shared by every endpoint, so they are verified against a throwaway
  * controller rather than waiting for a real domain: a change here breaks the whole client at
  * once.
+ *
+ * <p>Every request carries a valid access token, and the session check always passes, so
+ * these tests see the dispatcher's behaviour rather than the authentication filter's.
+ * Authentication has its own tests ({@code AuthFlowTest}).
  */
 @IntegrationTest
 @AutoConfigureMockMvc
@@ -216,6 +226,18 @@ class ErrorResponseContractTest {
         @org.springframework.context.annotation.Bean
         TrialController trialController() {
             return new TrialController();
+        }
+
+        @org.springframework.context.annotation.Bean
+        @Primary
+        AccessSessionChecker everySessionIsCurrent() {
+            return (memberId, sessionId) -> true;
+        }
+
+        @org.springframework.context.annotation.Bean
+        MockMvcBuilderCustomizer authenticatedByDefault(AccessTokenProvider accessTokenProvider) {
+            String token = accessTokenProvider.issue(1L, UUID.randomUUID()).token();
+            return builder -> builder.defaultRequest(get("/").header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
         }
 
     }
