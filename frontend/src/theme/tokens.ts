@@ -22,6 +22,8 @@ export const colors = {
   // Figma 05 · 모찌 뽑기.
   gachaCream: '#F3EADC',
   gachaNavy: '#303645',
+  // 개봉 영상 가장자리 색. 영상이 화면을 다 채우지 못하는 곳에 깐다.
+  gachaCocoa: '#442A1D',
   gachaNavySoft: '#41495A',
   gachaGold: '#EBD5AA',
   gachaGoldInk: '#82602C',
