@@ -39,6 +39,8 @@ resource "aws_vpc_security_group_ingress_rule" "postgresql_workers" {
 resource "aws_db_instance" "postgresql" {
   identifier = "${var.name}-postgresql"
   engine     = "postgres"
+  # Create the application database with the instance; Flyway manages its schema.
+  db_name = "mozzi"
   # Pin the major version while allowing RDS to select a supported minor release.
   engine_version = "17"
   instance_class = "db.t4g.micro"
