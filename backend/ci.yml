@@ -28,9 +28,27 @@
 backend:test:
   extends: .backend-gradle
   stage: test
+  # Tests start a PostgreSQL container through Testcontainers, so the job needs a Docker
+  # daemon of its own. The alternative -- a GitLab `services: postgres` plus a separate CI
+  # profile -- would mean local and CI verify the migrations through two different paths.
+  services:
+    - name: docker:27.5.1-dind
+      alias: docker
+      command: ["--tls=false"]
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    # Containers run inside the dind service, so their published ports are reachable at the
+    # service alias rather than at localhost.
+    TESTCONTAINERS_HOST_OVERRIDE: docker
+    # Ryuk cleans up leftover containers; a CI job is thrown away anyway, and it needs a
+    # socket mount that dind does not offer.
+    TESTCONTAINERS_RYUK_DISABLED: "true"
   script:
     # Invoke via sh so the checkout does not need an executable bit on gradlew.
-    - sh ./gradlew --no-daemon --console=plain test
+    # `check` runs test + spotlessCheck, so formatting drift fails the pipeline.
+    - sh ./gradlew --no-daemon --console=plain check
   artifacts:
     when: always
     expire_in: 7 days

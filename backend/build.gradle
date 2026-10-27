@@ -1,7 +1,8 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.1.1'
+	id 'org.springframework.boot' version '4.1.2'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.diffplug.spotless' version '8.10.4'
 }
 
 group = 'com.ssafy'
@@ -20,16 +21,49 @@ repositories {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	// spring-boot-starter-flyway only brings flyway-core. Flyway 10 split database support
+	// into per-database modules, so without this it cannot talk to PostgreSQL at all.
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'org.postgresql:postgresql'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	// Tests run the real migrations against the real database. H2 would accept DDL that
+	// PostgreSQL rejects (and vice versa), so a passing test would prove nothing.
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	// Guards the Jackson 2 / Jackson 3 split described in docs/BE_CODE_CONVENTION.md 5.2.
+	testImplementation 'com.tngtech.archunit:archunit-junit5:1.5.1'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Formatting is mechanical so reviews can stay on behaviour. Run `gradlew spotlessApply`.
+// Steps are deliberately non-invasive: no whole-file reformatter is applied, because
+// picking one (google-java-format uses 2 spaces) would fight .editorconfig's 4 spaces.
+spotless {
+	java {
+		target 'src/**/*.java'
+		leadingTabsToSpaces(4)
+		trimTrailingWhitespace()
+		endWithNewline()
+		removeUnusedImports()
+		// '\\#' is Spotless' marker for static imports; Groovy needs it doubled.
+		importOrder('\\#', 'java|javax|jakarta', 'org', 'com', '')
+	}
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Run tests in the timezone the server runs in (see Dockerfile). CI containers default
+	// to UTC, where any assertion about "today" would pass locally and fail in the pipeline.
+	systemProperty 'user.timezone', 'Asia/Seoul'
 }
 
 tasks.named('bootJar') {
