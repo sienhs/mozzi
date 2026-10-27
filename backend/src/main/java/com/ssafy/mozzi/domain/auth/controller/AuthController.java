@@ -40,7 +40,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  *
  * <p>Responses carrying tokens are marked {@code no-store} so no cache keeps them.
  */
-@Tag(name = "인증", description = "docs/AUTH_API.md")
+@Tag(name = "인증", description = "backend/docs/api/auth.md")
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
