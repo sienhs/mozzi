@@ -1,0 +1,88 @@
+# 사람이 보기 위한 한국어 라벨 (export_prompts.py 가 captions_ko.md 를 만들 때만 사용)
+# 학습·생성에는 쓰지 않는다. 실제 캡션·프롬프트는 prompt_rules.yaml 이 정의한다.
+
+moods:
+  happy: 행복
+  calm: 평온
+  neutral: 기본
+  sad: 우울
+  angry: 화남
+
+activities:
+  exercise: 운동
+  walk: 산책
+  reading: 독서
+  movie: 영화 보기
+  gaming: 게임
+  studying: 공부
+  work: 일하기
+  cooking: 요리
+  cleaning: 청소
+  eating: 식사
+  shopping: 쇼핑
+  resting: 휴식
+  traveling: 여행
+
+# 서브 활동 → 캡션에 들어가는 소품
+props:
+  exercise: 아령
+  walk: 물병
+  reading: 펼친 책
+  movie: 팝콘
+  gaming: 게임 컨트롤러
+  studying: 공책·연필
+  work: 노트북
+  cooking: 프라이팬
+  cleaning: 빗자루
+  eating: 음식 그릇
+  shopping: 쇼핑백
+  resting: 쿠션
+  traveling: 여행가방
+
+places:
+  home: 집
+  cafe: 카페
+  office_school: 회사/학교
+  park: 공원
+  restaurant: 식당
+  travel_spot: 여행지
+  plain: 단색 배경
+
+companions:
+  alone: 혼자
+  friend: 친구(살구색)
+  family: 가족(노란색)
+  family:2: 가족 2명(노란색, 크기 다름)
+  partner: 연인(분홍색, 하트)
+  coworker: 동료(하늘색, 사원증)
+  pet:puppy: 강아지
+  pet:kitten: 고양이
+
+weather:
+  sunny: 맑음
+  cloudy: 흐림
+  rainy: 비
+  snowy: 눈
+  none: ""
+
+shots:
+  close_up: 클로즈업
+  medium: 미디엄 샷
+  full: 풀샷
+  small_in_scene: 와이드(모찌 작게)
+  front: 정면
+  three_quarter: 3/4 측면
+
+splits:
+  anchor: 기준(anchor)
+  main_sheet: 모찌 시트
+  companion_sheet: 동행 시트
+  scene: 장면
+
+# 검증·평가 프롬프트 세트 (val.csv / test.csv 의 set 열)
+sets:
+  val: 검증 (학습 중 샘플, 체크포인트 sweep)
+  test_combo: 테스트 - 조합
+  test_diary: 테스트 - 일기 디테일
+  test_multi: 테스트 - 서브 활동 여러 개
+  test_two_companions: 테스트 - 동행 2명

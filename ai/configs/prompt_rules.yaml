@@ -1,0 +1,266 @@
+# 모찌 프롬프트 규칙 (학습 캡션 · 후보 생성 프롬프트 · 서비스 프롬프트 공통)
+# 이 파일이 단일 진실 원천이다. scripts/prompt_builder.py 가 이 파일만 읽어서 조립한다.
+# Java 백엔드는 README의 "프롬프트 조립 규칙" 표와 이 파일을 그대로 옮기면 된다.
+
+version: 1
+
+# ---------------------------------------------------------------------------
+# 팀이 정할 변수 (TODO)
+# ---------------------------------------------------------------------------
+variables:
+  # TODO({{OUTLINE_COLOR}}): 외곽선 색. 예) "soft brown", "warm gray". null이면 외곽선 문구를 생략한다.
+  outline_color: null
+  # TODO({{MOOD_COLOR_MODE}}): environment(권장) | body_tint. 팀 확정 전까지 권장값으로 임시 설정.
+  mood_color_mode: environment
+
+trigger: mochi_char
+
+# 추론(서비스) 때만 LoRA 캡션 맨 뒤에 붙이는 화풍 문구. 학습 캡션에는 붙이지 않는다.
+# close-up·소파 장면 등이 실사풍으로 끌리는 것을 막는다 (10/23 sweep val_006, val_012)
+inference_style: warm children's picture-book illustration, crayon and watercolor textures
+
+# ---------------------------------------------------------------------------
+# 고정 규칙 (생성용 prompt 에만 붙는다. 학습 caption 에는 쓰지 않는다)
+# ---------------------------------------------------------------------------
+style: >-
+  Warm children's picture-book illustration with crayon, colored pencil and watercolor textures,
+  on a cream paper background, gentle slightly top-down three-quarter view.
+
+character: >-
+  The main character is Mochi: a single round rice-cake-shaped blob in near-white ivory,
+  with no separation between head and body, short stubby arms with no fingers,
+  dot or curved eyes, a small curved mouth and light pink cheeks{outline}.
+  Mochi's body color and silhouette never change with mood; emotion is shown only by
+  facial expression, pose and lighting.
+
+outline_clause: ", outlined in {outline_color}"
+
+scene_rules: >-
+  Exactly one main white Mochi appears near the center as the clear main focus, larger than any other character.
+  Companions, if any, are smaller and clearly different in color from Mochi, at most two.
+  No humans, no animals, pets or other characters unless named in this scene (no cats, dogs, birds, teddy bears or plush toys),
+  no characters shown on screens or pictures.
+  No photorealism, no 3D render, no text, no letters, no logos, no panels, no collage.
+
+# 장면 프롬프트에만 붙는다 (단색 배경 시트에는 안 붙음). 소품 개수 제한 없이 배경을 풍성하게.
+# 캡션에는 쓰지 않으므로 배경 디테일은 LoRA 의 기본 화풍으로 학습된다.
+scene_detail:
+  indoor: >-
+    The props named in this scene are clearly visible. The rest of the room is filled with rich,
+    cozy everyday details such as furniture, plants and small household items, varied and natural,
+    never another white Mochi.
+  outdoor: >-
+    The props named in this scene are clearly visible. The rest of the setting is filled with rich,
+    cozy outdoor details such as trees, flowers, benches, paths and small buildings in the distance,
+    varied and natural, never another white Mochi.
+
+# ---------------------------------------------------------------------------
+# 1. 기분
+# ---------------------------------------------------------------------------
+moods:
+  happy:
+    expression: a big open smile, curved happy closed eyes and slightly raised arms
+    color: warm yellow
+    light: warm bright golden light
+  calm:
+    expression: a gentle soft smile, relaxed curved eyes and a settled pose
+    color: soft mint green
+    light: soft gentle light
+  neutral:
+    expression: dot eyes, a small plain curved mouth and an upright pose
+    color: light beige
+    light: even natural light
+  sad:
+    expression: droopy dot eyes with a tiny tear, a small downturned mouth and a slouched pose
+    color: pale blue
+    light: cool dim light
+  angry:
+    expression: furrowed brows over dot eyes, a small pouting mouth, puffed cheeks and a stiff pose
+    color: soft coral red
+    light: warm reddish light
+
+# 기분 색 표현 방식 (variables.mood_color_mode 에 따라 선택)
+mood_color_modes:
+  environment: "Mochi's body stays pure white; the mood is shown with {color} cheek blush, {light} and a {color} tint in the background color temperature."
+  body_tint: "Mochi's body has a very faint {color} tint, with {light}."
+
+# ---------------------------------------------------------------------------
+# 2. 오늘 한 일 (메인 = 행동, 서브 = 소품)
+#   caption: 캡션에 들어가는 메인 활동 토큰
+#   action:  생성 prompt 의 행동 묘사
+#   prop:    서브 활동일 때 소품 명사
+#   prop_where: any | indoor | outdoor (서브 소품이 놓일 수 있는 장소 유형)
+#   places:  메인 활동으로 허용되는 장소 (나머지는 제외 규칙으로 걸러짐)
+# ---------------------------------------------------------------------------
+activities:
+  exercise:  {caption: exercising,       action: doing a light stretching exercise,           prop: a small dumbbell,       prop_where: any,    places: [home, park, travel_spot]}
+  walk:      {caption: walking,          action: taking a leisurely stroll,                   prop: a small water bottle,   prop_where: any,    places: [park, travel_spot]}
+  reading:   {caption: reading,          action: reading an open book,                        prop: an open book,           prop_where: any,    places: [home, cafe, office_school, park]}
+  movie:     {caption: watching a movie, action: watching a movie on a small screen,          prop: a bowl of popcorn,      prop_where: indoor, places: [home]}
+  gaming:    {caption: gaming,           action: playing a video game with a controller,      prop: a game controller,      prop_where: indoor, places: [home, cafe]}
+  studying:  {caption: studying,         action: studying with a notebook and a pencil,       prop: a notebook and pencil,  prop_where: any,    places: [home, cafe, office_school]}
+  work:      {caption: working,          action: working on a small laptop,                   prop: a small laptop,         prop_where: any,    places: [home, cafe, office_school]}
+  cooking:   {caption: cooking,          action: cooking with a small frying pan,             prop: a small frying pan,     prop_where: indoor, places: [home, restaurant]}
+  cleaning:  {caption: cleaning,         action: tidying up with a little broom,              prop: a little broom,         prop_where: indoor, places: [home, office_school]}
+  eating:    {caption: eating,           action: eating a tasty meal,                         prop: a bowl of food,         prop_where: any,    places: [home, cafe, restaurant, park, travel_spot, office_school]}
+  shopping:  {caption: shopping,         action: carrying a shopping bag,                     prop: a shopping bag,         prop_where: any,    places: [home, travel_spot]}
+  resting:   {caption: resting,          action: resting comfortably on a soft cushion,       prop: a soft cushion,         prop_where: indoor, places: [home, cafe, park, travel_spot]}
+  traveling: {caption: traveling,        action: traveling with a small suitcase,             prop: a small suitcase,       prop_where: any,    places: [travel_spot]}
+
+# ---------------------------------------------------------------------------
+# 3. 어디서 (미선택 시 default_place)
+#   caption: 기본 장소 문구. by_activity 로 활동별 세부 장소를 덮어쓴다.
+# ---------------------------------------------------------------------------
+default_place: home
+places:
+  home:
+    indoor: true
+    caption: home
+    by_activity:
+      cooking: home kitchen
+      cleaning: home living room
+      reading: home living room
+      movie: home living room sofa
+      gaming: home bedroom
+      studying: home desk
+      work: home desk
+      eating: home dining table
+      shopping: home living room
+      resting: home bedroom
+      exercise: home living room
+  cafe:          {indoor: true,  caption: cozy cafe}
+  office_school:
+    indoor: true
+    caption: office
+    by_activity:
+      studying: school classroom
+      reading: school library
+  park:          {indoor: false, caption: park}
+  restaurant:    {indoor: true,  caption: restaurant}
+  travel_spot:   {indoor: false, caption: scenic travel spot}
+
+# ---------------------------------------------------------------------------
+# 4. 누구와 (고정 표현. 캡션·프롬프트 공통)
+#   값 형식: friend | family | family:2 | partner | coworker | pet:puppy | pet:kitten
+#   "family:2" 는 크기가 다른 가족 모찌 2마리 (동행 2마리로 센다)
+# ---------------------------------------------------------------------------
+max_companions: 2
+companions:
+  friend:   {one: a pale peach friend mochi,                 two: two pale peach friend mochi}
+  family:   {one: a pale yellow family mochi,                two: two pale yellow family mochi of different sizes}
+  partner:  {one: a pale pink partner mochi with a tiny heart, two: two pale pink partner mochi with tiny hearts}
+  # coworker: "coworker"·"ID badge" 조합이 사람(직장인)으로 그려져서(10/23 sweep val_002) 직업 단어를 빼고 모찌로 묘사
+  coworker: {one: a small pale blue mochi with a tiny ID badge, two: two small pale blue mochi with tiny ID badges}
+  pet:
+    puppy:  {one: a round mochi-style puppy,  two: two round mochi-style puppies}
+    kitten: {one: a round mochi-style kitten, two: two round mochi-style kittens}
+default_pet: puppy
+
+# ---------------------------------------------------------------------------
+# 5. 날씨 (실내면 창밖과 빛으로 표현)
+# ---------------------------------------------------------------------------
+weather:
+  sunny:  {indoor: sunny window light,                         outdoor: bright sunny daylight}
+  cloudy: {indoor: soft overcast light through the window,     outdoor: soft cloudy daylight}
+  rainy:  {indoor: rain on the window with soft gray light,    outdoor: light rain and wet ground}
+  snowy:  {indoor: snow falling outside the window,            outdoor: gentle snowfall and snowy ground}
+
+# ---------------------------------------------------------------------------
+# 소품 위치 문구 (서브 활동 소품 뒤에 붙음)
+# ---------------------------------------------------------------------------
+prop_placement:
+  indoor: on the table
+  outdoor: nearby
+max_props: 3
+
+# ---------------------------------------------------------------------------
+# 구도
+# ---------------------------------------------------------------------------
+shots:
+  close_up:       {caption: close-up shot,         prompt: close-up shot focused on Mochi}
+  medium:         {caption: medium shot,           prompt: medium shot}
+  full:           {caption: full shot,             prompt: full shot showing Mochi's whole body and surroundings}
+  small_in_scene: {caption: small in a wide scene, prompt: wide shot with Mochi small in the scene but still the main focus}
+default_shot: medium
+
+# ---------------------------------------------------------------------------
+# 시트(단색 배경) 전용 문구
+# ---------------------------------------------------------------------------
+# 외부 이미지 모델에 레퍼런스를 첨부할 때 프롬프트 맨 앞에 붙이는 문장 (export_prompts.py)
+#   character: anchor 슬롯은 캐릭터 원본 디자인(mochi_{mood}.png, 스티커풍), 나머지는 고른 anchor 를 첨부
+#   style_only: 동행 단독 시트 (흰 모찌를 따라 그리면 안 됨)
+reference_notes:
+  character: >-
+    The attached image is the official Mochi character design. Keep Mochi's body shape, face,
+    proportions and near-white color exactly the same as the attached image, but render it in the
+    art style described below. Do not copy its pose, background or layout.
+  style_only: >-
+    The attached image is an art style reference only. Match its line, color pencil and watercolor
+    texture, but do not draw the white Mochi from the attached image.
+  variant: >-
+    The attached image is the official design of this special Mochi. Keep its body shape, face,
+    proportions, near-white color and its accessories exactly the same as the attached image, but render
+    it in the art style described below. Do not copy its pose, background or layout.
+
+# ---------------------------------------------------------------------------
+# 특색(뽑기) 캐릭터: 기본 모찌에 소품을 더한 변형 (시험 중, scripts/variant_test.py)
+#   caption: LoRA 캡션의 트리거 바로 뒤에 붙는다  → "mochi_char {caption}, happy, ..."
+#   prompt:  긴 생성 프롬프트 끝에 붙는다 (LoRA 없는 방법용)
+# ---------------------------------------------------------------------------
+variants:
+  lemon:
+    caption: wearing a yellow lemon bucket hat with a green leaf on top, holding half a lemon
+    prompt: >-
+      This special Mochi wears a yellow lemon-shaped bucket hat with a small green leaf on top and a
+      lemon-slice pattern on the brim, and holds half a lemon in its hands.
+  watermelon:
+    caption: wearing a green striped watermelon rind hood with a curly stem on top and a red watermelon cape with black seeds, holding a watermelon slice
+    prompt: >-
+      This special Mochi wears a hood that looks like green watermelon rind with dark zigzag stripes and
+      a small curly vine stem on top, and a short red cape that looks like watermelon flesh with black
+      seeds and a green-and-white rind trim. It holds a triangular watermelon slice in its hands.
+  rain:
+    # 날씨/mozzi_legendary_005 (참조 1장, 우울 표정). 표정은 문구에 넣지 않는다
+    caption: wearing a soft grey hooded raincoat tied with a light blue ribbon bow and a teardrop charm, with a clear iridescent umbrella
+    prompt: >-
+      This special Mochi wears a soft grey hooded raincoat with the hood up, tied at the neck with a light
+      blue ribbon bow and a small teardrop charm, and has a clear iridescent umbrella.
+
+sheet:
+  pose_caption: standing
+  background_caption: plain cream background
+  angles:
+    front: front view
+    three_quarter: three-quarter view
+
+# ---------------------------------------------------------------------------
+# 제외 규칙 (활동.places 화이트리스트에 더해 적용)
+# ---------------------------------------------------------------------------
+exclusions:
+  # 동행 × 장소
+  companion_places:
+    coworker: [home]
+    family: [office_school]
+    partner: [office_school]
+    pet: [office_school, restaurant]
+  # 동행이 있으면 허용하지 않는 구도 (동행 장면은 medium/full 위주)
+  companion_shots: [close_up, small_in_scene]
+  # 명시적으로 기록해 둘 대표 제외 조합 (설명용. 실제 판정은 activities.places 로도 걸러짐)
+  examples:
+    - {activity: cooking,   place: travel_spot, reason: 여행지에서 요리는 어색함}
+    - {activity: cleaning,  place: restaurant,  reason: 식당 청소는 사용자 하루로 어색함}
+    - {activity: movie,     place: park,        reason: 실외 장소 + 실내 전용 활동}
+    - {activity: gaming,    place: park,        reason: 실외 장소 + 실내 전용 활동}
+    - {activity: walk,      place: home,        reason: 실내 장소 + 실외 전용 활동}
+    - {activity: traveling, place: home,        reason: 여행은 여행지에서만}
+
+# ---------------------------------------------------------------------------
+# 한 줄 일기 → 디테일 1개 (예시. 서비스에서는 LLM 단계가 영어 디테일 1개로 바꿔서 넘긴다)
+# ---------------------------------------------------------------------------
+diary_examples:
+  - {text: "벚꽃이 피었다",               detail: cherry blossom petals floating around}
+  - {text: "생일 케이크를 받았다",          detail: a small birthday cake with candles}
+  - {text: "무지개를 봤다",                detail: a soft rainbow in the background}
+  - {text: "친구에게 편지를 받았다",        detail: a little letter in an envelope}
+  - {text: "화분을 새로 샀다",              detail: a small new potted plant}
+  - {text: "따뜻한 코코아를 마셨다",        detail: a cup of hot cocoa}

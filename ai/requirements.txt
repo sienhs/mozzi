@@ -1,0 +1,17 @@
+# 설치 순서 (Windows PowerShell, ai/ 에서) — setup.ps1 이 아래를 그대로 실행한다.
+#   1) uv venv .venv --python 3.12
+#   2) uv pip install --python .venv\Scripts\python.exe torch==2.13.0 torchvision==0.28.0 torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu130
+#   3) uv pip install --python .venv\Scripts\python.exe -r third_party\ai-toolkit\requirements.txt
+#   4) uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+#
+# 2)·3) 은 ai-toolkit 이 고정한 버전이다 (torch 2.13.0 cu130, diffusers git c943837, transformers 5.5.3,
+# peft 0.18.1, optimum-quanto 0.2.4, torchao 0.10.0, gradio, matplotlib ...).
+# 우리 스크립트도 같은 venv / 같은 diffusers 를 써서 학습·추론 버전 차이를 없앤다.
+#
+# 아래는 ai-toolkit 에 없는, 이 폴더 스크립트 전용 추가 패키지다.
+gguf==0.19.0           # diffusers GGUF 로더 (gguf_q8 / gguf_q4 추론)
+nvidia-ml-py           # NVML: VRAM / 온도 측정
+psutil                 # RAM 피크, 전원 연결 여부, 학습 프로세스 일시정지
+pandas
+pyyaml
+python-dotenv

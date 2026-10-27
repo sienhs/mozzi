@@ -1,0 +1,82 @@
+# 본 학습 (6GB 노트북 기준 최대한 최적화)
+# ai-toolkit 0.13.34 (commit 2d4c89d) 의 flux2_klein_4b 아키텍처 기준.
+#
+# 메모리 최적화
+#   - model.quantize + qtype: 베이스 트랜스포머 8bit 양자화 (bf16 7.75GB -> 약 4GB)
+#   - gradient_checkpointing, adamw8bit
+#   - cache_latents_to_disk + cache_text_embeddings: 학습 전에 latent/텍스트 임베딩을 캐싱하고
+#     텍스트 인코더(Qwen3-4B)를 메모리에서 내린다
+#   - low_vram: 로딩/양자화 중 CPU에 두었다가 올림
+# 중단 후 재개: 같은 run 폴더로 다시 실행하면 ai-toolkit 이 마지막 체크포인트(250 step 단위)에서 이어서 학습한다.
+#   python scripts/train.py --config configs/train_local.yaml --resume <run_id>
+
+mochi:
+  kind: main
+  train_precision: qfloat8
+  rank: 16                   # 8은 비교용 (--rank 8)
+  max_train_hours: 12        # TODO({{MAX_TRAIN_HOURS}})
+  estimate_after_steps: 50
+  sample_prompts: val        # dataset/prompts/val.txt 를 고정 seed로 샘플링
+  sample_prompts_limit: 4    # 6GB에서 base 모델 샘플링은 느려서 앞 4개만 (전체 val 평가는 infer.py 체크포인트 스윕으로)
+
+job: extension
+config:
+  name: "{{RUN_NAME}}"
+  process:
+    - type: sd_trainer
+      training_folder: "{{TRAINING_FOLDER}}"
+      device: cuda:0
+      trigger_word: mochi_char
+      network:
+        type: lora
+        linear: 16
+        linear_alpha: 16
+      save:
+        dtype: bf16
+        save_every: 250
+        max_step_saves_to_keep: 8   # 250~2000 전부 보관 (step별 품질 곡선용)
+      datasets:
+        - folder_path: "{{DATASET_DIR}}"
+          caption_ext: txt
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          cache_text_embeddings: true
+          resolution: [768]          # 스모크 실측(10/22): 512 3.67 / 768 7.08 / 1024 12.35 s/it(공유 메모리 사용). 768 ≈ 3.9h/2000step
+      train:
+        batch_size: 1
+        steps: 2000                 # 56장 기준 약 36 에포크
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: flowmatch
+        timestep_type: weighted
+        optimizer: adamw8bit
+        lr: 1.0e-4
+        dtype: bf16
+        unload_text_encoder: false
+        skip_first_sample: true
+      model:
+        arch: flux2_klein_4b
+        name_or_path: black-forest-labs/FLUX.2-klein-base-4B
+        quantize: true
+        qtype: qfloat8
+        quantize_te: true
+        qtype_te: qfloat8
+        low_vram: true
+        model_kwargs:
+          match_target_res: false
+      sample:
+        sampler: flowmatch
+        sample_every: 250
+        width: 512
+        height: 512
+        prompts: []                 # train.py 가 val.txt 로 채움
+        seed: 42
+        walk_seed: false
+        guidance_scale: 4
+        sample_steps: 20
+meta:
+  name: "[name]"
+  version: "1.0"

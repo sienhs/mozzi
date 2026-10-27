@@ -1,0 +1,73 @@
+# ai/ 전용 gitignore — 큰 파일(이미지·가중치·데이터셋·캐시)과 비밀값은 올리지 않는다.
+# 커밋 대상: 코드(scripts/), 설정(configs/), 텍스트 데이터(dataset/), 문서, results/(CSV·md·report png)
+# 경로는 이 파일(ai/) 기준이다.
+
+# ---- 생성물 · 외부 코드 · 가상환경 ----
+# 후보 이미지, 데이터셋, 실행 결과, 체크포인트, 캐시 전부
+outputs/
+# ai-toolkit 소스 (setup.ps1 이 고정 커밋으로 클론)
+third_party/
+.venv/
+venv/
+
+# ---- 비밀값 ----
+.env
+.env.*
+!.env.example
+
+# ---- 모델 가중치 · 체크포인트 ----
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.gguf
+*.onnx
+*.h5
+*.tflite
+*.npz
+*.npy
+
+# ---- 이미지 · 영상 (발표용 리포트 png만 예외) ----
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.bmp
+*.tif
+*.tiff
+*.mp4
+*.webm
+!results/report/*.png
+!results/report/**/*.png
+
+# ---- 압축 파일 (데이터셋·결과 묶음) ----
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# ---- 캐시 · 로그 · 도구 부산물 ----
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+# curate_app (Gradio) 임시 파일
+.gradio/
+# ai-toolkit latent 캐시 (데이터셋 폴더 안에 생김)
+_latent_cache/
+tensorboard/
+runs_tb/
+wandb/
+*.log
+*.tmp
+
+# ---- 생성 캡션 (manifest.csv 의 caption 열과 동일 → git 에는 manifest 만 올림) ----
+dataset/captions/
+
+# ---- 개인 작업 지침 (Claude Code 용, 로컬에만 둠) ----
+CLAUDE.md
