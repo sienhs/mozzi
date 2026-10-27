@@ -7,3 +7,5 @@ vpn_port: 51820
 vpn_mtu: 1380
 vpn_interface: wg0
 private_subnet_cidr: 10.50.11.0/24
+traefik_acme_email: "{{ lookup('env', 'TRAEFIK_ACME_EMAIL') }}"
+traefik_acme_directory: /var/lib/mozzi/traefik-acme

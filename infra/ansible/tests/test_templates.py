@@ -59,6 +59,24 @@ class TemplatesTest(unittest.TestCase):
         self.assertIn('iifname "wg0" oifname "wg0"', rules)
         self.assertIn('ip daddr != { 10.50.0.0/16, 10.200.0.0/24 }', rules)
 
+    def test_traefik_acme_has_persistent_single_writer_storage(self):
+        config = yaml.safe_load(self.render(
+            'roles/k3s/templates/traefik-config.yaml.j2',
+            traefik_acme_email='tls@example.com',
+            traefik_acme_directory='/var/lib/mozzi/traefik-acme'))
+        values = yaml.safe_load(config['spec']['valuesContent'])
+        acme = values['certificatesResolvers']['letsencrypt']['acme']
+        self.assertEqual(acme['email'], 'tls@example.com')
+        self.assertEqual(acme['httpChallenge']['entryPoint'], 'web')
+        self.assertEqual(acme['storage'], '/acme/acme.json')
+        self.assertEqual(values['deployment']['replicas'], 1)
+        self.assertEqual(values['updateStrategy']['type'], 'Recreate')
+        volume = values['deployment']['additionalVolumes'][0]
+        mount = values['additionalVolumeMounts'][0]
+        self.assertEqual(volume['name'], mount['name'])
+        self.assertEqual(volume['hostPath']['path'], '/var/lib/mozzi/traefik-acme')
+        self.assertEqual(mount['mountPath'], '/acme')
+
 
 if __name__ == '__main__':
     unittest.main()
