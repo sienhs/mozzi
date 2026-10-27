@@ -1,0 +1,72 @@
+# 스모크 학습: 동작 확인 + s/it 측정 (6GB 노트북)
+# ai-toolkit 0.13.34 (commit 2d4c89d) 의 flux2_klein_4b 아키텍처 기준으로 작성.
+# train.py 가 {{...}} 자리표시자를 채우고 mochi: 블록을 떼어낸 뒤 ai-toolkit run.py 에 넘긴다.
+
+mochi:                       # train.py 전용 메타데이터 (ai-toolkit 에는 전달되지 않음)
+  kind: smoke
+  train_precision: qfloat8   # bf16 | qfloat8 | float8 | int8 | uint4 ...  (bf16 = 양자화 없음)
+  rank: 8
+  max_train_hours: 12        # TODO({{MAX_TRAIN_HOURS}})
+  estimate_after_steps: 50   # 이 step까지의 s/it 로 전체 시간을 추정
+
+job: extension
+config:
+  name: "{{RUN_NAME}}"
+  process:
+    - type: sd_trainer
+      training_folder: "{{TRAINING_FOLDER}}"
+      device: cuda:0
+      trigger_word: mochi_char
+      network:
+        type: lora
+        linear: 8
+        linear_alpha: 8
+      save:
+        dtype: bf16
+        save_every: 50
+        max_step_saves_to_keep: 1
+      datasets:
+        - folder_path: "{{DATASET_DIR}}"
+          caption_ext: txt
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          cache_text_embeddings: true
+          resolution: [512]
+      train:
+        batch_size: 1
+        steps: 50
+        gradient_accumulation_steps: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: flowmatch
+        timestep_type: weighted
+        optimizer: adamw8bit
+        lr: 1.0e-4
+        dtype: bf16
+        unload_text_encoder: false
+        disable_sampling: true
+      model:
+        arch: flux2_klein_4b
+        name_or_path: black-forest-labs/FLUX.2-klein-base-4B
+        quantize: true
+        qtype: qfloat8
+        quantize_te: true
+        qtype_te: qfloat8
+        low_vram: true
+        model_kwargs:
+          match_target_res: false
+      sample:
+        sampler: flowmatch
+        sample_every: 1000000
+        width: 512
+        height: 512
+        prompts: []
+        seed: 42
+        walk_seed: false
+        guidance_scale: 4
+        sample_steps: 20
+meta:
+  name: "[name]"
+  version: "1.0"

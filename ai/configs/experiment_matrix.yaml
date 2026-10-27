@@ -1,0 +1,73 @@
+# 비교 실험 조합 정의. run_matrix.py 가 골라서 순서대로 실행한다.
+#   python scripts/run_matrix.py --list
+#   python scripts/run_matrix.py --priority 1             # 1차 우선순위만
+#   python scripts/run_matrix.py --only lora_fp8_768,lora_gguf_q4_768
+#
+# priority: 1 = 1차(권장, 먼저 돌릴 것) / 2 = 2차 / 3 = 시간 날 때
+# lora: "latest" = training_summary.csv 에서 가장 최근 success 인 본 학습(rank 무관) 최종 LoRA
+
+defaults:
+  prompts: test            # dataset/prompts/test.csv (4개 세트 전부, 40 프롬프트)
+  seeds_per_prompt: 1      # seeds.txt 앞에서부터
+  steps: 4                 # distilled 4-step 고정
+  guidance: 1.0
+  te_device: cuda
+  eval_crop: true          # eval.py --crop (OWLv2 주인공 크롭)
+  lora: latest
+  max_image_sec: 120       # 한 장이 2분을 넘으면 too_slow 로 기록하고 다음 조합으로 (bf16 대비)
+
+# ---------------------------------------------------------------------------
+# 학습 비교 (train_precision × rank). 실패(OOM/too_slow)도 결과로 기록된다.
+# ---------------------------------------------------------------------------
+training:
+  - {name: train_smoke,      config: configs/train_local_smoke.yaml, precision: qfloat8, rank: 8,  priority: 1}
+  - {name: train_q8_r16,     config: configs/train_local.yaml,       precision: qfloat8, rank: 16, priority: 1}
+  - {name: train_bf16_r16,   config: configs/train_local.yaml,       precision: bf16,    rank: 16, priority: 1,
+     steps: 60, note: "bf16는 6GB 초과 예상. 60 step만 돌려 OOM/too_slow 여부와 s/it 만 기록"}
+  - {name: train_q8_r8,      config: configs/train_local.yaml,       precision: qfloat8, rank: 8,  priority: 2}
+  - {name: train_f8ao_r16,   config: configs/train_local.yaml,       precision: float8,  rank: 16, priority: 3,
+     steps: 60, note: "torchao float8 weight-only (qfloat8=optimum-quanto 와 비교)"}
+  - {name: train_uint4_r16,  config: configs/train_local.yaml,       precision: uint4,   rank: 16, priority: 3,
+     steps: 60, note: "4bit 양자화 학습 가능 여부 확인"}
+
+# ---------------------------------------------------------------------------
+# 추론 비교 (method × precision × resolution)
+# ---------------------------------------------------------------------------
+inference:
+  # --- 1차: 768에서 LoRA 유무 + 양자화 4종 ---
+  - {name: base_fp8_768,       method: klein_base, precision: fp8,     res: 768,  priority: 1}
+  - {name: ref_fp8_768,        method: klein_ref,  precision: fp8,     res: 768,  priority: 1}
+  - {name: lora_fp8_768,       method: klein_lora, precision: fp8,     res: 768,  priority: 1}
+  - {name: lora_bf16_768,      method: klein_lora, precision: bf16,    res: 768,  priority: 1}
+  - {name: lora_gguf_q8_768,   method: klein_lora, precision: gguf_q8, res: 768,  priority: 1}
+  - {name: lora_gguf_q4_768,   method: klein_lora, precision: gguf_q4, res: 768,  priority: 1}
+  - {name: api_ref_768,        method: api_ref,                        res: 768,  priority: 1,
+     note: "IMAGE_API_PROVIDER 확정 후 실행 가능"}
+  # --- 2차: 1024 ---
+  - {name: base_fp8_1024,      method: klein_base, precision: fp8,     res: 1024, priority: 2}
+  - {name: ref_fp8_1024,       method: klein_ref,  precision: fp8,     res: 1024, priority: 2}
+  - {name: lora_fp8_1024,      method: klein_lora, precision: fp8,     res: 1024, priority: 2}
+  - {name: lora_bf16_1024,     method: klein_lora, precision: bf16,    res: 1024, priority: 2}
+  - {name: lora_gguf_q8_1024,  method: klein_lora, precision: gguf_q8, res: 1024, priority: 2}
+  - {name: lora_gguf_q4_1024,  method: klein_lora, precision: gguf_q4, res: 1024, priority: 2}
+  - {name: api_ref_1024,       method: api_ref,                        res: 1024, priority: 2}
+  # --- 3차: LoRA 없는 방법의 나머지 precision ---
+  - {name: base_bf16_768,      method: klein_base, precision: bf16,    res: 768,  priority: 3}
+  - {name: base_gguf_q8_768,   method: klein_base, precision: gguf_q8, res: 768,  priority: 3}
+  - {name: base_gguf_q4_768,   method: klein_base, precision: gguf_q4, res: 768,  priority: 3}
+  - {name: ref_bf16_768,       method: klein_ref,  precision: bf16,    res: 768,  priority: 3}
+  - {name: ref_gguf_q8_768,    method: klein_ref,  precision: gguf_q8, res: 768,  priority: 3}
+  - {name: ref_gguf_q4_768,    method: klein_ref,  precision: gguf_q4, res: 768,  priority: 3}
+  - {name: base_bf16_1024,     method: klein_base, precision: bf16,    res: 1024, priority: 3}
+  - {name: base_gguf_q8_1024,  method: klein_base, precision: gguf_q8, res: 1024, priority: 3}
+  - {name: base_gguf_q4_1024,  method: klein_base, precision: gguf_q4, res: 1024, priority: 3}
+  - {name: ref_bf16_1024,      method: klein_ref,  precision: bf16,    res: 1024, priority: 3}
+  - {name: ref_gguf_q8_1024,   method: klein_ref,  precision: gguf_q8, res: 1024, priority: 3}
+  - {name: ref_gguf_q4_1024,   method: klein_ref,  precision: gguf_q4, res: 1024, priority: 3}
+
+# ---------------------------------------------------------------------------
+# 체크포인트(step)별 품질 곡선: 학습 run 의 250/500/.../2000 체크포인트를 val 세트로 추론+평가
+# ---------------------------------------------------------------------------
+sweeps:
+  - {name: ckpt_sweep_fp8_768, train_run: latest, method: klein_lora, precision: fp8, res: 768,
+     prompts: val, priority: 2}

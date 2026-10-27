@@ -1,0 +1,61 @@
+type,a,b,reason
+activity×place,exercise,cafe,허용 장소 목록(activities.places)에 없음
+activity×place,exercise,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,exercise,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,walk,home,실내 장소 + 실외 전용 활동
+activity×place,walk,cafe,허용 장소 목록(activities.places)에 없음
+activity×place,walk,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,walk,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,reading,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,reading,travel_spot,허용 장소 목록(activities.places)에 없음
+activity×place,movie,cafe,허용 장소 목록(activities.places)에 없음
+activity×place,movie,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,movie,park,실외 장소 + 실내 전용 활동
+activity×place,movie,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,movie,travel_spot,실외 장소 + 실내 전용 활동
+activity×place,gaming,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,gaming,park,실외 장소 + 실내 전용 활동
+activity×place,gaming,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,gaming,travel_spot,실외 장소 + 실내 전용 활동
+activity×place,studying,park,허용 장소 목록(activities.places)에 없음
+activity×place,studying,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,studying,travel_spot,허용 장소 목록(activities.places)에 없음
+activity×place,work,park,허용 장소 목록(activities.places)에 없음
+activity×place,work,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,work,travel_spot,허용 장소 목록(activities.places)에 없음
+activity×place,cooking,cafe,허용 장소 목록(activities.places)에 없음
+activity×place,cooking,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,cooking,park,실외 장소 + 실내 전용 활동
+activity×place,cooking,travel_spot,여행지에서 요리는 어색함
+activity×place,cleaning,cafe,허용 장소 목록(activities.places)에 없음
+activity×place,cleaning,park,실외 장소 + 실내 전용 활동
+activity×place,cleaning,restaurant,식당 청소는 사용자 하루로 어색함
+activity×place,cleaning,travel_spot,실외 장소 + 실내 전용 활동
+activity×place,shopping,cafe,허용 장소 목록(activities.places)에 없음
+activity×place,shopping,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,shopping,park,허용 장소 목록(activities.places)에 없음
+activity×place,shopping,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,resting,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,resting,restaurant,허용 장소 목록(activities.places)에 없음
+activity×place,traveling,home,여행은 여행지에서만
+activity×place,traveling,cafe,허용 장소 목록(activities.places)에 없음
+activity×place,traveling,office_school,허용 장소 목록(activities.places)에 없음
+activity×place,traveling,park,허용 장소 목록(activities.places)에 없음
+activity×place,traveling,restaurant,허용 장소 목록(activities.places)에 없음
+companion×place,coworker,home,동행-장소 제외 규칙
+companion×place,family,office_school,동행-장소 제외 규칙
+companion×place,partner,office_school,동행-장소 제외 규칙
+companion×place,pet,office_school,동행-장소 제외 규칙
+companion×place,pet,restaurant,동행-장소 제외 규칙
+companion×shot,(any companion),close_up,동행 장면은 medium/full 위주
+companion×shot,(any companion),small_in_scene,동행 장면은 medium/full 위주
+sub_prop×place,movie,park,서브 소품은 indoor 전용
+sub_prop×place,movie,travel_spot,서브 소품은 indoor 전용
+sub_prop×place,gaming,park,서브 소품은 indoor 전용
+sub_prop×place,gaming,travel_spot,서브 소품은 indoor 전용
+sub_prop×place,cooking,park,서브 소품은 indoor 전용
+sub_prop×place,cooking,travel_spot,서브 소품은 indoor 전용
+sub_prop×place,cleaning,park,서브 소품은 indoor 전용
+sub_prop×place,cleaning,travel_spot,서브 소품은 indoor 전용
+sub_prop×place,resting,park,서브 소품은 indoor 전용
+sub_prop×place,resting,travel_spot,서브 소품은 indoor 전용
