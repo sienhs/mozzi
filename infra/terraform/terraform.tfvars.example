@@ -8,3 +8,7 @@ worker_ami_id          = "ami-05b2d28c4a1614552"
 # availability_zone_id    = "apne2-az1"
 # gateway_instance_type   = "t3.micro"
 # aws_account_id          = "123456789012"
+# Required: choose your own DB credentials. No credentials are generated or defaulted.
+# Supply TF_VAR_db_username and TF_VAR_db_password in your environment,
+# or add db_username and db_password to your ignored local terraform.tfvars.
+# rds_secondary_availability_zone_id = "apne2-az2"
