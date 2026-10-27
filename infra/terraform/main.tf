@@ -19,6 +19,14 @@ provider "aws" {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+module "backend_s3" {
+  source = "./modules/s3"
+
+  bucket_name = "${var.name_prefix}-backend-${data.aws_caller_identity.current.account_id}"
+}
+
 module "backend_ecr" {
   source = "./modules/ecr"
 
