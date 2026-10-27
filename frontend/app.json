@@ -2,7 +2,7 @@
   "expo": {
     "name": "오늘의 모찌",
     "slug": "mozzi",
-    "platforms": ["ios", "android"],
+    "platforms": ["ios", "android", "web"],
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -25,7 +25,7 @@
       "favicon": "./assets/favicon.png"
     },
     "scheme": "mozzi",
-    "plugins": ["expo-router"],
+    "plugins": ["expo-router", "expo-font", "expo-asset", "expo-status-bar"],
     "experiments": {
       "typedRoutes": true
     }

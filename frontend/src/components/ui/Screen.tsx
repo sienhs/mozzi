@@ -1,0 +1,196 @@
+import type { ReactNode } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { router } from 'expo-router';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
+import { colors, spacing } from '@/theme/tokens';
+import { Icon, type IconName } from './Icon';
+import { AppText } from './Text';
+
+export function goBack() {
+  if (router.canGoBack()) router.back();
+  else router.replace('/home');
+}
+export function ScreenHeader({
+  title = '',
+  back,
+  onBack = goBack,
+  action,
+  onTitleLongPress,
+}: {
+  title?: string;
+  back?: boolean;
+  onBack?: () => void;
+  action?: { icon: IconName; label: string; onPress: () => void };
+  onTitleLongPress?: () => void;
+}) {
+  return (
+    <View style={styles.header}>
+      {back && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="뒤로"
+          onPress={onBack}
+          style={styles.leading}
+        >
+          <Icon name="back" />
+        </Pressable>
+      )}
+      <Pressable
+        disabled={!onTitleLongPress}
+        onLongPress={onTitleLongPress}
+        style={{ flex: 1 }}
+      >
+        <AppText variant="label">{title}</AppText>
+      </Pressable>
+      {action && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={action.label}
+          onPress={action.onPress}
+          style={styles.trailing}
+        >
+          <Icon name={action.icon} />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+export function Screen({
+  children,
+  title,
+  back,
+  onBack,
+  action,
+  footer,
+  header = true,
+  contentStyle,
+  onTitleLongPress,
+}: {
+  children: ReactNode;
+  footer?: ReactNode;
+  header?: boolean;
+  contentStyle?: StyleProp<ViewStyle>;
+} & Parameters<typeof ScreenHeader>[0]) {
+  const insets = useSafeAreaInsets();
+  return (
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.frame}
+      >
+        {header && (
+          <ScreenHeader
+            title={title}
+            back={back}
+            onBack={onBack}
+            action={action}
+            onTitleLongPress={onTitleLongPress}
+          />
+        )}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[
+            styles.content,
+            !footer && { paddingBottom: Math.max(insets.bottom, 24) },
+            contentStyle,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+        {footer && (
+          <View
+            style={[
+              styles.footer,
+              {
+                paddingBottom:
+                  Platform.OS === 'web' ? 34 : Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
+            {footer}
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+export function Heading({
+  title,
+  description,
+  eyebrow,
+  display,
+}: {
+  title: string;
+  description?: string;
+  eyebrow?: string;
+  display?: boolean;
+}) {
+  return (
+    <View style={{ gap: 8 }}>
+      {eyebrow && (
+        <AppText variant="caption" style={{ color: colors.primary }}>
+          {eyebrow}
+        </AppText>
+      )}
+      <AppText
+        variant={display ? 'display' : 'title'}
+        accessibilityRole="header"
+      >
+        {title}
+      </AppText>
+      {description && (
+        <AppText style={{ color: colors.muted }}>{description}</AppText>
+      )}
+    </View>
+  );
+}
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  frame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingTop: Platform.OS === 'web' ? 44 : 0,
+  },
+  header: {
+    minHeight: 56,
+    paddingHorizontal: spacing.page,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  leading: { width: 48, height: 48, justifyContent: 'center' },
+  trailing: {
+    width: 48,
+    height: 48,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.page,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.page,
+    gap: spacing.section,
+  },
+  footer: {
+    paddingHorizontal: spacing.page,
+    paddingTop: spacing.md,
+    gap: spacing.md,
+    backgroundColor: colors.bg,
+  },
+});
