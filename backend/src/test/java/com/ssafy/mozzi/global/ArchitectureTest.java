@@ -1,5 +1,6 @@
 package com.ssafy.mozzi.global;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.methods;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import java.time.Instant;
@@ -11,10 +12,17 @@ import java.time.Year;
 import java.time.YearMonth;
 import java.time.ZonedDateTime;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+
+import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 /**
  * Rules the compiler cannot express but that silently rot if left to review.
@@ -55,5 +63,28 @@ class ArchitectureTest {
             .orShould().callMethod(YearMonth.class, "now")
             .orShould().callMethod(Year.class, "now")
             .because("the service timezone and the midnight grace window need an injectable Clock");
+
+    /**
+     * An error response built with a plain {@code ResponseEntity} is negotiated against the
+     * client's {@code Accept}; when that rules out JSON the handler itself fails and the client
+     * gets an empty 500. {@code ErrorResponseEntity} fixes the Content-Type to JSON.
+     *
+     * <p>Accesses, not just calls, so a method reference such as {@code ResponseEntity::ok}
+     * counts too.
+     *
+     * <p>Checks only the handler method itself, so a helper it calls is on review.
+     */
+    @ArchTest
+    static final ArchRule exceptionHandlersBuildTheirResponseThroughErrorResponseEntity = methods()
+            .that().areAnnotatedWith(ExceptionHandler.class)
+            .should(new ArchCondition<JavaMethod>("not build a ResponseEntity directly") {
+                @Override
+                public void check(JavaMethod method, ConditionEvents events) {
+                    method.getAccessesFromSelf().stream()
+                            .filter(access -> access.getTargetOwner().isEquivalentTo(ResponseEntity.class))
+                            .forEach(access -> events.add(SimpleConditionEvent.violated(method, access.getDescription())));
+                }
+            })
+            .because("an error body must be JSON whatever the client accepts; use ErrorResponseEntity");
 
 }

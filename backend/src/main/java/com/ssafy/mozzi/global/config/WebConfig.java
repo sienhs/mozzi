@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.HttpMessageConverters;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.HandlerTypePredicate;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -51,6 +53,22 @@ public class WebConfig implements WebMvcConfigurer {
         Predicate<Class<?>> ourControllers = HandlerTypePredicate.forAnnotation(RestController.class)
                 .and(HandlerTypePredicate.forBasePackage(BASE_PACKAGE));
         configurer.addPathPrefix(API_PREFIX, ourControllers);
+    }
+
+    /**
+     * Removes the YAML converter, so the API reads and writes JSON only.
+     *
+     * <p>springdoc brings in jackson-dataformat-yaml (Jackson 2), and Spring registers a YAML
+     * converter whenever that is on the classpath. It does not use the application's Jackson 3
+     * mapper, so none of {@code spring.jackson.*} applies to it: a YAML request body with a
+     * misspelled field reached the service instead of getting 400, and {@code Accept:
+     * application/yaml} returned timestamps as epoch numbers (both verified).
+     * {@code WebConfigTest} pins the removal.
+     */
+    @Override
+    public void configureMessageConverters(HttpMessageConverters.ServerBuilder builder) {
+        builder.configureMessageConvertersList(converters -> converters
+                .removeIf(converter -> converter.getSupportedMediaTypes().contains(MediaType.APPLICATION_YAML)));
     }
 
 }

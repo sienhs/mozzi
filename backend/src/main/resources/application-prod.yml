@@ -6,6 +6,14 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
+springdoc:
+  # Off unless SWAGGER_ENABLED=true. The document lists every endpoint and field, which is a
+  # map for anyone probing the server; turn it on only where the team needs it.
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
 server:
   error:
     include-message: never

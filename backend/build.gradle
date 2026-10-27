@@ -28,6 +28,9 @@ dependencies {
 	// Signs our access tokens and verifies Google ID tokens against Google's published keys.
 	// Used directly rather than through Spring Security, which the auth design rules out.
 	implementation 'com.nimbusds:nimbus-jose-jwt:10.10'
+	// Swagger UI and /v3/api-docs. The 3.x line is the one built for Boot 4.
+	// Brings Jackson 2 in through swagger-core; see docs/BE_CODE_CONVENTION.md 5.2.
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
 	// spring-boot-starter-flyway only brings flyway-core. Flyway 10 split database support
 	// into per-database modules, so without this it cannot talk to PostgreSQL at all.
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'

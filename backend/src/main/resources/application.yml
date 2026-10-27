@@ -77,6 +77,18 @@ mozzi:
       TERMS: "1.0"
       PRIVACY: "1.0"
 
+springdoc:
+  # Only our API. Actuator is left out; its endpoints are not part of the spec.
+  paths-to-match: /api/**
+  # Shows a @ModelAttribute search object (DiarySearchRequestDto) as its separate query
+  # parameters, which is how the client actually sends it.
+  default-flat-param-object: true
+  # Every API speaks JSON; springdoc's default would list responses as */*.
+  default-produces-media-type: application/json
+  swagger-ui:
+    # Keeps the pasted access token across page reloads while testing.
+    persist-authorization: true
+
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
