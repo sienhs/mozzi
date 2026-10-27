@@ -1,3 +1,13 @@
+output "backend_s3" {
+  description = "Public-read backend image bucket. Upload credentials are configured separately."
+  value = {
+    bucket_name     = module.backend_s3.bucket_name
+    bucket_arn      = module.backend_s3.bucket_arn
+    region          = var.aws_region
+    public_base_url = module.backend_s3.public_base_url
+  }
+}
+
 output "backend_ecr_repository_url" {
   description = "Repository URL used to push backend container images."
   value       = module.backend_ecr.repository_url
