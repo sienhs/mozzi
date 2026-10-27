@@ -142,6 +142,8 @@ backend:deploy:
     - ': "${SSAFY_SSH_KEY:?Set SSAFY_SSH_KEY as a GitLab File variable}"'
     - ': "${SSH_KNOWN_HOSTS:?Set SSH_KNOWN_HOSTS as a verified GitLab File variable}"'
     - ': "${BACKEND_IMAGE:?Missing image artifact from backend:publish}"'
+    - ': "${BACKEND_ENV:?Set BACKEND_ENV as a GitLab File variable containing backend runtime KEY=value settings}"'
+    - test -s "$BACKEND_ENV"
     - chmod 600 "$SSAFY_SSH_KEY"
   script:
     - |
@@ -160,6 +162,13 @@ backend:deploy:
       umask 077
       secret_dir=$(mktemp -d)
       trap 'rm -rf "$secret_dir"' EXIT
+      # Parse the File variable on the cluster without copying it to a remote file.
+      # Generate first so a parse/SSH failure stops deployment before applying the Secret.
+      remote_kubectl create secret generic backend-env -n mozzi \
+        --from-env-file=/dev/stdin --dry-run=client -o json \
+        < "$BACKEND_ENV" > "$secret_dir/backend-env.json"
+      remote_kubectl apply --server-side --field-manager=backend-ci -f - < "$secret_dir/backend-env.json"
+
       aws ecr get-authorization-token --output json > "$secret_dir/token.json"
       jq -e --arg registry "${BACKEND_IMAGE%%/*}" '
         .authorizationData[0].authorizationToken
@@ -173,7 +182,8 @@ backend:deploy:
       ' "$secret_dir/token.json" > "$secret_dir/secret.json"
       remote_kubectl apply --server-side --field-manager=backend-ci -f - < "$secret_dir/secret.json"
 
-      envsubst '${BACKEND_IMAGE}' < infra/k8s/backend/deployment.yaml > "$secret_dir/deployment.yaml"
+      # A new job ID rolls the Pods once, including when only BACKEND_ENV changed.
+      envsubst '${BACKEND_IMAGE} ${CI_JOB_ID}' < infra/k8s/backend/deployment.yaml > "$secret_dir/deployment.yaml"
       remote_kubectl apply -f - < "$secret_dir/deployment.yaml"
       remote_kubectl apply -f - < infra/k8s/backend/service.yaml
       remote_kubectl rollout status deployment/backend -n mozzi --timeout=300s

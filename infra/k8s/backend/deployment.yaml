@@ -17,6 +17,8 @@ spec:
       app: mozzi-backend
   template:
     metadata:
+      annotations:
+        infra.mozzi/deploy-job: "${CI_JOB_ID}"
       labels:
         app: mozzi-backend
     spec:
@@ -41,6 +43,9 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: backend-env
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: prod
