@@ -24,31 +24,31 @@ export const emotions: Record<
     label: '행복',
     color: colors.happy,
     source: require('../../assets/happy.png'),
-    face: require('../../assets/figma/face-happy.png'),
+    face: require('../../assets/happy.png'),
   },
   calm: {
     label: '평온',
     color: colors.calm,
     source: require('../../assets/calm.png'),
-    face: require('../../assets/figma/face-calm.png'),
+    face: require('../../assets/calm.png'),
   },
   neutral: {
     label: '보통',
     color: colors.neutral,
     source: require('../../assets/neutral.png'),
-    face: require('../../assets/figma/face-neutral.png'),
+    face: require('../../assets/neutral.png'),
   },
   sad: {
     label: '우울',
     color: colors.sad,
     source: require('../../assets/sad.png'),
-    face: require('../../assets/figma/face-sad.png'),
+    face: require('../../assets/sad.png'),
   },
   angry: {
     label: '화남',
     color: colors.angry,
     source: require('../../assets/angry.png'),
-    face: require('../../assets/figma/face-angry.png'),
+    face: require('../../assets/angry.png'),
   },
 };
 export const activities = [
