@@ -71,6 +71,9 @@ terraform:plan:
 terraform:apply:
   extends: .terraform-deploy
   stage: deploy
+  # RDS replacement includes a final snapshot, deletion, and instance creation.
+  # Allow both AWS provider operation timeouts plus initialization overhead.
+  timeout: 2 hours
   needs:
     - job: terraform:plan
       artifacts: true
