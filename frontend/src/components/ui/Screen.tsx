@@ -77,13 +77,17 @@ export function Screen({
   header = true,
   contentStyle,
   onTitleLongPress,
+  tabbed = false,
 }: {
   children: ReactNode;
   footer?: ReactNode;
   header?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  // Inside the tab navigator the tab bar already owns the bottom inset.
+  tabbed?: boolean;
 } & Parameters<typeof ScreenHeader>[0]) {
   const insets = useSafeAreaInsets();
+  const bottomInset = tabbed ? 0 : insets.bottom;
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
       <KeyboardAvoidingView
@@ -103,7 +107,7 @@ export function Screen({
           style={{ flex: 1 }}
           contentContainerStyle={[
             styles.content,
-            !footer && { paddingBottom: Math.max(insets.bottom, 24) },
+            !footer && { paddingBottom: Math.max(bottomInset, 24) },
             contentStyle,
           ]}
           keyboardShouldPersistTaps="handled"
@@ -116,8 +120,11 @@ export function Screen({
             style={[
               styles.footer,
               {
-                paddingBottom:
-                  Platform.OS === 'web' ? 34 : Math.max(insets.bottom, 16),
+                paddingBottom: tabbed
+                  ? 16
+                  : Platform.OS === 'web'
+                    ? 34
+                    : Math.max(insets.bottom, 16),
               },
             ]}
           >

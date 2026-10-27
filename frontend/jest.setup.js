@@ -10,3 +10,9 @@ jest.mock('expo-font', () => ({
   useFonts: () => [true, null],
   isLoaded: () => true,
 }));
+
+// The start screen's minimum display time would only slow every routed test down.
+jest.mock('@/components/ui/Splash', () => ({
+  ...jest.requireActual('@/components/ui/Splash'),
+  SPLASH_MIN_MS: 0,
+}));

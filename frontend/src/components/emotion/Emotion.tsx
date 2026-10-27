@@ -14,7 +14,7 @@ export function EmotionImage({
   return (
     <Image
       accessibilityLabel={`${emotions[emotion].label} 모찌`}
-      source={emotions[emotion].source}
+      source={size <= 32 ? emotions[emotion].face : emotions[emotion].source}
       resizeMode="contain"
       style={{ width: size, height: size }}
     />

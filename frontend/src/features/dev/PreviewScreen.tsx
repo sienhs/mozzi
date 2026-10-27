@@ -11,6 +11,7 @@ import { emotionOrder } from '@/constants/emotions';
 import { todayKey } from '@/constants/date';
 import { useAppStore } from '@/stores/useAppStore';
 import { useMockControls } from '@/mocks/controls';
+import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
 import { createMockEntries } from '@/mocks/diaries';
 import type { DiaryEntry, Emotion } from '@/types/diary';
 
@@ -261,6 +262,41 @@ export function PreviewScreen() {
           useAppStore.getState().logout();
           useMockControls.getState().failNext('login');
           router.replace('/');
+        }}
+      />
+      <AppText variant="heading">05 · 모찌 뽑기</AppText>
+      {(
+        [
+          ['P-01 뽑기 홈 · 23장', 23],
+          ['P-01B 뽑기 홈 · 3장', 3],
+          ['P-01C 뽑기 홈 · 0장', 0],
+        ] as const
+      ).map(([label, tickets]) => (
+        <Button
+          key={label}
+          label={label}
+          variant="secondary"
+          onPress={() => {
+            useGachaStore.setState({ ...initialGachaState(), tickets });
+            open('/gacha');
+          }}
+        />
+      ))}
+      <Button
+        label="P-06 모찌 도감"
+        variant="secondary"
+        onPress={() => {
+          useGachaStore.setState(initialGachaState());
+          open('/gacha/collection');
+        }}
+      />
+      <Button
+        label="P-11 요청 실패 (1장 뽑기로 실행)"
+        variant="secondary"
+        onPress={() => {
+          useGachaStore.setState(initialGachaState());
+          open('/gacha');
+          useMockControls.getState().failNext('gacha');
         }}
       />
     </Screen>

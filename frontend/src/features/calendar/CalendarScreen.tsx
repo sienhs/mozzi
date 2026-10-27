@@ -84,7 +84,7 @@ export function CalendarScreen() {
     setSelected(null);
   }
   return (
-    <Screen title="캘린더" back contentStyle={{ gap: 24 }}>
+    <Screen tabbed title="캘린더" contentStyle={{ gap: 24 }}>
       <View style={{ gap: 4 }}>
         <View className="flex-row items-center justify-between">
           <Pressable

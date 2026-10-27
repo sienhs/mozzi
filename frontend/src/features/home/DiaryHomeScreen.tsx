@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import { CalendarDays, Search } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 import { Screen, Heading } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
@@ -7,7 +6,6 @@ import { Button } from '@/components/ui/Button';
 import { DiaryCard, DiaryRow } from '@/components/ui/DiaryCard';
 import { GenerationProgress, PictureState } from '@/components/ui/Feedback';
 import { formatDate, todayKey } from '@/constants/date';
-import { colors } from '@/theme/tokens';
 import { useAppStore } from '@/stores/useAppStore';
 
 export function DiaryHomeScreen() {
@@ -22,6 +20,7 @@ export function DiaryHomeScreen() {
     router.push({ pathname: '/diary/[id]', params: { id } });
   return (
     <Screen
+      tabbed
       title="오늘의 모찌"
       action={{
         icon: 'settings',
@@ -96,34 +95,6 @@ export function DiaryHomeScreen() {
           <DiaryRow entry={recent} onPress={() => openEntry(recent.id)} />
         </View>
       )}
-      <View style={{ gap: 12 }}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/calendar')}
-          style={navigationStyle}
-        >
-          <CalendarDays color={colors.primary} size={20} />
-          <AppText variant="small" style={{ color: colors.ink }}>
-            캘린더에서 돌아보기
-          </AppText>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/search')}
-          style={navigationStyle}
-        >
-          <Search color={colors.primary} size={20} />
-          <AppText variant="small" style={{ color: colors.ink }}>
-            지난 마음 검색하기
-          </AppText>
-        </Pressable>
-      </View>
     </Screen>
   );
 }
-const navigationStyle = {
-  minHeight: 48,
-  flexDirection: 'row' as const,
-  alignItems: 'center' as const,
-  gap: 12,
-};

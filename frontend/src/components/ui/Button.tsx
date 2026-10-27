@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -25,8 +26,10 @@ export function Button({
   loading,
   style,
 }: ButtonProps) {
+  const [pressed, setPressed] = useState(false);
   const inactive = disabled || loading;
   const light = disabled || variant !== 'primary';
+  // NativeWind wraps Pressable on native and drops a function `style`, so pressed state is tracked here.
   return (
     <Pressable
       accessibilityRole="button"
@@ -34,14 +37,18 @@ export function Button({
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       disabled={inactive}
       onPress={onPress}
-      style={({ pressed }) => [
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={[
         styles.button,
         variant !== 'primary' && styles.secondary,
         variant === 'google' && styles.google,
         disabled && styles.disabled,
-        pressed && {
-          backgroundColor: variant === 'primary' ? colors.pressed : colors.line,
-        },
+        pressed &&
+          !inactive && {
+            backgroundColor:
+              variant === 'primary' ? colors.pressed : colors.line,
+          },
         style,
       ]}
     >

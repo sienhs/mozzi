@@ -19,11 +19,26 @@ export const colors = {
   neutral: '#D9CFC1',
   sad: '#B8C5DD',
   angry: '#E6B2A6',
+  // Figma 05 · 모찌 뽑기.
+  gachaCream: '#F3EADC',
+  gachaNavy: '#303645',
+  gachaNavySoft: '#41495A',
+  gachaGold: '#EBD5AA',
+  gachaGoldInk: '#82602C',
+  gachaRose: '#AA5265',
+  gachaRoseSoft: '#F6E9EC',
+  gachaViolet: '#78618C',
+  gachaVioletSoft: '#F0ECF4',
+  gachaBlue: '#526C91',
+  gachaBlueSoft: '#EAF0F7',
+  gachaSageInk: '#52644A',
 } as const;
 export const fonts = {
   regular: 'NotoSansKR_400Regular',
   medium: 'NotoSansKR_500Medium',
   bold: 'NotoSansKR_700Bold',
+  // Figma 06 splash title (Nanum Pen).
+  pen: 'NanumPenScript_400Regular',
 } as const;
 export const spacing = {
   xs: 4,

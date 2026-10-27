@@ -6,6 +6,8 @@ import type {
   Emotion,
   SearchResult,
 } from '@/types/diary';
+import type { MochiId, PullItem } from '@/types/gacha';
+import { mochiOrder, mochis, tierOrder, tiers } from '@/constants/gacha';
 import { useMockControls } from './controls';
 
 export const mockDelay = (ms: number) =>
@@ -118,5 +120,38 @@ export const mockSearchService = {
     if (failed)
       throw new Error('연결이 잠시 불안정해요. 한 번 더 물어봐 주세요.');
     return searchMockEntries(question, entries);
+  },
+};
+
+// Rolls tiers with the P-05 odds. 전설·신화 prefer unowned mochi, as the sheet promises.
+export function rollMochi(
+  count: number,
+  owned: MochiId[],
+  random: () => number = Math.random,
+): PullItem[] {
+  const have = new Set(owned);
+  return Array.from({ length: count }, () => {
+    let roll = random() * 100;
+    const tier = tierOrder.find(id => (roll -= tiers[id].odds) < 0) ?? 'common';
+    const pool = mochiOrder.filter(id => mochis[id].tier === tier);
+    const fresh = pool.filter(id => !have.has(id));
+    const candidates =
+      (tier === 'legend' || tier === 'myth') && fresh.length ? fresh : pool;
+    const id = candidates[Math.floor(random() * candidates.length)];
+    const isNew = !have.has(id);
+    have.add(id);
+    return { id, isNew, shards: isNew ? 0 : tiers[tier].duplicateShards };
+  });
+}
+export const mockGachaService = {
+  async pull(count: number, owned: MochiId[]): Promise<PullItem[]> {
+    const failed = useMockControls.getState().consumeFailure('gacha');
+    await mockDelay(600);
+    if (failed) throw new Error('뽑기권은 사용되지 않았어요.');
+    return rollMochi(count, owned);
+  },
+  async exchange(id: MochiId): Promise<MochiId> {
+    await mockDelay(500);
+    return id;
   },
 };
