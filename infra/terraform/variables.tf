@@ -24,6 +24,18 @@ variable "name_prefix" {
   default     = "mozzi-dev"
 }
 
+variable "ai_request_visibility_timeout_seconds" {
+  description = "Visibility timeout for AI requests; set above the longest AI processing time or extend it while processing."
+  type        = number
+  default     = 900
+}
+
+variable "ai_response_visibility_timeout_seconds" {
+  description = "Visibility timeout for AI responses consumed by the backend."
+  type        = number
+  default     = 60
+}
+
 variable "ssh_key_name" {
   description = "Existing EC2 key pair name in the personal account's Seoul region. No private key is stored in Terraform."
   type        = string
