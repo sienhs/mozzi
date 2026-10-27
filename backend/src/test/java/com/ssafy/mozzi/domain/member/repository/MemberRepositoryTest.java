@@ -38,7 +38,8 @@ class MemberRepositoryTest {
 
     @BeforeEach
     void reset() {
-        jdbcTemplate.update("delete from member");
+        // truncate, not delete: other tables reference member, and cascade clears them too.
+        jdbcTemplate.execute("truncate table member cascade");
     }
 
     @Test

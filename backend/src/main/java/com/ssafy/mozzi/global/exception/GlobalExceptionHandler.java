@@ -17,6 +17,7 @@ import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -132,6 +133,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingParameter(MissingServletRequestParameterException e) {
         return invalidInput(List.of(new ErrorResponse.FieldError(e.getParameterName(), REQUIRED_REASON)));
+    }
+
+    /**
+     * A required header such as {@code Idempotency-Key} is absent. Without this handler it
+     * falls through to {@link #handleUnexpected} and answers 500.
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException e) {
+        return invalidInput(List.of(new ErrorResponse.FieldError(e.getHeaderName(), REQUIRED_REASON)));
     }
 
     /** No handler and no static resource matched the path. */

@@ -21,3 +21,9 @@ server:
 logging:
   level:
     com.ssafy.mozzi: DEBUG
+
+mozzi:
+  auth:
+    # TEMPORARY until Spring Security lands: lets requests pick the member with an
+    # X-Member-Id header (see CurrentMemberArgumentResolver). Never set this in prod.
+    mock-header-enabled: true
