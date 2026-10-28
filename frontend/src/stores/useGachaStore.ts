@@ -12,6 +12,7 @@ const initialOwned: MochiId[] = [
   'mango',
 ];
 export const initialGachaState = () => ({
+  session: 0,
   tickets: 23,
   shards: 140,
   owned: [...initialOwned],
@@ -21,6 +22,7 @@ export const initialGachaState = () => ({
   pulling: false,
 });
 interface GachaState extends ReturnType<typeof initialGachaState> {
+  resetSession: () => void;
   pull: (count: number) => Promise<PullItem[]>;
   applyDuplicate: () => void;
   markSeen: (id: MochiId) => void;
@@ -36,12 +38,15 @@ export const exchangeCandidate = (owned: MochiId[]) =>
 
 export const useGachaStore = create<GachaState>((set, get) => ({
   ...initialGachaState(),
+  resetSession: () =>
+    set(state => ({ ...initialGachaState(), session: state.session + 1 })),
   pull: async count => {
-    const { tickets, owned, pulling } = get();
+    const { tickets, owned, pulling, session } = get();
     if (pulling || count < 1 || count > tickets) return [];
     set({ pulling: true });
     try {
       const items = await mockGachaService.pull(count, owned);
+      if (get().session !== session) return [];
       const fresh = items.filter(item => item.isNew).map(item => item.id);
       // A single duplicate is shown as shards flying to the chip on Home (P-12),
       // so its shards land only when that animation finishes.
@@ -59,7 +64,7 @@ export const useGachaStore = create<GachaState>((set, get) => ({
       }));
       return items;
     } finally {
-      set({ pulling: false });
+      if (get().session === session) set({ pulling: false });
     }
   },
   applyDuplicate: () =>
@@ -74,9 +79,11 @@ export const useGachaStore = create<GachaState>((set, get) => ({
   markSeen: id =>
     set(state => ({ unseen: state.unseen.filter(item => item !== id) })),
   exchange: async id => {
+    const session = get().session;
     const cost = exchangeCost(id);
     if (get().owned.includes(id) || get().shards < cost) return;
     await mockGachaService.exchange(id);
+    if (get().session !== session) return;
     set(state => ({
       shards: state.shards - cost,
       owned: [...state.owned, id],

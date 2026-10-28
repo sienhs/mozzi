@@ -1,11 +1,5 @@
 import { create } from 'zustand';
-import type {
-  Activity,
-  DiaryDraft,
-  DiaryEntry,
-  Emotion,
-  Profile,
-} from '@/types/diary';
+import type { Activity, DiaryDraft, DiaryEntry, Emotion } from '@/types/diary';
 import { createMockEntries } from '@/mocks/diaries';
 import { mockDiaryService } from '@/mocks/services';
 
@@ -15,14 +9,12 @@ export const emptyDraft = (): DiaryDraft => ({
   memo: '',
 });
 interface AppState {
-  profile: Profile | null;
   draft: DiaryDraft;
   entries: DiaryEntry[];
   saveStatus: 'idle' | 'saving' | 'error';
   saveError: string;
   session: number;
-  login: (nickname: string, email?: string) => void;
-  logout: () => void;
+  resetSession: () => void;
   selectEmotion: (emotion: Emotion) => void;
   toggleActivity: (activity: Activity) => void;
   setMemo: (memo: string) => void;
@@ -32,22 +24,21 @@ interface AppState {
 }
 const generations = new Map<string, Promise<void>>();
 export const useAppStore = create<AppState>((set, get) => ({
-  profile: null,
   draft: emptyDraft(),
   entries: createMockEntries(),
   saveStatus: 'idle',
   saveError: '',
   session: 0,
-  login: (nickname, email = 'haru@gmail.com') =>
-    set({ profile: { nickname, email } }),
-  logout: () =>
+  resetSession: () => {
+    generations.clear();
     set(state => ({
-      profile: null,
       draft: emptyDraft(),
+      entries: createMockEntries(),
       saveStatus: 'idle',
       saveError: '',
       session: state.session + 1,
-    })),
+    }));
+  },
   selectEmotion: emotion =>
     set(state => ({ draft: { ...state.draft, emotion } })),
   toggleActivity: activity =>
@@ -97,6 +88,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   generateImage: id => {
+    const session = get().session;
     const existing = generations.get(id);
     if (existing) return existing;
     const entry = get().entries.find(item => item.id === id);
@@ -113,6 +105,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       } catch {
         generation = 'failed';
       }
+      if (get().session !== session) return;
       set(state => ({
         entries: state.entries.map(item =>
           item.id === id ? { ...item, generation } : item,

@@ -13,7 +13,6 @@ beforeEach(() => {
   jest.setSystemTime(new Date('2026-10-26T12:00:00Z'));
   useMockControls.getState().reset();
   useAppStore.setState({
-    profile: null,
     draft: emptyDraft(),
     entries: createMockEntries(),
     saveStatus: 'idle',
@@ -27,7 +26,6 @@ afterEach(async () => {
 
 test('keeps the entire draft on save failure, retries once, and finishes generation away from a screen', async () => {
   const store = useAppStore.getState();
-  store.login('하루');
   store.selectEmotion('calm');
   store.toggleActivity('가족');
   store.setMemo('맛있는 저녁');
@@ -83,12 +81,12 @@ test('retains a saved diary when generation fails and retries only the picture',
       ?.generation,
   ).toBe('ready');
 });
-test('logout cancels an in-flight save and preserves previously saved records', async () => {
+test('account reset cancels an in-flight save and restores the demo records', async () => {
   const store = useAppStore.getState();
   store.selectEmotion('happy');
   const original = store.entries;
   const save = store.saveDiary();
-  store.logout();
+  store.resetSession();
   await jest.advanceTimersByTimeAsync(1000);
   expect(await save).toBeNull();
   expect(useAppStore.getState().entries).toEqual(original);

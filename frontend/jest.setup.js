@@ -77,3 +77,18 @@ jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
 }));
+
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(async () => null),
+  setItemAsync: jest.fn(async () => undefined),
+  deleteItemAsync: jest.fn(async () => undefined),
+}));
+beforeEach(() => {
+  require('@/stores/useAuthStore').useAuthStore.setState({
+    status: 'signedOut',
+    member: null,
+    ticket: null,
+    pending: false,
+    error: '',
+  });
+});

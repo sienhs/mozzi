@@ -9,6 +9,7 @@ import { ActivityChip, Checkbox } from '@/components/ui/Selection';
 import { EmotionImage, EmotionPicker } from '@/components/emotion/Emotion';
 import { emotionOrder } from '@/constants/emotions';
 import { todayKey } from '@/constants/date';
+import { setAuthPreview } from '@/mocks/authPreview';
 import { useAppStore } from '@/stores/useAppStore';
 import { useMockControls } from '@/mocks/controls';
 import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
@@ -23,7 +24,7 @@ export function PreviewScreen() {
   if (!__DEV__) return <Redirect href="/" />;
   function prepare() {
     useMockControls.getState().reset();
-    useAppStore.getState().login('하루');
+    setAuthPreview();
   }
   function open(href: Href) {
     prepare();
@@ -114,7 +115,7 @@ export function PreviewScreen() {
         label="A-01 시작"
         variant="secondary"
         onPress={() => {
-          useAppStore.getState().logout();
+          setAuthPreview('signedOut');
           router.replace('/');
         }}
       />
@@ -122,7 +123,7 @@ export function PreviewScreen() {
         label="A-02 Google 첫 로그인"
         variant="secondary"
         onPress={() => {
-          useAppStore.getState().logout();
+          setAuthPreview('signupRequired');
           router.push('/onboarding');
         }}
       />
@@ -256,11 +257,10 @@ export function PreviewScreen() {
         }}
       />
       <Button
-        label="E-06 Google 로그인 실패 (로그인 버튼으로 실행)"
+        label="Google 로그인 · 실제 서버 연결"
         variant="secondary"
         onPress={() => {
-          useAppStore.getState().logout();
-          useMockControls.getState().failNext('login');
+          setAuthPreview('signedOut');
           router.replace('/');
         }}
       />

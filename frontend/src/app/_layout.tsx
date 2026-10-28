@@ -9,7 +9,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { queryClient } from '@/services/queryClient';
-import { useAppStore } from '@/stores/useAppStore';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { Screen } from '@/components/ui/Screen';
+import { Button } from '@/components/ui/Button';
 import { colors, fonts } from '@/theme/tokens';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { SPLASH_MIN_MS, Splash } from '@/components/ui/Splash';
@@ -18,7 +20,10 @@ import { SPLASH_MIN_MS, Splash } from '@/components/ui/Splash';
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const profile = useAppStore(state => state.profile);
+  const { status, error, bootstrap, invalidate } = useAuthStore();
+  useEffect(() => {
+    void bootstrap();
+  }, [bootstrap]);
   const [loaded, fontError] = useFonts({
     [fonts.regular]: require('../../assets/온글잎 박다현체.ttf'),
   });
@@ -37,8 +42,18 @@ export default function RootLayout() {
         <StatusBar style="dark" hidden={!splashDone} />
         {!fontsSettled ? (
           <View style={{ flex: 1, backgroundColor: colors.bg }} />
-        ) : !splashDone ? (
+        ) : !splashDone || status === 'restoring' ? (
           <Splash />
+        ) : status === 'restorationError' ? (
+          <Screen header={false}>
+            <ErrorBanner message={error} />
+            <Button label="다시 시도" onPress={() => void bootstrap()} />
+            <Button
+              label="로그인 화면으로"
+              variant="secondary"
+              onPress={() => void invalidate()}
+            />
+          </Screen>
         ) : (
           <>
             {fontError && (
@@ -51,11 +66,11 @@ export default function RootLayout() {
                 animation: 'slide_from_right',
               }}
             >
-              <Stack.Protected guard={!profile}>
-                <Stack.Screen name="index" />
+              <Stack.Screen name="index" />
+              <Stack.Protected guard={status === 'signupRequired'}>
                 <Stack.Screen name="onboarding" />
               </Stack.Protected>
-              <Stack.Protected guard={!!profile}>
+              <Stack.Protected guard={status === 'authenticated'}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="record/emotion" />
                 <Stack.Screen name="record/memo" />
