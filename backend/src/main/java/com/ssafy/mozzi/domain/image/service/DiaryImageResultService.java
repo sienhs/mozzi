@@ -43,16 +43,26 @@ public class DiaryImageResultService {
         this.eventPublisher = eventPublisher;
     }
 
-    /** The AI server finished the picture. */
+    /**
+     * The AI server finished the picture.
+     *
+     * @param memberId the owner the AI server named; a result for someone else's diary is
+     *                 dropped
+     */
     @Transactional
-    public void succeed(Long diaryId, String imageUrl) {
-        settle(diaryId, "succeeded", image -> image.succeed(imageUrl), null);
+    public void succeed(Long diaryId, Long memberId, String imageUrl) {
+        settle(diaryId, memberId, "succeeded", image -> image.succeed(imageUrl), null);
     }
 
-    /** The AI server could not make the picture. Counts toward the member's limit. */
+    /**
+     * The AI server could not make the picture. Counts toward the member's limit.
+     *
+     * @param memberId the owner the AI server named; a result for someone else's diary is
+     *                 dropped
+     */
     @Transactional
-    public void fail(Long diaryId) {
-        settle(diaryId, "failed", DiaryImage::fail, null);
+    public void fail(Long diaryId, Long memberId) {
+        settle(diaryId, memberId, "failed", DiaryImage::fail, null);
     }
 
     /**
@@ -62,7 +72,7 @@ public class DiaryImageResultService {
      */
     @Transactional
     public void reject(Long diaryId) {
-        settle(diaryId, "rejected", DiaryImage::fail, ImageErrorCode.INAPPROPRIATE_CONTENT);
+        settle(diaryId, null, "rejected", DiaryImage::fail, ImageErrorCode.INAPPROPRIATE_CONTENT);
     }
 
     /**
@@ -74,11 +84,23 @@ public class DiaryImageResultService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void abandon(Long diaryId) {
-        settle(diaryId, "abandoned", DiaryImage::abandon, null);
+        settle(diaryId, null, "abandoned", DiaryImage::abandon, null);
     }
 
-    private void settle(Long diaryId, String outcome, Predicate<DiaryImage> change, ImageErrorCode reason) {
+    /**
+     * @param memberId the owner a result from the AI server names, or {@code null} for an
+     *                 outcome decided here. A mismatch means the AI server mixed requests up;
+     *                 applying it would put a picture on someone else's diary and push it to
+     *                 them, so it is dropped
+     */
+    private void settle(
+            Long diaryId, Long memberId, String outcome, Predicate<DiaryImage> change, ImageErrorCode reason) {
         Diary diary = diaryRepository.findByIdForUpdate(diaryId).orElse(null);
+        if (diary != null && memberId != null && !memberId.equals(diary.getMemberId())) {
+            log.warn("image pipeline: step=ignored outcome={} diaryId={} reason=owner-mismatch userId={}",
+                    outcome, diaryId, memberId);
+            return;
+        }
         DiaryImage image = diary == null ? null : diaryImageRepository.findByDiaryId(diaryId).orElse(null);
         if (image == null || !change.test(image)) {
             log.info("image pipeline: step=ignored outcome={} diaryId={} reason=not-pending", outcome, diaryId);

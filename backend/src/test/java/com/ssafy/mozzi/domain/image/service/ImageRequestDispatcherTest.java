@@ -79,6 +79,8 @@ class ImageRequestDispatcherTest {
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
         assertThat(sent.get(0).characterImageUrl()).isEqualTo("DEFAULT");
+        // The AI server draws its default character from its own description.
+        assertThat(sent.get(0).characterPrompt()).isEmpty();
     }
 
     @Test
@@ -103,7 +105,7 @@ class ImageRequestDispatcherTest {
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
         verify(resultService).abandon(10L);
-        verify(resultService, never()).fail(any());
+        verify(resultService, never()).fail(any(), any());
     }
 
     /** The picks never reach the AI server, and the try is used up. */

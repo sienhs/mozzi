@@ -76,7 +76,7 @@ class DiaryImageResultServiceTest {
 
     @Test
     void aSuccessStoresTheUrlOnBothRows() {
-        resultService.succeed(diaryId, "https://cdn.test/diary/done.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/done.webp");
 
         assertThat(picture()).containsEntry("status", "SUCCEEDED").containsEntry("image_url", "https://cdn.test/diary/done.webp");
         assertThat(diaryStatus()).isEqualTo("SUCCEEDED");
@@ -85,8 +85,8 @@ class DiaryImageResultServiceTest {
     /** SQS may deliver the same failure twice; it counts once. */
     @Test
     void anAiFailureCountsOnce() {
-        resultService.fail(diaryId);
-        resultService.fail(diaryId);
+        resultService.fail(diaryId, me);
+        resultService.fail(diaryId, me);
 
         assertThat(picture()).containsEntry("status", "FAILED").containsEntry("failure_count", 1);
         assertThat(diaryStatus()).isEqualTo("FAILED");
@@ -94,15 +94,29 @@ class DiaryImageResultServiceTest {
 
     @Test
     void aDuplicateSuccessChangesNothing() {
-        resultService.succeed(diaryId, "https://cdn.test/diary/done.webp");
-        resultService.succeed(diaryId, "https://cdn.test/diary/again.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/done.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/again.webp");
 
         assertThat(picture()).containsEntry("image_url", "https://cdn.test/diary/done.webp");
     }
 
+    /** The AI server named someone other than the diary's owner: nothing is applied or pushed. */
+    @Test
+    void aResultNamingAnotherMemberIsDropped() {
+        Long someoneElse = memberRepository.saveAndFlush(
+                Member.signUp("other@gmail.com", AuthProvider.GOOGLE, "other", "other")).getId();
+        device("fcm-me", true);
+
+        resultService.succeed(diaryId, someoneElse, "https://cdn.test/diary/wrong.webp");
+        resultService.fail(diaryId, someoneElse);
+
+        assertThat(picture()).containsEntry("status", "PENDING").containsEntry("failure_count", 0);
+        verify(pushSender, after(1_000).never()).send(any(), any());
+    }
+
     @Test
     void aResultForAnUnknownDiaryIsIgnored() {
-        resultService.succeed(999_999L, "https://cdn.test/diary/x.webp");
+        resultService.succeed(999_999L, me, "https://cdn.test/diary/x.webp");
 
         assertThat(picture()).containsEntry("status", "PENDING");
     }
@@ -146,7 +160,7 @@ class DiaryImageResultServiceTest {
     void aSuccessIsPushedToTheMembersDevice() {
         device("fcm-me", true);
 
-        resultService.succeed(diaryId, "https://cdn.test/diary/done.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/done.webp");
 
         PushMessage push = pushed("fcm-me");
         assertThat(push.title()).isEqualTo(ImagePushListener.TITLE_SUCCEEDED);
@@ -176,7 +190,7 @@ class DiaryImageResultServiceTest {
         jdbcTemplate.update("update diary_image set failure_count = 2 where diary_id = ?", diaryId);
         device("fcm-me", true);
 
-        resultService.fail(diaryId);
+        resultService.fail(diaryId, me);
 
         assertThat(pushed("fcm-me").body()).isEqualTo(ImagePushListener.BODY_NO_RETRY);
     }
@@ -197,7 +211,7 @@ class DiaryImageResultServiceTest {
     void aSignedOutDeviceGetsNothing() {
         device("fcm-old", false);
 
-        resultService.succeed(diaryId, "https://cdn.test/diary/done.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/done.webp");
 
         verify(pushSender, after(1_000).never()).send(any(), any());
     }
@@ -207,8 +221,8 @@ class DiaryImageResultServiceTest {
     void aDuplicateResultIsPushedOnce() {
         device("fcm-me", true);
 
-        resultService.succeed(diaryId, "https://cdn.test/diary/done.webp");
-        resultService.succeed(diaryId, "https://cdn.test/diary/again.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/done.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/again.webp");
 
         verify(pushSender, after(1_000).times(1)).send(eq("fcm-me"), any());
     }
@@ -219,7 +233,7 @@ class DiaryImageResultServiceTest {
         device("fcm-gone", true);
         when(pushSender.send(eq("fcm-gone"), any())).thenReturn(PushSender.Outcome.TOKEN_INVALID);
 
-        resultService.succeed(diaryId, "https://cdn.test/diary/done.webp");
+        resultService.succeed(diaryId, me, "https://cdn.test/diary/done.webp");
 
         verify(pushSender, timeout(PUSH_WAIT_MILLIS)).send(eq("fcm-gone"), any());
         for (int i = 0; i < 50 && deviceActive("fcm-gone"); i++) {
