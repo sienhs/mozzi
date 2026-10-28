@@ -64,6 +64,7 @@ module "rds" {
   secondary_availability_zone_id = var.rds_secondary_availability_zone_id
   secondary_subnet_cidr          = "10.50.12.0/24"
   worker_security_group_id       = module.worker_security_group.id
+  gateway_security_group_id      = module.gateway_security_group.id
   db_username                    = var.db_username
   db_password                    = var.db_password
 }

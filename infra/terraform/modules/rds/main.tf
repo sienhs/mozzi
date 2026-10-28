@@ -36,6 +36,15 @@ resource "aws_vpc_security_group_ingress_rule" "postgresql_workers" {
   description                  = "PostgreSQL from application workers"
 }
 
+resource "aws_vpc_security_group_ingress_rule" "postgresql_gateway" {
+  security_group_id            = aws_security_group.postgresql.id
+  referenced_security_group_id = var.gateway_security_group_id
+  ip_protocol                  = "tcp"
+  from_port                    = 5432
+  to_port                      = 5432
+  description                  = "PostgreSQL through SSH gateway"
+}
+
 resource "aws_db_instance" "postgresql" {
   identifier = "${var.name}-postgresql"
   engine     = "postgres"

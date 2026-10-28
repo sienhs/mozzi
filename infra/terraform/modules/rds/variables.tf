@@ -33,6 +33,11 @@ variable "worker_security_group_id" {
   type        = string
 }
 
+variable "gateway_security_group_id" {
+  description = "Gateway security group allowed to connect to PostgreSQL through SSH tunnels."
+  type        = string
+}
+
 variable "db_username" {
   description = "User-supplied PostgreSQL master username."
   type        = string
