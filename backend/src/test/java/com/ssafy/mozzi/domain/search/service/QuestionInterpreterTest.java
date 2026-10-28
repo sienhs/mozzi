@@ -8,7 +8,6 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.search.repository.SearchCriteria;
 import com.ssafy.mozzi.domain.search.service.QuestionInterpreter.Intent;
@@ -47,11 +46,9 @@ class QuestionInterpreterTest {
     @Test
     void repeatedCodesAreDropped() {
         SearchCriteria criteria = QuestionInterpreter.normalize(new QuestionInterpreter.Answer(
-                null, null, List.of(Emotion.CALM, Emotion.CALM), List.of(ActivityCode.REST, ActivityCode.REST), null,
-                Intent.LIST), TODAY);
+                null, null, List.of(Emotion.CALM, Emotion.CALM), null, Intent.LIST), TODAY);
 
         assertThat(criteria.emotions()).containsExactly(Emotion.CALM);
-        assertThat(criteria.activities()).containsExactly(ActivityCode.REST);
     }
 
     /** Querying with a made-up date would answer from the wrong days. */
@@ -63,7 +60,7 @@ class QuestionInterpreterTest {
 
     private static SearchCriteria normalize(String from, String to, String keyword) {
         return QuestionInterpreter.normalize(
-                new QuestionInterpreter.Answer(from, to, List.of(), List.of(), keyword, Intent.LIST), TODAY);
+                new QuestionInterpreter.Answer(from, to, List.of(), keyword, Intent.LIST), TODAY);
     }
 
 }

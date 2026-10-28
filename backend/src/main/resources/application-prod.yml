@@ -6,6 +6,13 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
 
+mozzi:
+  # No defaults: without these a picture request would silently go nowhere. The GMS key
+  # (GMS_API_KEY) is already required by application.yml.
+  ai-queue:
+    request-url: ${SQS_AI_REQUEST_QUEUE_URL}
+    response-url: ${SQS_AI_RESPONSE_QUEUE_URL}
+
 springdoc:
   # Off unless SWAGGER_ENABLED=true. The document lists every endpoint and field, which is a
   # map for anyone probing the server; turn it on only where the team needs it.

@@ -34,11 +34,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
-import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
-import com.ssafy.mozzi.domain.diary.repository.ActivityRepository;
-import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
+import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
@@ -49,6 +46,7 @@ import com.ssafy.mozzi.integration.gms.GmsEmbeddingClient;
 import com.ssafy.mozzi.integration.gms.GmsLlmClient;
 import com.ssafy.mozzi.integration.gms.GmsPrompt;
 import com.ssafy.mozzi.integration.gms.GmsUnavailableException;
+import com.ssafy.mozzi.support.DiaryFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 import tools.jackson.databind.JsonNode;
@@ -78,12 +76,6 @@ class EmotionSearchApiTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private DiaryRepository diaryRepository;
-
-    @Autowired
-    private ActivityRepository activityRepository;
-
-    @Autowired
     private MemberSessionService sessionService;
 
     @Autowired
@@ -100,14 +92,22 @@ class EmotionSearchApiTest {
 
     private final Map<Long, String> accessTokens = new HashMap<>();
 
+    private DiaryFixtures fixtures;
+    private Long baseIcon;
+    private final Map<Emotion, Long> emoticons = new HashMap<>();
+    private final Map<String, Long> myIcons = new HashMap<>();
     private Long me;
     private Long someoneElse;
     private LocalDate today;
 
     @BeforeEach
     void setUp() {
-        // Cascades to diary, diary_embedding, emotion_search and emotion_search_result.
-        jdbcTemplate.execute("truncate table member cascade");
+        // Cascades to diary, its icons, diary_embedding, emotion_search and emotion_search_result.
+        fixtures = new DiaryFixtures(jdbcTemplate);
+        fixtures.reset();
+        emoticons.clear();
+        myIcons.clear();
+        baseIcon = fixtures.icon();
         me = newMember("me");
         someoneElse = newMember("someoneElse");
         accessTokens.clear();
@@ -126,11 +126,11 @@ class EmotionSearchApiTest {
     /** S-02: the conditions are the whole question, so every match is in the answer. */
     @Test
     void matchingDiariesAreTheAnswerNewestFirst() throws Exception {
-        Diary older = insertDiary(me, today.minusDays(5), Emotion.CALM, "엄마랑 산책", ActivityCode.FAMILY, ActivityCode.REST);
-        Diary newer = insertDiary(me, today.minusDays(2), Emotion.CALM, "낮잠", ActivityCode.REST);
-        insertDiary(me, today.minusDays(1), Emotion.HAPPY, "맛집", ActivityCode.FRIEND);
-        insertDiary(someoneElse, today.minusDays(2), Emotion.CALM, "남의 일기", ActivityCode.REST);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.CALM), List.of(), null, Intent.LIST));
+        Diary older = insertDiary(me, today.minusDays(5), Emotion.CALM, "엄마랑 산책", "가족", "휴식");
+        Diary newer = insertDiary(me, today.minusDays(2), Emotion.CALM, "낮잠", "휴식");
+        insertDiary(me, today.minusDays(1), Emotion.HAPPY, "맛집", "친구");
+        insertDiary(someoneElse, today.minusDays(2), Emotion.CALM, "남의 일기", "휴식");
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.CALM), null, Intent.LIST));
         answerWith(new AnswerWriter.Answer("평온 모찌를 고른 날이 2일 있었어요.", List.of()));
 
         JsonNode body = body(ask(me, "마음이 편했던 날을 보여 줘")
@@ -142,11 +142,9 @@ class EmotionSearchApiTest {
                 .andExpect(jsonPath("$.interpretedFilter.from").isEmpty())
                 .andExpect(jsonPath("$.interpretedFilter.keyword").isEmpty())
                 .andExpect(jsonPath("$.stats.matchedCount").value(2))
-                .andExpect(jsonPath("$.stats.topActivities[0].activity").value("REST"))
-                .andExpect(jsonPath("$.stats.topActivities[0].count").value(2))
                 .andExpect(jsonPath("$.stats.emotionCounts").isEmpty())
                 .andExpect(jsonPath("$.featured.diaryId").value(newer.getId()))
-                .andExpect(jsonPath("$.featured.memo").value("낮잠"))
+                .andExpect(jsonPath("$.featured.content").value("낮잠"))
                 .andExpect(jsonPath("$.diaries.length()").value(2))
                 .andExpect(jsonPath("$.diaries[0].diaryId").value(newer.getId()))
                 .andExpect(jsonPath("$.diaries[1].diaryId").value(older.getId())));
@@ -175,11 +173,11 @@ class EmotionSearchApiTest {
      */
     @Test
     void keywordRanksByMeaningAndKeepsWhatTheModelPicked() throws Exception {
-        Diary praised = insertDiary(me, today.minusDays(6), Emotion.HAPPY, "팀장님께 칭찬받음", ActivityCode.WORK);
-        Diary other = insertDiary(me, today.minusDays(1), Emotion.HAPPY, "점심 맛있었다", ActivityCode.WORK);
+        Diary praised = insertDiary(me, today.minusDays(6), Emotion.HAPPY, "팀장님께 칭찬받음", "업무");
+        Diary other = insertDiary(me, today.minusDays(1), Emotion.HAPPY, "점심 맛있었다", "업무");
         embed(praised, axis(0));
         embed(other, axis(1));
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), List.of(), "칭찬", Intent.LIST));
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), "칭찬", Intent.LIST));
         answerWith(new AnswerWriter.Answer("칭찬받은 날이 하루 있었어요.", List.of(praised.getId())));
 
         ask(me, "칭찬받았던 날 있었어?")
@@ -187,7 +185,6 @@ class EmotionSearchApiTest {
                 .andExpect(jsonPath("$.resultType").value("FOUND"))
                 .andExpect(jsonPath("$.interpretedFilter.keyword").value("칭찬"))
                 .andExpect(jsonPath("$.stats.matchedCount").value(1))
-                .andExpect(jsonPath("$.stats.topActivities[0].activity").value("WORK"))
                 .andExpect(jsonPath("$.diaries.length()").value(1))
                 .andExpect(jsonPath("$.diaries[0].diaryId").value(praised.getId()))
                 .andExpect(jsonPath("$.featured.diaryId").value(praised.getId()));
@@ -199,56 +196,47 @@ class EmotionSearchApiTest {
 
     /**
      * Every condition at once, so every branch of the shared {@code where} clause is in one
-     * statement. The activity condition once broke the SQL whenever it was present.
+     * statement.
      */
     @Test
-    void periodEmotionAndActivityNarrowTogether() throws Exception {
-        Diary match = insertDiary(me, today.minusDays(3), Emotion.CALM, "엄마랑 산책", ActivityCode.FAMILY, ActivityCode.REST);
-        insertDiary(me, today.minusDays(4), Emotion.CALM, "혼자 낮잠", ActivityCode.REST);
-        insertDiary(me, today.minusDays(5), Emotion.HAPPY, "가족 외식", ActivityCode.FAMILY);
-        insertDiary(me, today.minusDays(20), Emotion.CALM, "예전 가족 나들이", ActivityCode.FAMILY);
+    void periodAndEmotionNarrowTogether() throws Exception {
+        Diary match = insertDiary(me, today.minusDays(3), Emotion.CALM, "엄마랑 산책", "가족", "휴식");
+        insertDiary(me, today.minusDays(4), Emotion.CALM, "혼자 낮잠", "휴식");
+        insertDiary(me, today.minusDays(5), Emotion.HAPPY, "가족 외식", "가족");
+        insertDiary(me, today.minusDays(20), Emotion.CALM, "예전 가족 나들이", "가족");
         interpretAs(new QuestionInterpreter.Answer(today.minusDays(7).toString(), today.toString(),
-                List.of(Emotion.CALM), List.of(ActivityCode.FAMILY, ActivityCode.FRIEND), null, Intent.LIST));
-        answerWith(new AnswerWriter.Answer("가족과 편안했던 날이 하루 있었어요.", List.of()));
+                List.of(Emotion.CALM), null, Intent.LIST));
+        answerWith(new AnswerWriter.Answer("이번 주에 편안했던 날이 이틀 있었어요.", List.of()));
 
-        ask(me, "이번 주에 가족이나 친구랑 편했던 날")
+        ask(me, "이번 주에 편했던 날")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resultType").value("FOUND"))
-                .andExpect(jsonPath("$.stats.matchedCount").value(1))
-                // Counts every activity of the matching diaries, not only the ones asked about.
-                .andExpect(jsonPath("$.stats.topActivities.length()").value(2))
-                .andExpect(jsonPath("$.stats.topActivities[0].activity").value("REST"))
-                .andExpect(jsonPath("$.diaries.length()").value(1))
+                .andExpect(jsonPath("$.stats.matchedCount").value(2))
+                .andExpect(jsonPath("$.diaries.length()").value(2))
                 .andExpect(jsonPath("$.diaries[0].diaryId").value(match.getId()));
     }
 
+    /** Icon names are no filter, but the answer sees them next to each diary. */
     @Test
-    void countQuestionAboutAnActivity() throws Exception {
-        insertDiary(me, today.minusDays(3), Emotion.CALM, null, ActivityCode.EXERCISE);
-        insertDiary(me, today.minusDays(2), Emotion.HAPPY, null, ActivityCode.EXERCISE, ActivityCode.FRIEND);
-        insertDiary(me, today.minusDays(1), Emotion.SAD, null, ActivityCode.WORK);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), List.of(ActivityCode.EXERCISE), null,
-                Intent.STATS));
-        answerWith(new AnswerWriter.Answer("운동한 날엔 평온과 행복이 한 번씩이었어요.", List.of()));
+    void answerSeesEachDiarysIconNames() throws Exception {
+        insertDiary(me, today.minusDays(1), Emotion.CALM, "엄마랑 산책", "공원", "엄마");
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.CALM), null, Intent.LIST));
+        answerWith(new AnswerWriter.Answer("엄마와 산책한 날이 있었어요.", List.of()));
 
-        ask(me, "운동한 날엔 기분이 어땠어?")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.resultType").value("STATS_ONLY"))
-                .andExpect(jsonPath("$.stats.matchedCount").value(2))
-                .andExpect(jsonPath("$.stats.emotionCounts.length()").value(2))
-                .andExpect(jsonPath("$.stats.topActivities[0].activity").value("EXERCISE"))
-                .andExpect(jsonPath("$.stats.topActivities[0].count").value(2));
+        ask(me, "편했던 날").andExpect(status().isOk());
+
+        assertThat(answerPrompt().input()).contains("/ 공원, 엄마 / 엄마랑 산책");
     }
 
     /** The ordering is lost, not the answer: the candidates come newest first instead. */
     @Test
     void failedEmbeddingRanksByDateInstead() throws Exception {
-        Diary praised = insertDiary(me, today.minusDays(6), Emotion.HAPPY, "팀장님께 칭찬받음", ActivityCode.WORK);
-        Diary other = insertDiary(me, today.minusDays(1), Emotion.HAPPY, "점심 맛있었다", ActivityCode.WORK);
+        Diary praised = insertDiary(me, today.minusDays(6), Emotion.HAPPY, "팀장님께 칭찬받음", "업무");
+        Diary other = insertDiary(me, today.minusDays(1), Emotion.HAPPY, "점심 맛있었다", "업무");
         embed(praised, axis(0));
         embed(other, axis(1));
         when(embeddingClient.embed(anyString())).thenThrow(new GmsUnavailableException("embeddings answered 500"));
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), List.of(), "칭찬", Intent.LIST));
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), "칭찬", Intent.LIST));
         answerWith(new AnswerWriter.Answer("칭찬받은 날이 하루 있었어요.", List.of(praised.getId())));
 
         ask(me, "칭찬받았던 날 있었어?")
@@ -263,8 +251,8 @@ class EmotionSearchApiTest {
     /** The model judged none of the candidates to be about the question (E-04). */
     @Test
     void keywordWithNothingRelevantIsEmpty() throws Exception {
-        insertDiary(me, today.minusDays(1), Emotion.HAPPY, "점심 맛있었다", ActivityCode.WORK);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), List.of(), "칭찬", Intent.LIST));
+        insertDiary(me, today.minusDays(1), Emotion.HAPPY, "점심 맛있었다", "업무");
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), "칭찬", Intent.LIST));
         answerWith(new AnswerWriter.Answer("칭찬받은 기록은 찾지 못했어요.", List.of()));
 
         ask(me, "칭찬받았던 날 있었어?")
@@ -277,8 +265,8 @@ class EmotionSearchApiTest {
     /** E-04: nothing to write about, so the answer model is not asked. */
     @Test
     void noMatchIsEmptyWithoutAnAnswer() throws Exception {
-        insertDiary(me, today.minusDays(1), Emotion.HAPPY, "맛집", ActivityCode.FRIEND);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.SAD), List.of(), null, Intent.LIST));
+        insertDiary(me, today.minusDays(1), Emotion.HAPPY, "맛집", "친구");
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.SAD), null, Intent.LIST));
 
         JsonNode body = body(ask(me, "슬펐던 날 보여 줘")
                 .andExpect(status().isOk())
@@ -296,11 +284,11 @@ class EmotionSearchApiTest {
 
     @Test
     void countQuestionIsAnsweredByStats() throws Exception {
-        insertDiary(me, today.minusDays(3), Emotion.CALM, null, ActivityCode.REST);
-        insertDiary(me, today.minusDays(2), Emotion.CALM, null, ActivityCode.REST);
-        insertDiary(me, today.minusDays(1), Emotion.SAD, null, ActivityCode.WORK);
+        insertDiary(me, today.minusDays(3), Emotion.CALM, null, "휴식");
+        insertDiary(me, today.minusDays(2), Emotion.CALM, null, "휴식");
+        insertDiary(me, today.minusDays(1), Emotion.SAD, null, "업무");
         interpretAs(new QuestionInterpreter.Answer(
-                today.withDayOfMonth(1).minusMonths(1).toString(), today.toString(), List.of(), List.of(), null,
+                today.withDayOfMonth(1).minusMonths(1).toString(), today.toString(), List.of(), null,
                 Intent.STATS));
         answerWith(new AnswerWriter.Answer("평온한 날이 가장 많았어요.", List.of()));
 
@@ -323,9 +311,9 @@ class EmotionSearchApiTest {
      */
     @Test
     void countOverAKeywordCountsOnlyThePickedDiaries() throws Exception {
-        Diary praised = insertDiary(me, today.minusDays(2), Emotion.HAPPY, "칭찬받음", ActivityCode.WORK);
-        insertDiary(me, today.minusDays(1), Emotion.SAD, "비가 옴", ActivityCode.REST);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), List.of(), "칭찬", Intent.STATS));
+        Diary praised = insertDiary(me, today.minusDays(2), Emotion.HAPPY, "칭찬받음", "업무");
+        insertDiary(me, today.minusDays(1), Emotion.SAD, "비가 옴", "휴식");
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), "칭찬", Intent.STATS));
         // The model says "2" although it picked one; the sentence the member reads must not.
         answerWith(new AnswerWriter.Answer("두 번 모두 회사에서 칭찬받은 날이에요.", List.of(praised.getId())));
 
@@ -336,7 +324,6 @@ class EmotionSearchApiTest {
                 .andExpect(jsonPath("$.stats.matchedCount").value(1))
                 .andExpect(jsonPath("$.stats.emotionCounts.length()").value(1))
                 .andExpect(jsonPath("$.stats.emotionCounts[0].emotion").value("HAPPY"))
-                .andExpect(jsonPath("$.stats.topActivities[0].activity").value("WORK"))
                 .andExpect(jsonPath("$.featured").isEmpty())
                 .andExpect(jsonPath("$.diaries.length()").value(0));
 
@@ -350,7 +337,7 @@ class EmotionSearchApiTest {
      */
     @Test
     void interpretationBreakingTheSchemaIsServiceUnavailable() throws Exception {
-        interpretAs(new QuestionInterpreter.Answer(null, null, null, List.of(), null, Intent.LIST));
+        interpretAs(new QuestionInterpreter.Answer(null, null, null, null, Intent.LIST));
 
         ask(me, "마음이 편했던 날을 보여 줘")
                 .andExpect(status().isServiceUnavailable())
@@ -361,8 +348,8 @@ class EmotionSearchApiTest {
 
     @Test
     void answerBreakingTheSchemaIsServiceUnavailable() throws Exception {
-        insertDiary(me, today.minusDays(1), Emotion.CALM, "낮잠", ActivityCode.REST);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.CALM), List.of(), null, Intent.LIST));
+        insertDiary(me, today.minusDays(1), Emotion.CALM, "낮잠", "휴식");
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.CALM), null, Intent.LIST));
         answerWith(new AnswerWriter.Answer("평온한 날이 하루 있었어요.", null));
 
         ask(me, "마음이 편했던 날을 보여 줘")
@@ -373,9 +360,9 @@ class EmotionSearchApiTest {
     /** Spec: the answer must not be made up, so one that cites a diary it was not given fails. */
     @Test
     void answerCitingADiaryItWasNotGivenFails() throws Exception {
-        Diary mine = insertDiary(me, today.minusDays(1), Emotion.HAPPY, "칭찬받음", ActivityCode.WORK);
-        Diary theirs = insertDiary(someoneElse, today.minusDays(1), Emotion.HAPPY, "남의 일기", ActivityCode.WORK);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), List.of(), "칭찬", Intent.LIST));
+        Diary mine = insertDiary(me, today.minusDays(1), Emotion.HAPPY, "칭찬받음", "업무");
+        Diary theirs = insertDiary(someoneElse, today.minusDays(1), Emotion.HAPPY, "남의 일기", "업무");
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(), "칭찬", Intent.LIST));
         answerWith(new AnswerWriter.Answer("두 번 있었어요.", List.of(mine.getId(), theirs.getId())));
 
         ask(me, "칭찬받았던 날 있었어?")
@@ -423,7 +410,7 @@ class EmotionSearchApiTest {
                 .andExpect(jsonPath("$.code").value("RATE_LIMITED"));
         verify(llmClient, never()).respond(any(), any());
 
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.SAD), List.of(), null, Intent.LIST));
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.SAD), null, Intent.LIST));
         ask(someoneElse, "슬펐던 날 보여 줘").andExpect(status().isOk());
     }
 
@@ -442,14 +429,14 @@ class EmotionSearchApiTest {
      */
     @Test
     void answerSeesTheWeekAndIsWarnedAfterLowDays() throws Exception {
-        insertDiary(me, today.minusDays(1), Emotion.SAD, "피곤", ActivityCode.WORK);
-        insertDiary(me, today, Emotion.SAD, "비 옴", ActivityCode.REST);
+        insertDiary(me, today.minusDays(1), Emotion.SAD, "피곤", "업무");
+        insertDiary(me, today, Emotion.SAD, "비 옴", "휴식");
         // Last week's diary is outside the seven days.
-        insertDiary(me, today.minusDays(8), Emotion.HAPPY, "여행", ActivityCode.HOBBY);
+        insertDiary(me, today.minusDays(8), Emotion.HAPPY, "여행", "취미");
         jdbcTemplate.update("insert into emotion_search (member_id, question, interpreted_filter, result_type, created_at) "
-                + "values (?, 'q', '{\"from\":null,\"to\":null,\"emotions\":[\"HAPPY\"],\"activities\":[],\"keyword\":null}'::jsonb, "
+                + "values (?, 'q', '{\"from\":null,\"to\":null,\"emotions\":[\"HAPPY\"],\"keyword\":null}'::jsonb, "
                 + "'FOUND', now() - interval '1 hour')", me);
-        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.SAD), List.of(), null, Intent.LIST));
+        interpretAs(new QuestionInterpreter.Answer(null, null, List.of(Emotion.SAD), null, Intent.LIST));
         answerWith(new AnswerWriter.Answer("우울을 고른 날이 2일 있었어요.", List.of()));
 
         ask(me, "슬펐던 날 보여 줘").andExpect(status().isOk());
@@ -492,10 +479,24 @@ class EmotionSearchApiTest {
         return objectMapper.readTree(result.andReturn().getResponse().getContentAsString());
     }
 
-    private Diary insertDiary(Long memberId, LocalDate recordDate, Emotion emotion, String memo,
-            ActivityCode... codes) {
-        return diaryRepository.saveAndFlush(Diary.create(
-                memberId, recordDate, emotion, memo, activityRepository.findByCodeInAndActiveTrue(List.of(codes))));
+    /**
+     * A diary with the given content and icons. Icons are made on first use per member and
+     * name, as {@code WHAT} icons: emotion search reads only their names.
+     */
+    private Diary insertDiary(Long memberId, LocalDate recordDate, Emotion emotion, String content,
+            String... iconNames) {
+        Long emoticonId = emoticons.computeIfAbsent(emotion, fixtures::emoticon);
+        Long diaryId = fixtures.diary(memberId, recordDate, emoticonId, emotion, content);
+        for (String name : iconNames) {
+            Long myIconId = myIcons.computeIfAbsent(memberId + "/" + name,
+                    key -> fixtures.myIcon(memberId, baseIcon, name, IconCategory.WHAT));
+            fixtures.attach(diaryId, myIconId);
+        }
+        return new Diary(diaryId);
+    }
+
+    /** Just the id, which is all these tests read from a diary. */
+    private record Diary(Long getId) {
     }
 
     private void embed(Diary diary, float[] vector) {

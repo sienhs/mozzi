@@ -6,7 +6,7 @@
 |---|---|
 | [api/common.md](api/common.md) | Base URL, 인증 헤더, 응답·오류 형식, 공통 오류 코드, Enum |
 | [api/auth.md](api/auth.md) | 인증, 회원, 설정, 푸시 토큰 |
-| [api/diary.md](api/diary.md) | 일기 CRUD, 그림 생성 |
+| [api/diary.md](api/diary.md) | 이모티콘, 아이콘, 일기, 그림 생성 |
 | [api/home.md](api/home.md) | 홈, 캘린더, 앱 메타 |
 | [api/emotion-search.md](api/emotion-search.md) | 감정 검색 |
 | [api/gacha.md](api/gacha.md) | 모찌 뽑기, 도감, 조각 교환 |
@@ -32,26 +32,32 @@
 - [ ] `PATCH /members/me/settings` 알림 설정 변경
 - [ ] `PUT /members/me/push-tokens` 푸시 토큰 등록
 
-### 일기
+### 일기 · 아이콘 (S15P31D102-110에서 재설계)
 
-- [x] `POST /diaries` 일기 작성 — 멱등 재전송 응답, `reward` 미구현
-- [x] `GET /diaries/{diaryId}` 일기 상세
+- [x] `GET /emoticons` 이모티콘 목록 — 이모티콘 데이터는 서버가 따로 등록 (마이그레이션에 없음)
+- [x] `GET /icons` 기본 이미지 목록 — 기본 이미지 데이터는 서버가 따로 등록 (마이그레이션에 없음)
+- [x] `POST /my-icons` 아이콘 만들기
+- [x] `GET /my-icons` 내 아이콘 목록
+- [x] `DELETE /my-icons/{myIconId}` 아이콘 삭제
+- [x] `POST /diaries` 일기 쓰기 — 멱등 재전송 응답, `reward` 미구현
+- [x] `GET /diaries/daily` 하루 일기
+- [x] `GET /diaries/monthly` 한 달 감정 (캘린더)
 - [x] `GET /diaries` 일기 목록
-- [x] `PATCH /diaries/{diaryId}` 일기 수정 — 목업 화면 없음 (와이어프레임 v2 C-03)
-- [x] `DELETE /diaries/{diaryId}` 일기 삭제 — 목업 화면 없음 (와이어프레임 v2 C-04)
+
+일기 수정·삭제는 없다 (재설계에서 제외).
 
 ### 그림 생성
 
-- [ ] 생성 워커 연동 (큐 미정, 현재 `PENDING`에서 진행되지 않음)
-- [ ] S3 presigned URL 발급 (현재 `imageUrl`은 항상 `null`)
-- [ ] `GET /diaries/{diaryId}/image` 생성 상태 조회
-- [ ] `POST /diaries/{diaryId}/image/retry` 다시 그리기
+- [x] `GET /diaries/{diaryId}/image/events` 그림 결과 구독 (SSE)
+- [x] `POST /diaries/{diaryId}/image` 그림 만들기 — 당일 일기만. 캐릭터 테이블 전까지 기본 캐릭터 사용
+- [x] GMS 번역 → SQS `ai-request` 발행, `ai-response` 수신 — 실제 AWS 큐로는 아직 검증 안 함 (테스트는 큐 없이 실행)
 
-### 홈 · 캘린더 · 메타
+### 홈 · 메타
 
-- [ ] `GET /home` 홈
-- [ ] `GET /calendar` 월간 캘린더
-- [ ] `GET /meta` 앱 메타
+- [ ] `GET /home` 홈 — `home.md`에 예전 활동 칩·`GENERATING`이 남아 있어 재설계 필요
+- [ ] `GET /meta` 앱 메타 — 활동 칩이 없어져서 필요한지 다시 정해야 함 (이모티콘·아이콘은 각자 목록 API가 있음)
+
+월간 캘린더(`GET /calendar`)는 `GET /diaries/monthly`로 대체했다.
 
 ### 감정 검색
 
@@ -78,13 +84,14 @@
 |---|---|
 | A-01 시작, E-06 로그인 실패 | `POST /auth/google` |
 | A-02 Google 첫 로그인 | `POST /auth/google` 응답의 `maskedEmail`, `POST /auth/signup` |
-| H-01 · H-02 · H-03 홈, E-01 생성 실패 | `GET /home`, 생성 중이면 `GET /diaries/{id}/image` 폴링 |
-| R-01 기분 선택, R-02 활동·메모 | `GET /meta` (칩 목록) |
+| H-01 · H-02 · H-03 홈 | `GET /home` (재설계 예정), 오늘 썼는지는 `GET /diaries/daily?date=오늘` |
+| R-01 기분 선택 | `GET /emoticons` |
+| R-02 아이콘·한 줄 일기 | `GET /my-icons?category=`, `POST /my-icons`, `DELETE /my-icons/{id}`, `GET /icons` |
 | R-03 저장 중, E-02 저장 실패 | `POST /diaries` |
-| G-01 그림 생성 중 | `GET /diaries/{id}/image` 폴링 |
-| G-02 생성 완료, D-01 기록 상세 | `GET /diaries/{id}` |
-| E-03 그림 생성 실패 | `POST /diaries/{id}/image/retry` |
-| C-01 캘린더, C-02 빈 날짜 | `GET /calendar` |
+| G-01 그림 생성 중, E-01 · E-03 생성 실패 | `GET /diaries/{id}/image/events` (SSE) 연결 후 `POST /diaries/{id}/image`. 실패 후 다시 그리기도 같은 POST |
+| G-02 생성 완료, D-01 기록 상세 | `GET /diaries/daily?date=` |
+| C-01 캘린더, C-02 빈 날짜 | `GET /diaries/monthly?yearMonth=` |
+| 지난 일기 모아 보기 | `GET /diaries` (감정·기간 필터) |
 | S-01 감정 검색 시작 | `GET /emotion-search/suggestions` |
 | S-02 답변, E-04 빈 결과, E-05 실패 | `POST /emotion-search` |
 | SET-01 설정 | `GET /members/me`, `PATCH /members/me`, `GET · PATCH /members/me/settings` |
@@ -103,8 +110,8 @@
 | # | 항목 | 현재 상태 |
 |---|---|---|
 | 1 | 조각 이름 | Figma에 "별조각"과 "빛조각"이 섞여 있음. API 필드는 `shard`로 두고 문구만 정하면 됨 |
-| 2 | 뽑기권 지급량 | 초안은 기록 1건에 1장. 10장 뽑기(뽑기권 10장)가 있으니 지급량 재검토 필요. 날짜당 1번만 지급(삭제 후 재작성 시 미지급)은 확정 |
+| 2 | 뽑기권 지급량 | 초안은 기록 1건에 1장. 10장 뽑기(뽑기권 10장)가 있으니 지급량 재검토 필요. 날짜당 1번만 지급은 확정 (일기 삭제가 없어져 재작성 경우는 사라짐) |
 | 3 | 닉네임 변경 화면 | A-02는 "설정에서 바꿀 수 있어요"라고 안내하지만 목업에 변경 화면이 없음. SET-01 프로필 행에서 진입하는 화면 필요 |
-| 4 | 그림 재시도 횟수 | 초안은 실패 시 하루 3회 |
+| 4 | 캐릭터 | 캐릭터 테이블(이미지 URL, 프롬프트)과 보유 확인. 지금은 설정값의 기본 캐릭터 하나 |
 | 5 | 감정 검색 질문 보관 기간 | 90일로 구현(`ExpiredEmotionSearchCleaner`, 매일 04:40). 처리방침 7조에 아직 없음 |
 | 6 | 만 14세 미만 가입 | 받지 않는다면 약관에 명시 |

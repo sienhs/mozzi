@@ -32,12 +32,9 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
-import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
-import com.ssafy.mozzi.domain.diary.repository.ActivityRepository;
-import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
 import com.ssafy.mozzi.domain.diary.service.DiaryService;
+import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
@@ -47,6 +44,7 @@ import com.ssafy.mozzi.domain.search.service.QuestionInterpreter.Intent;
 import com.ssafy.mozzi.domain.search.service.WeeklyContextReader;
 import com.ssafy.mozzi.integration.gms.GmsEmbeddingClient;
 import com.ssafy.mozzi.integration.gms.GmsLlmClient;
+import com.ssafy.mozzi.support.DiaryFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 import tools.jackson.databind.ObjectMapper;
@@ -76,12 +74,6 @@ class EmotionSearchTimeBudgetTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private DiaryRepository diaryRepository;
-
-    @Autowired
-    private ActivityRepository activityRepository;
-
-    @Autowired
     private MemberSessionService sessionService;
 
     @Autowired
@@ -107,11 +99,13 @@ class EmotionSearchTimeBudgetTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.execute("truncate table member cascade");
+        DiaryFixtures fixtures = new DiaryFixtures(jdbcTemplate);
+        fixtures.reset();
         me = memberRepository.saveAndFlush(Member.signUp("me@gmail.com", AuthProvider.GOOGLE, "me", "me")).getId();
         token = transactionTemplate.execute(status -> sessionService.start(me)).accessToken();
-        diaryRepository.saveAndFlush(Diary.create(me, LocalDate.now(clock).minusDays(1), Emotion.HAPPY, "칭찬받음",
-                activityRepository.findByCodeInAndActiveTrue(List.of(ActivityCode.WORK))));
+        Long diaryId = fixtures.diary(
+                me, LocalDate.now(clock).minusDays(1), fixtures.emoticon(Emotion.HAPPY), Emotion.HAPPY, "칭찬받음");
+        fixtures.attach(diaryId, fixtures.myIcon(me, fixtures.icon(), "업무", IconCategory.WHAT));
     }
 
     /** The interpretation alone used the budget up, so the answer is not even asked for. */
@@ -119,7 +113,7 @@ class EmotionSearchTimeBudgetTest {
     void questionPastTheBudgetIsServiceUnavailable() throws Exception {
         when(llmClient.respond(any(), eq(QuestionInterpreter.Answer.class))).thenAnswer(invocation -> {
             Thread.sleep(SLOW_MILLIS);
-            return new QuestionInterpreter.Answer(null, null, List.of(Emotion.HAPPY), List.of(), null, Intent.LIST);
+            return new QuestionInterpreter.Answer(null, null, List.of(Emotion.HAPPY), null, Intent.LIST);
         });
 
         ask("행복했던 날").andExpect(status().isServiceUnavailable())
@@ -141,7 +135,7 @@ class EmotionSearchTimeBudgetTest {
             return new float[1536];
         });
         when(llmClient.respond(any(), eq(QuestionInterpreter.Answer.class)))
-                .thenReturn(new QuestionInterpreter.Answer(null, null, List.of(), List.of(), "칭찬", Intent.LIST));
+                .thenReturn(new QuestionInterpreter.Answer(null, null, List.of(), "칭찬", Intent.LIST));
         Long diaryId = jdbcTemplate.queryForObject("select diary_id from diary where member_id = ?", Long.class, me);
         when(llmClient.respond(any(), eq(AnswerWriter.Answer.class)))
                 .thenReturn(new AnswerWriter.Answer("칭찬받은 날이 하루 있었어요.", List.of(diaryId)));
@@ -157,7 +151,7 @@ class EmotionSearchTimeBudgetTest {
     @Test
     void slowReadBeforeTheAnswerIsServiceUnavailable() throws Exception {
         when(llmClient.respond(any(), eq(QuestionInterpreter.Answer.class)))
-                .thenReturn(new QuestionInterpreter.Answer(null, null, List.of(Emotion.HAPPY), List.of(), null,
+                .thenReturn(new QuestionInterpreter.Answer(null, null, List.of(Emotion.HAPPY), null,
                         Intent.LIST));
         doAnswer(invocation -> {
             Thread.sleep(SLOW_MILLIS);
@@ -173,7 +167,7 @@ class EmotionSearchTimeBudgetTest {
     @Test
     void slowRenderingIsServiceUnavailable() throws Exception {
         when(llmClient.respond(any(), eq(QuestionInterpreter.Answer.class)))
-                .thenReturn(new QuestionInterpreter.Answer(null, null, List.of(Emotion.HAPPY), List.of(), null,
+                .thenReturn(new QuestionInterpreter.Answer(null, null, List.of(Emotion.HAPPY), null,
                         Intent.LIST));
         when(llmClient.respond(any(), eq(AnswerWriter.Answer.class)))
                 .thenReturn(new AnswerWriter.Answer("행복한 날이 하루 있었어요.", List.of()));

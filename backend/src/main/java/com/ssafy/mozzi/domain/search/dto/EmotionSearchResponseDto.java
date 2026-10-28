@@ -5,7 +5,6 @@ import java.util.List;
 
 import com.ssafy.mozzi.domain.diary.dto.DiaryDetailResponseDto;
 import com.ssafy.mozzi.domain.diary.dto.DiarySummaryResponseDto;
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.search.entity.SearchResultType;
 import com.ssafy.mozzi.domain.search.repository.SearchCriteria;
@@ -34,26 +33,20 @@ public record EmotionSearchResponseDto(
             LocalDate from,
             LocalDate to,
             List<Emotion> emotions,
-            List<ActivityCode> activities,
             String keyword) {
 
         public static InterpretedFilter of(SearchCriteria criteria) {
-            return new InterpretedFilter(criteria.from(), criteria.to(), criteria.emotions(), criteria.activities(),
-                    criteria.keyword());
+            return new InterpretedFilter(criteria.from(), criteria.to(), criteria.emotions(), criteria.keyword());
         }
 
     }
 
     /**
      * @param matchedCount  diaries the answer is about
-     * @param topActivities most frequent activities among them, at most three
      * @param emotionCounts per emotion, most frequent first; {@code null} unless
      *                      {@link SearchResultType#STATS_ONLY}
      */
-    public record Stats(long matchedCount, List<ActivityCount> topActivities, List<EmotionCount> emotionCounts) {
-    }
-
-    public record ActivityCount(ActivityCode activity, long count) {
+    public record Stats(long matchedCount, List<EmotionCount> emotionCounts) {
     }
 
     public record EmotionCount(Emotion emotion, long count) {

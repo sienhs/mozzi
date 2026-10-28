@@ -1,7 +1,5 @@
 package com.ssafy.mozzi.domain.image.entity;
 
-import java.time.Clock;
-import java.time.OffsetDateTime;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,19 +9,29 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import com.ssafy.mozzi.global.entity.BaseTimeEntity;
+
 /**
- * One image generation attempt for a diary (API spec ERD 5.7).
+ * A diary's picture (ERD {@code diary_image}). One row per diary.
  *
- * <p>The diary is referenced by id rather than by association: the image worker only ever
- * needs the id, and keeping the two apart stops a diary load from dragging its whole attempt
- * history along.
+ * <p>A request after a failure resets this row rather than adding another. Only a request
+ * that has settled as {@link ImageStatus#FAILED} can be asked again, and a pending one
+ * cannot be replaced. That is what lets a result from the AI server carry nothing but the
+ * diary id: while a request is pending it is the only one the result can belong to.
  *
- * <p>No {@code BaseTimeEntity}: the ERD gives this table {@code requested_at},
- * {@code started_at} and {@code completed_at}, which say more than created/updated would.
+ * <p>{@link #failureCount} counts the failures the AI server reported. Once it reaches
+ * {@link #MAX_FAILURES} the diary cannot ask again. A request that never reached the queue
+ * is not the member's failure and is not counted.
+ *
+ * <p>Every state change starts from the diary row lock ({@code DiaryRepository}), so a
+ * result and a new request never interleave.
  */
 @Entity
 @Table(name = "diary_image")
-public class DiaryImage {
+public class DiaryImage extends BaseTimeEntity {
+
+    /** Failures allowed per diary, so at most three failed pictures in all. */
+    public static final int MAX_FAILURES = 3;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,60 +41,115 @@ public class DiaryImage {
     @Column(name = "diary_id", nullable = false)
     private Long diaryId;
 
-    @Column(name = "attempt_no", nullable = false)
-    private int attemptNo;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 12)
     private ImageStatus status;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 12)
-    private ImageStage stage;
+    @Column(name = "failure_count", nullable = false)
+    private int failureCount;
+
+    /** No association yet: the character table arrives with the gacha work. */
+    @Column(name = "character_id", nullable = false)
+    private Long characterId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "trigger_type", nullable = false, length = 12)
-    private ImageTriggerType triggerType;
+    @Column(name = "time_of_day", length = 10)
+    private TimeOfDay timeOfDay;
 
-    /** Contains diary text. Never log it (convention 5.4). */
-    @Column(columnDefinition = "text")
-    private String prompt;
+    /** Icon names are copied so a deleted icon does not erase what the picture was drawn from. */
+    @Column(name = "where_name", length = 10)
+    private String whereName;
 
-    @Column(length = 50)
-    private String model;
+    @Column(name = "who_name", length = 10)
+    private String whoName;
 
-    /** Private S3 key; the URL is presigned per request and never stored. */
-    @Column(name = "image_key")
-    private String imageKey;
+    @Column(name = "what_name", nullable = false, length = 10)
+    private String whatName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "failure_code", length = 30)
-    private ImageFailureCode failureCode;
-
-    @Column(name = "requested_at", nullable = false)
-    private OffsetDateTime requestedAt;
-
-    @Column(name = "started_at")
-    private OffsetDateTime startedAt;
-
-    @Column(name = "completed_at")
-    private OffsetDateTime completedAt;
+    /** Public S3 URL, set once the picture is done. */
+    @Column(name = "image_url")
+    private String imageUrl;
 
     protected DiaryImage() {
         // JPA
     }
 
-    private DiaryImage(Long diaryId, int attemptNo, ImageTriggerType triggerType, OffsetDateTime requestedAt) {
+    private DiaryImage(Long diaryId, Selection selection) {
         this.diaryId = diaryId;
-        this.attemptNo = attemptNo;
-        this.triggerType = triggerType;
-        this.status = ImageStatus.PENDING;
-        this.requestedAt = requestedAt;
+        apply(selection);
     }
 
-    /** The attempt queued when a diary is saved (spec 4.4 {@code POST /diaries}). */
-    public static DiaryImage initial(Long diaryId, Clock clock) {
-        return new DiaryImage(diaryId, 1, ImageTriggerType.INITIAL, OffsetDateTime.now(clock));
+    public static DiaryImage request(Long diaryId, Selection selection) {
+        return new DiaryImage(diaryId, selection);
+    }
+
+    /**
+     * Asks again after a failure, with what the member picked this time.
+     *
+     * @throws IllegalStateException unless {@link #canRetry()}; callers check first so the
+     *                               member gets a proper error instead
+     */
+    public void retry(Selection selection) {
+        if (!canRetry()) {
+            throw new IllegalStateException("cannot retry: status=" + status + ", failures=" + failureCount);
+        }
+        apply(selection);
+    }
+
+    public boolean canRetry() {
+        return status == ImageStatus.FAILED && failureCount < MAX_FAILURES;
+    }
+
+    /**
+     * Records the finished picture.
+     *
+     * @return whether anything changed; {@code false} for a duplicate or a request that is no
+     *         longer pending
+     */
+    public boolean succeed(String imageUrl) {
+        if (status != ImageStatus.PENDING) {
+            return false;
+        }
+        this.status = ImageStatus.SUCCEEDED;
+        this.imageUrl = imageUrl;
+        return true;
+    }
+
+    /**
+     * Records a failure the AI server reported. This one counts toward {@link #MAX_FAILURES}.
+     *
+     * @return whether anything changed; {@code false} for a duplicate
+     */
+    public boolean fail() {
+        if (status != ImageStatus.PENDING) {
+            return false;
+        }
+        this.status = ImageStatus.FAILED;
+        this.failureCount++;
+        return true;
+    }
+
+    /**
+     * Gives up a request that never reached the AI server, without counting a failure.
+     *
+     * @return whether anything changed
+     */
+    public boolean abandon() {
+        if (status != ImageStatus.PENDING) {
+            return false;
+        }
+        this.status = ImageStatus.FAILED;
+        return true;
+    }
+
+    private void apply(Selection selection) {
+        this.status = ImageStatus.PENDING;
+        this.characterId = selection.characterId();
+        this.timeOfDay = selection.timeOfDay();
+        this.whereName = selection.whereName();
+        this.whoName = selection.whoName();
+        this.whatName = selection.whatName();
+        this.imageUrl = null;
     }
 
     public Long getId() {
@@ -97,44 +160,47 @@ public class DiaryImage {
         return diaryId;
     }
 
-    public int getAttemptNo() {
-        return attemptNo;
-    }
-
     public ImageStatus getStatus() {
         return status;
     }
 
-    public ImageStage getStage() {
-        return stage;
+    public int getFailureCount() {
+        return failureCount;
     }
 
-    public ImageTriggerType getTriggerType() {
-        return triggerType;
+    public Long getCharacterId() {
+        return characterId;
     }
 
-    public String getModel() {
-        return model;
+    public TimeOfDay getTimeOfDay() {
+        return timeOfDay;
     }
 
-    public String getImageKey() {
-        return imageKey;
+    public String getWhereName() {
+        return whereName;
     }
 
-    public ImageFailureCode getFailureCode() {
-        return failureCode;
+    public String getWhoName() {
+        return whoName;
     }
 
-    public OffsetDateTime getRequestedAt() {
-        return requestedAt;
+    public String getWhatName() {
+        return whatName;
     }
 
-    public OffsetDateTime getStartedAt() {
-        return startedAt;
+    public String getImageUrl() {
+        return imageUrl;
     }
 
-    public OffsetDateTime getCompletedAt() {
-        return completedAt;
+    /**
+     * What the member picked for one request.
+     *
+     * @param timeOfDay optional
+     * @param whereName optional
+     * @param whoName   optional
+     */
+    public record Selection(
+            Long characterId, TimeOfDay timeOfDay, String whereName, String whoName, String whatName) {
     }
 
 }

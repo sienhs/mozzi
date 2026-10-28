@@ -1,43 +1,33 @@
 package com.ssafy.mozzi.domain.diary.dto;
 
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.util.List;
 
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
-import com.ssafy.mozzi.domain.image.entity.ImageStatus;
+import com.ssafy.mozzi.domain.image.dto.DiaryImageResponseDto;
 
 /**
- * {@code DiarySummary} from spec 4.4: {@code DiaryDetail} without {@code memo},
- * {@code updatedAt} and the image URL. List rows show the emotion face, not the picture, so
- * nothing here needs signing.
+ * A row of {@code GET /diaries}. Carries the picture URL so a filtered list ("happy days
+ * only") can show the pictures; icons are left to the daily view.
+ *
+ * @param image {@code null} when no picture was requested
  */
 public record DiarySummaryResponseDto(
         Long diaryId,
         LocalDate recordDate,
+        Long emoticonId,
         Emotion emotion,
-        List<ActivityCode> activities,
-        String title,
-        Image image,
-        OffsetDateTime createdAt) {
+        String content,
+        DiaryImageResponseDto image) {
 
-    public record Image(Long imageId, ImageStatus status) {
-    }
-
-    public static DiarySummaryResponseDto of(Diary diary, List<ActivityCode> activities) {
-        Image image = diary.getCurrentImageId() == null
-                ? null
-                : new Image(diary.getCurrentImageId(), diary.getImageStatus());
+    public static DiarySummaryResponseDto of(Diary diary, DiaryImageResponseDto image) {
         return new DiarySummaryResponseDto(
                 diary.getId(),
                 diary.getRecordDate(),
+                diary.getEmoticonId(),
                 diary.getEmotion(),
-                activities,
-                diary.getTitle(),
-                image,
-                diary.getCreatedAt());
+                diary.getContent(),
+                image);
     }
 
 }

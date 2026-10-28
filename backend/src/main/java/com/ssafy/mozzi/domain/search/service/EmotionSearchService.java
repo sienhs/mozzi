@@ -5,8 +5,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,10 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.ssafy.mozzi.domain.diary.dto.DiaryDetailResponseDto;
 import com.ssafy.mozzi.domain.diary.dto.DiarySummaryResponseDto;
-import com.ssafy.mozzi.domain.diary.entity.Activity;
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
-import com.ssafy.mozzi.domain.diary.repository.ActivityRepository;
 import com.ssafy.mozzi.domain.diary.service.DiaryService;
 import com.ssafy.mozzi.domain.image.entity.ImageStatus;
 import com.ssafy.mozzi.domain.search.dto.EmotionSearchResponseDto;
@@ -45,7 +40,6 @@ import com.ssafy.mozzi.domain.search.repository.EmotionSearchRepository;
 import com.ssafy.mozzi.domain.search.repository.EmotionSearchResultRepository;
 import com.ssafy.mozzi.domain.search.repository.SearchCriteria;
 import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery;
-import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery.ActivityCount;
 import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery.Candidate;
 import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery.EmotionCount;
 import com.ssafy.mozzi.domain.search.service.QuestionInterpreter.Intent;
@@ -81,8 +75,6 @@ public class EmotionSearchService {
     /** Diaries handed to the answer; about 50 tokens each. */
     static final int CANDIDATE_LIMIT = 20;
 
-    static final int TOP_ACTIVITIES = 3;
-
     /** S-01. Fixed for now (spec). */
     static final List<String> SUGGESTIONS = List.of(
             "마음이 편했던 날을 보여 줘",
@@ -95,7 +87,6 @@ public class EmotionSearchService {
     private final SearchDiaryQuery searchDiaryQuery;
     private final EmotionSearchRepository emotionSearchRepository;
     private final EmotionSearchResultRepository emotionSearchResultRepository;
-    private final ActivityRepository activityRepository;
     private final DiaryService diaryService;
     private final GmsEmbeddingClient embeddingClient;
     private final GmsProperties gmsProperties;
@@ -123,7 +114,6 @@ public class EmotionSearchService {
             SearchDiaryQuery searchDiaryQuery,
             EmotionSearchRepository emotionSearchRepository,
             EmotionSearchResultRepository emotionSearchResultRepository,
-            ActivityRepository activityRepository,
             DiaryService diaryService,
             GmsEmbeddingClient embeddingClient,
             GmsProperties gmsProperties,
@@ -137,7 +127,6 @@ public class EmotionSearchService {
         this.searchDiaryQuery = searchDiaryQuery;
         this.emotionSearchRepository = emotionSearchRepository;
         this.emotionSearchResultRepository = emotionSearchResultRepository;
-        this.activityRepository = activityRepository;
         this.diaryService = diaryService;
         this.embeddingClient = embeddingClient;
         this.gmsProperties = gmsProperties;
@@ -168,21 +157,20 @@ public class EmotionSearchService {
         long started = System.nanoTime();
         long deadline = started + searchProperties.timeBudget().toNanos();
         LocalDate today = LocalDate.now(clock);
-        Map<ActivityCode, String> labels = activityLabels();
 
         CompletableFuture<float[]> queryVector =
                 CompletableFuture.supplyAsync(() -> embeddingClient.embed(question), embeddingExecutor);
         SearchCriteria criteria = null;
         try {
-            Interpretation interpretation = questionInterpreter.interpret(question, today, labels);
+            Interpretation interpretation = questionInterpreter.interpret(question, today);
             criteria = interpretation.criteria();
             boolean statsQuestion = interpretation.intent() == Intent.STATS;
             // A count over a keyword ("칭찬받은 날은 몇 번이야?") cannot be counted by SQL: only
             // the model can tell which diaries are about the keyword, so it goes through the
             // same pick as a list and is counted from what was picked.
             Outcome outcome = statsQuestion && criteria.keyword() == null
-                    ? stats(memberId, question, today, criteria, labels, deadline)
-                    : list(memberId, question, today, criteria, statsQuestion, queryVector, labels, deadline);
+                    ? stats(memberId, question, today, criteria, deadline)
+                    : list(memberId, question, today, criteria, statsQuestion, queryVector, deadline);
             requireTime(deadline, "answer");
             return finish(memberId, question, criteria, outcome, started, deadline);
         } catch (GmsUnavailableException e) {
@@ -197,25 +185,24 @@ public class EmotionSearchService {
     private record Outcome(SearchResultType type, String answer, Stats stats, List<Long> diaryIds) {
 
         static Outcome empty() {
-            return new Outcome(SearchResultType.EMPTY, null, new Stats(0, List.of(), null), List.of());
+            return new Outcome(SearchResultType.EMPTY, null, new Stats(0, null), List.of());
         }
 
     }
 
     private Outcome stats(Long memberId, String question, LocalDate today, SearchCriteria criteria,
-            Map<ActivityCode, String> labels, long deadline) {
+            long deadline) {
         List<EmotionCount> emotionCounts = searchDiaryQuery.emotionCounts(memberId, criteria);
         long matched = emotionCounts.stream().mapToLong(EmotionCount::count).sum();
         if (matched == 0) {
             return Outcome.empty();
         }
-        List<ActivityCount> topActivities = searchDiaryQuery.topActivities(memberId, criteria, TOP_ACTIVITIES);
         WeeklyContext weekly = weeklyContextReader.read(memberId, today);
         requireTime(deadline, "reading diaries");
         AnswerWriter.Answer answer = answerWriter.write(new AnswerWriter.Material(
-                question, today, criteria, List.of(), matched, topActivities, emotionCounts, false, weekly), labels);
+                question, today, criteria, List.of(), matched, emotionCounts, false, weekly));
         return new Outcome(SearchResultType.STATS_ONLY, answer.answer(),
-                new Stats(matched, activityDtos(topActivities), emotionDtos(emotionCounts)), List.of());
+                new Stats(matched, emotionDtos(emotionCounts)), List.of());
     }
 
     /**
@@ -228,8 +215,7 @@ public class EmotionSearchService {
      *                      diaries
      */
     private Outcome list(Long memberId, String question, LocalDate today, SearchCriteria criteria,
-            boolean statsQuestion, CompletableFuture<float[]> queryVector, Map<ActivityCode, String> labels,
-            long deadline) {
+            boolean statsQuestion, CompletableFuture<float[]> queryVector, long deadline) {
         boolean pickRelevant = criteria.keyword() != null;
         float[] vector = pickRelevant ? vectorOrNull(queryVector, deadline) : null;
         List<Candidate> candidates = searchDiaryQuery.candidates(
@@ -238,21 +224,13 @@ public class EmotionSearchService {
             return Outcome.empty();
         }
 
-        long matched;
-        List<ActivityCount> topActivities;
-        if (pickRelevant) {
-            matched = candidates.size();
-            topActivities = List.of();
-        } else {
-            matched = searchDiaryQuery.emotionCounts(memberId, criteria).stream()
-                    .mapToLong(EmotionCount::count).sum();
-            topActivities = searchDiaryQuery.topActivities(memberId, criteria, TOP_ACTIVITIES);
-        }
+        long matched = pickRelevant
+                ? candidates.size()
+                : searchDiaryQuery.emotionCounts(memberId, criteria).stream().mapToLong(EmotionCount::count).sum();
         WeeklyContext weekly = weeklyContextReader.read(memberId, today);
         requireTime(deadline, "reading diaries");
         AnswerWriter.Answer answer = answerWriter.write(new AnswerWriter.Material(
-                question, today, criteria, candidates, matched, topActivities, List.of(), pickRelevant, weekly),
-                labels);
+                question, today, criteria, candidates, matched, List.of(), pickRelevant, weekly));
 
         List<Candidate> chosen = candidates;
         String text = answer.answer();
@@ -263,15 +241,14 @@ public class EmotionSearchService {
                 return Outcome.empty();
             }
             matched = chosen.size();
-            topActivities = topActivitiesOf(chosen);
             text = AnswerWriter.withCount(chosen.size(), text);
         }
         if (statsQuestion) {
             return new Outcome(SearchResultType.STATS_ONLY, text,
-                    new Stats(matched, activityDtos(topActivities), emotionDtos(emotionCountsOf(chosen))), List.of());
+                    new Stats(matched, emotionDtos(emotionCountsOf(chosen))), List.of());
         }
         return new Outcome(SearchResultType.FOUND, text,
-                new Stats(matched, activityDtos(topActivities), null),
+                new Stats(matched, null),
                 chosen.stream().map(Candidate::diaryId).toList());
     }
 
@@ -369,26 +346,6 @@ public class EmotionSearchService {
         }
     }
 
-    private Map<ActivityCode, String> activityLabels() {
-        Map<ActivityCode, String> labels = new EnumMap<>(ActivityCode.class);
-        activityRepository.findAll().forEach(activity -> labels.put(activity.getCode(), activity.getLabel()));
-        return labels;
-    }
-
-    /** {@link SearchDiaryQuery#topActivities} over the chosen diaries, same ordering. */
-    private List<ActivityCount> topActivitiesOf(List<Candidate> chosen) {
-        Map<ActivityCode, Integer> sortOrder = activityRepository.findAll().stream()
-                .collect(Collectors.toMap(Activity::getCode, Activity::getSortOrder));
-        Map<ActivityCode, Long> counts = new LinkedHashMap<>();
-        chosen.forEach(candidate -> candidate.activities().forEach(code -> counts.merge(code, 1L, Long::sum)));
-        return counts.entrySet().stream()
-                .sorted(Comparator.<Map.Entry<ActivityCode, Long>>comparingLong(Map.Entry::getValue).reversed()
-                        .thenComparing(entry -> sortOrder.getOrDefault(entry.getKey(), Integer.MAX_VALUE)))
-                .limit(TOP_ACTIVITIES)
-                .map(entry -> new ActivityCount(entry.getKey(), entry.getValue()))
-                .toList();
-    }
-
     /** {@link SearchDiaryQuery#emotionCounts} over the chosen diaries, same ordering. */
     private static List<EmotionCount> emotionCountsOf(List<Candidate> chosen) {
         return chosen.stream()
@@ -397,12 +354,6 @@ public class EmotionSearchService {
                 .sorted(Comparator.<Map.Entry<Emotion, Long>>comparingLong(Map.Entry::getValue).reversed()
                         .thenComparing(entry -> entry.getKey().name()))
                 .map(entry -> new EmotionCount(entry.getKey(), entry.getValue()))
-                .toList();
-    }
-
-    private static List<EmotionSearchResponseDto.ActivityCount> activityDtos(List<ActivityCount> counts) {
-        return counts.stream()
-                .map(count -> new EmotionSearchResponseDto.ActivityCount(count.activity(), count.count()))
                 .toList();
     }
 

@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7");
     }
 
     @Test
@@ -40,10 +40,12 @@ class SchemaMigrationTest {
         assertThat(tables).contains(
                 "member", "member_setting", "terms_agreement", "push_device",
                 "idempotency_record", "member_session", "signup_ticket",
-                "activity", "diary", "diary_activity", "diary_image",
+                "emoticon", "icon", "my_icon", "diary", "diary_icon", "diary_image",
                 "emotion_search", "emotion_search_result", "diary_embedding");
         // Replaced by member_session in V5; two refresh schemes must not coexist.
         assertThat(tables).doesNotContain("refresh_token");
+        // Replaced by member-made icons in V7.
+        assertThat(tables).doesNotContain("activity", "diary_activity");
     }
 
     /** Columns are snake_case in the database and camelCase in Java (convention 1.1). */
@@ -167,13 +169,37 @@ class SchemaMigrationTest {
                 .contains("WHERE is_featured");
     }
 
-    /** Spec 2.2: the eight chips, in display order. */
+    /**
+     * One picture row per diary: a retry resets the row, and a second insert for the same
+     * diary is refused even if the row lock were ever skipped.
+     */
     @Test
-    void activityChipsAreSeeded() {
-        List<String> codes = jdbcTemplate.queryForList(
-                "select code from activity where is_active order by sort_order", String.class);
+    void oneImagePerDiaryIsAUniqueIndex() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_diary_image_diary'", String.class);
 
-        assertThat(codes).containsExactly("STUDY", "WORK", "EXERCISE", "REST", "FRIEND", "HOBBY", "FAMILY", "ETC");
+        assertThat(definition)
+                .contains("UNIQUE")
+                .contains("(diary_id)");
+    }
+
+    @Test
+    void oneEmoticonPerEmotion() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_emoticon_emotion'", String.class);
+
+        assertThat(definition).contains("UNIQUE").contains("(emotion)");
+    }
+
+    /** The icon list and the nine-per-category count read live icons only. */
+    @Test
+    void myIconLookupIndexSkipsDeletedIcons() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'ix_my_icon_member_category'", String.class);
+
+        assertThat(definition)
+                .contains("(member_id, category, created_at)")
+                .contains("WHERE (deleted_at IS NULL)");
     }
 
     /** Spec 4.2 defaults the reminder to 21:00 with notifications on. */

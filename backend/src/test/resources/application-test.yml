@@ -23,3 +23,7 @@ mozzi:
   search:
     # Off: a sweep firing mid-test would write rows a test did not expect.
     embedding-sweep-cron: "-"
+  image:
+    # Picture inputs go out untranslated: GMS is never called from tests, and a translation
+    # failing in the background would flip a picture a test expects to stay PENDING.
+    translate: false

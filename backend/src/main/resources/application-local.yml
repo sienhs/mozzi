@@ -23,6 +23,9 @@ mozzi:
   gms:
     # The server starts without a key; emotion search answers 503 until GMS_API_KEY is set.
     api-key: ${GMS_API_KEY:local-gms-key-not-set}
+  image:
+    # Picture inputs go out in Korean unless a real GMS_API_KEY is set and this is turned on.
+    translate: ${MOZZI_IMAGE_TRANSLATE:false}
 
 server:
   error:

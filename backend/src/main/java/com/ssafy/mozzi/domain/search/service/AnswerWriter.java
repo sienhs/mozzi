@@ -12,10 +12,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.search.repository.SearchCriteria;
-import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery.ActivityCount;
 import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery.Candidate;
 import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery.DayEmotion;
 import com.ssafy.mozzi.domain.search.repository.SearchDiaryQuery.EmotionCount;
@@ -44,7 +42,6 @@ public class AnswerWriter {
      *
      * @param candidates     diaries found, best match first; empty for a stats question
      * @param matchedCount   diaries matching the conditions, counted by SQL
-     * @param topActivities  most frequent activities among them
      * @param emotionCounts  per emotion; only for a stats question
      * @param pickRelevant   the conditions carried a keyword, so the candidates are ranked,
      *                       not filtered, and the model chooses which ones the question is
@@ -56,7 +53,6 @@ public class AnswerWriter {
             SearchCriteria criteria,
             List<Candidate> candidates,
             long matchedCount,
-            List<ActivityCount> topActivities,
             List<EmotionCount> emotionCounts,
             boolean pickRelevant,
             WeeklyContext weekly) {
@@ -79,7 +75,7 @@ public class AnswerWriter {
             사용자는 하루에 한 번 감정을 고르고, 그 감정의 얼굴을 한 '모찌'와 함께 기록한다.
 
             - answer: 한국어 존댓말로 한두 문장, 150자 이내로 쓴다. 담백하고 따뜻하게 쓰고 이모지는 쓰지 않는다.
-              예: "10월에 평온 모찌를 고른 날이 5일 있었어요. 휴식과 가족 기록이 자주 함께였어요."
+              예: "10월에 평온 모찌를 고른 날이 5일 있었어요. 가족과 함께한 기록이 자주 보였어요."
             - 자료에 없는 사실·날짜·횟수를 지어내지 않는다. 숫자는 [통계]의 숫자를 그대로 쓴다.
               [고르기]가 있으면 기록이 몇 개인지, 몇 번인지 쓰지 않는다(개수는 따로 붙는다).
               고른 기록의 내용만 말한다.
@@ -102,9 +98,9 @@ public class AnswerWriter {
      * @throws GmsUnavailableException no usable answer, including one that cites a diary it
      *                                 was not given or does not fit the column
      */
-    public Answer write(Material material, Map<ActivityCode, String> activityLabels) {
+    public Answer write(Material material) {
         Answer answer = llmClient.respond(
-                new GmsPrompt(INSTRUCTIONS, input(material, activityLabels), "search_answer", SCHEMA), Answer.class);
+                new GmsPrompt(INSTRUCTIONS, input(material), "search_answer", SCHEMA), Answer.class);
 
         // See QuestionInterpreter#requireShape for why the schema alone is not trusted.
         if (answer.diaryIds() == null || answer.diaryIds().stream().anyMatch(Objects::isNull)) {
@@ -136,21 +132,16 @@ public class AnswerWriter {
         return "관련된 날이 " + pickedDays + "일 있었어요. " + answer;
     }
 
-    static String input(Material material, Map<ActivityCode, String> activityLabels) {
+    static String input(Material material) {
         StringBuilder input = new StringBuilder();
         input.append("[질문] ").append(material.question()).append('\n');
         input.append("[오늘] ").append(material.today()).append(" (").append(weekday(material.today())).append(")\n");
-        input.append("[조건] ").append(conditions(material.criteria(), activityLabels)).append('\n');
+        input.append("[조건] ").append(conditions(material.criteria())).append('\n');
 
         // With a pick the count is not known until the model has picked, so the model is not
         // shown one it might repeat; withCount puts the real one in front afterwards.
         if (!material.pickRelevant()) {
             input.append("[통계] 맞는 기록 ").append(material.matchedCount()).append("개");
-            if (!material.topActivities().isEmpty()) {
-                input.append(", 함께 많이 한 활동: ").append(material.topActivities().stream()
-                        .map(count -> label(count.activity(), activityLabels) + " " + count.count())
-                        .collect(Collectors.joining(", ")));
-            }
             if (!material.emotionCounts().isEmpty()) {
                 input.append(", 감정별: ").append(material.emotionCounts().stream()
                         .map(count -> count.emotion().label() + " " + count.count())
@@ -160,15 +151,14 @@ public class AnswerWriter {
         }
 
         if (!material.candidates().isEmpty()) {
-            input.append("[찾은 기록] id: 날짜 / 감정 / 활동 / 메모\n");
+            input.append("[찾은 기록] id: 날짜 / 감정 / 아이콘 / 한 줄 일기\n");
             for (Candidate candidate : material.candidates()) {
                 input.append("- ").append(candidate.diaryId()).append(": ")
                         .append(candidate.recordDate()).append(" / ")
                         .append(candidate.emotion().label()).append(" / ")
-                        .append(candidate.activities().isEmpty() ? "-" : candidate.activities().stream()
-                                .map(code -> label(code, activityLabels)).collect(Collectors.joining(", ")))
+                        .append(candidate.iconNames().isEmpty() ? "-" : String.join(", ", candidate.iconNames()))
                         .append(" / ")
-                        .append(candidate.memo() == null ? "-" : candidate.memo())
+                        .append(candidate.content() == null ? "-" : candidate.content())
                         .append('\n');
             }
         }
@@ -200,7 +190,7 @@ public class AnswerWriter {
         return input.toString();
     }
 
-    private static String conditions(SearchCriteria criteria, Map<ActivityCode, String> activityLabels) {
+    private static String conditions(SearchCriteria criteria) {
         String period = criteria.from() == null && criteria.to() == null
                 ? "전체 기간"
                 : (criteria.from() == null ? "처음" : criteria.from().toString()) + " ~ "
@@ -208,11 +198,7 @@ public class AnswerWriter {
         String emotions = criteria.emotions().isEmpty()
                 ? "모든 감정"
                 : criteria.emotions().stream().map(Emotion::label).collect(Collectors.joining(", "));
-        String activities = criteria.activities().isEmpty()
-                ? "모든 활동"
-                : criteria.activities().stream().map(code -> label(code, activityLabels))
-                        .collect(Collectors.joining(", "));
-        return period + " / " + emotions + " / " + activities
+        return period + " / " + emotions
                 + (criteria.keyword() == null ? "" : " / 키워드 \"" + criteria.keyword() + "\"");
     }
 
@@ -226,10 +212,6 @@ public class AnswerWriter {
 
     private static String weekday(LocalDate date) {
         return date.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.KOREAN);
-    }
-
-    private static String label(ActivityCode code, Map<ActivityCode, String> activityLabels) {
-        return activityLabels.getOrDefault(code, code.name());
     }
 
 }

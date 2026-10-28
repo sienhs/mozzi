@@ -1,11 +1,13 @@
 package com.ssafy.mozzi.domain.image.entity;
 
 /**
- * Lifecycle of one image generation attempt (API spec 2.3).
+ * Lifecycle of a diary's picture. {@link #FAILED} can go back to {@link #PENDING} when the
+ * member asks again.
+ *
+ * <p>There is no "generating" state: the AI server only reports the result.
  */
 public enum ImageStatus {
     PENDING,
-    GENERATING,
     SUCCEEDED,
     FAILED
 }

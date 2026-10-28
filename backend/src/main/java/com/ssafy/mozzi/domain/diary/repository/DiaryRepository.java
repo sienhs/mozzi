@@ -1,7 +1,6 @@
 package com.ssafy.mozzi.domain.diary.repository;
 
 import java.time.LocalDate;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import jakarta.persistence.LockModeType;
@@ -12,9 +11,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
+import com.ssafy.mozzi.domain.icon.entity.MyIcon;
 
 /**
  * Every lookup carries {@code memberId}: someone else's diary is answered with 404, the
@@ -23,23 +22,33 @@ import com.ssafy.mozzi.domain.diary.entity.Emotion;
  */
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
-    Optional<Diary> findByIdAndMemberIdAndDeletedAtIsNull(Long id, Long memberId);
-
     /**
      * The read every write to an existing diary starts from.
      *
-     * <p>Without the row lock, two writers that both read the diary first can each save
-     * what they read, so a memo edit puts back an emotion another request just changed, or
-     * an edit racing a delete writes {@code deleted_at = null} and brings the diary back
-     * (both reproduced). With it, the second writer waits for the first to commit and then
-     * reads the committed row — PostgreSQL re-checks the {@code where} clause after the
-     * wait, so a diary deleted in the meantime is simply not found.
+     * <p>Without the row lock, two picture requests for the same diary could both see "no
+     * picture yet" and both start one. With it, the second waits for the first to commit and
+     * then reads the committed status.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Diary d where d.id = :id and d.memberId = :memberId and d.deletedAt is null")
     Optional<Diary> findForUpdate(@Param("id") Long id, @Param("memberId") Long memberId);
 
+    /**
+     * Same lock as {@link #findForUpdate}, for writers outside a member's request: a result
+     * from the AI server or the timeout watchdog. They share the lock with the picture
+     * request, so a result never lands between a request's check and its write.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Diary d where d.id = :id and d.deletedAt is null")
+    Optional<Diary> findByIdForUpdate(@Param("id") Long id);
+
+    Optional<Diary> findByIdAndMemberIdAndDeletedAtIsNull(Long id, Long memberId);
+
     Optional<Diary> findByMemberIdAndRecordDateAndDeletedAtIsNull(Long memberId, LocalDate recordDate);
+
+    /** The calendar month: one row per day written, at most 31. */
+    List<Diary> findByMemberIdAndRecordDateBetweenAndDeletedAtIsNullOrderByRecordDateAsc(
+            Long memberId, LocalDate from, LocalDate to);
 
     /**
      * One page of {@code GET /diaries}, newest day first.
@@ -50,7 +59,7 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
      *
      * <p>The date parameters are cast before {@code is null}: PostgreSQL cannot infer the
      * type of a bare null parameter and fails the whole query with "could not determine data
-     * type of parameter" (verified). The enum parameters bind as varchar and need no cast.
+     * type of parameter" (verified). The enum parameter binds as varchar and needs no cast.
      *
      * @param pageable only its size is used; callers ask for one row more than the page
      */
@@ -61,8 +70,6 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
               and (:emotion is null or d.emotion = :emotion)
               and (cast(:from as LocalDate) is null or d.recordDate >= :from)
               and (cast(:to as LocalDate) is null or d.recordDate <= :to)
-              and (:activity is null or exists (
-                    select 1 from d.activities a where a.code = :activity))
               and (cast(:cursorDate as LocalDate) is null
                     or d.recordDate < :cursorDate
                     or (d.recordDate = :cursorDate and d.id < :cursorId))
@@ -71,20 +78,22 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
     List<Diary> search(
             @Param("memberId") Long memberId,
             @Param("emotion") Emotion emotion,
-            @Param("activity") ActivityCode activity,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to,
             @Param("cursorDate") LocalDate cursorDate,
             @Param("cursorId") Long cursorId,
             Pageable pageable);
 
-    /** Activities of a page of diaries in one query, for list responses (convention 4.4). */
+    /**
+     * A diary's icons that are still live, with their base images, oldest first. Deleted
+     * icons are left out, so a diary can come back with none.
+     */
     @Query("""
-            select new com.ssafy.mozzi.domain.diary.repository.DiaryActivityRow(d.id, a.code)
-            from Diary d join d.activities a
-            where d.id in :diaryIds
-            order by a.sortOrder
+            select mi from Diary d join d.myIcons mi join fetch mi.icon
+            where d.id = :diaryId
+              and mi.deletedAt is null
+            order by mi.createdAt, mi.id
             """)
-    List<DiaryActivityRow> findActivityCodes(@Param("diaryIds") Collection<Long> diaryIds);
+    List<MyIcon> findActiveIcons(@Param("diaryId") Long diaryId);
 
 }
