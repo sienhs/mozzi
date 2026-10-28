@@ -7,6 +7,7 @@ import {
   StyleSheet,
   View,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -24,12 +25,14 @@ export function goBack() {
 }
 export function ScreenHeader({
   title = '',
+  titleContent,
   back,
   onBack = goBack,
   action,
   onTitleLongPress,
 }: {
   title?: string;
+  titleContent?: ReactNode;
   back?: boolean;
   onBack?: () => void;
   action?: { icon: IconName; label: string; onPress: () => void };
@@ -52,7 +55,7 @@ export function ScreenHeader({
         onLongPress={onTitleLongPress}
         style={{ flex: 1 }}
       >
-        <AppText variant="label">{title}</AppText>
+        {titleContent ?? <AppText variant="label">{title}</AppText>}
       </Pressable>
       {action && (
         <Pressable
@@ -70,6 +73,7 @@ export function ScreenHeader({
 export function Screen({
   children,
   title,
+  titleContent,
   back,
   onBack,
   action,
@@ -97,6 +101,7 @@ export function Screen({
         {header && (
           <ScreenHeader
             title={title}
+            titleContent={titleContent}
             back={back}
             onBack={onBack}
             action={action}
@@ -137,11 +142,13 @@ export function Screen({
 }
 export function Heading({
   title,
+  titleStyle,
   description,
   eyebrow,
   display,
 }: {
   title: string;
+  titleStyle?: StyleProp<TextStyle>;
   description?: string;
   eyebrow?: string;
   display?: boolean;
@@ -155,6 +162,7 @@ export function Heading({
       )}
       <AppText
         variant={display ? 'display' : 'title'}
+        style={titleStyle}
         accessibilityRole="header"
       >
         {title}

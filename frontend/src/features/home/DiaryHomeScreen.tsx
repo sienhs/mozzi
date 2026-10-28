@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 import { Screen, Heading } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -22,6 +22,18 @@ export function DiaryHomeScreen() {
     <Screen
       tabbed
       title="오늘의 모찌"
+      titleContent={
+        <Image
+          source={require('../../../assets/Mozzi_Logo2.png')}
+          accessibilityLabel="오늘의 모찌"
+          resizeMode="contain"
+          style={{
+            width: 160,
+            height: 100,
+            transform: [{ translateX: -6 }, { translateY: -14 }],
+          }}
+        />
+      }
       action={{
         icon: 'settings',
         label: '설정',
@@ -32,6 +44,7 @@ export function DiaryHomeScreen() {
         !entry ? (
           <Button
             label="오늘 기록하기"
+            labelStyle={{ fontSize: 20, lineHeight: 30 }}
             onPress={() => router.push('/record/emotion')}
           />
         ) : status === 'failed' ? (
@@ -51,13 +64,14 @@ export function DiaryHomeScreen() {
       <View style={{ gap: 8 }}>
         <AppText variant="small">{formatDate(today)}</AppText>
         <Heading
+          titleStyle={!entry ? { fontSize: 28, lineHeight: 40 } : undefined}
           title={
             !entry
               ? '오늘은 어떤 하루였나요?'
               : status === 'generating'
-                ? '오늘의 모찌를\n그리고 있어요'
+                ? '오늘의 모찌를 그리고 있어요'
                 : status === 'failed'
-                  ? '이번 그림은\n완성하지 못했어요'
+                  ? '이번 그림은 완성하지 못했어요'
                   : '오늘도 한 장 남겼어요'
           }
           description={
@@ -67,7 +81,12 @@ export function DiaryHomeScreen() {
           }
         />
       </View>
-      {!entry && <PictureState caption="기분 하나만 골라도 그림이 돼요" />}
+      {!entry && (
+        <PictureState
+          caption="기분 하나만 골라도 그림이 돼요"
+          captionStyle={{ fontSize: 18, lineHeight: 28, textAlign: 'center' }}
+        />
+      )}
       {entry && status === 'ready' && (
         <DiaryCard entry={entry} onPress={() => openEntry(entry.id)} />
       )}

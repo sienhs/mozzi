@@ -4,6 +4,7 @@ import {
   Pressable,
   StyleSheet,
   type StyleProp,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { colors, radii } from '@/theme/tokens';
@@ -17,6 +18,7 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  labelStyle?: StyleProp<TextStyle>;
 }
 export function Button({
   label,
@@ -25,6 +27,7 @@ export function Button({
   disabled,
   loading,
   style,
+  labelStyle,
 }: ButtonProps) {
   const [pressed, setPressed] = useState(false);
   const inactive = disabled || loading;
@@ -62,10 +65,13 @@ export function Button({
       ) : null}
       <AppText
         variant="label"
-        style={{
-          color: light ? colors.ink : colors.white,
-          textAlign: 'center',
-        }}
+        style={[
+          {
+            color: light ? colors.ink : colors.white,
+            textAlign: 'center',
+          },
+          labelStyle,
+        ]}
       >
         {label}
       </AppText>

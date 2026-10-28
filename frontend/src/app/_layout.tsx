@@ -7,14 +7,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { NanumPenScript_400Regular } from '@expo-google-fonts/nanum-pen-script/400Regular';
-import { NotoSansKR_400Regular } from '@expo-google-fonts/noto-sans-kr/400Regular';
-import { NotoSansKR_500Medium } from '@expo-google-fonts/noto-sans-kr/500Medium';
-import { NotoSansKR_700Bold } from '@expo-google-fonts/noto-sans-kr/700Bold';
 import { View } from 'react-native';
 import { queryClient } from '@/services/queryClient';
 import { useAppStore } from '@/stores/useAppStore';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { SPLASH_MIN_MS, Splash } from '@/components/ui/Splash';
 
@@ -24,10 +20,7 @@ void SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const profile = useAppStore(state => state.profile);
   const [loaded, fontError] = useFonts({
-    NotoSansKR_400Regular,
-    NotoSansKR_500Medium,
-    NotoSansKR_700Bold,
-    NanumPenScript_400Regular,
+    [fonts.regular]: require('../../assets/온글잎 박다현체.ttf'),
   });
   const fontsSettled = loaded || !!fontError;
   const [splashDone, setSplashDone] = useState(SPLASH_MIN_MS <= 0);
