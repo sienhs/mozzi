@@ -35,7 +35,7 @@
 ### 일기 · 아이콘 (S15P31D102-110에서 재설계)
 
 - [x] `GET /emoticons` 이모티콘 목록 — 이모티콘 데이터는 서버가 따로 등록 (마이그레이션에 없음)
-- [x] `GET /icons` 기본 이미지 목록 — 기본 이미지 데이터는 서버가 따로 등록 (마이그레이션에 없음)
+- [x] ~~`GET /icons` 기본 이미지 목록~~ — V9에서 삭제. 아이콘은 글자만 쓴다
 - [x] `POST /my-icons` 아이콘 만들기
 - [x] `GET /my-icons` 내 아이콘 목록
 - [x] `DELETE /my-icons/{myIconId}` 아이콘 삭제
@@ -48,9 +48,9 @@
 
 ### 그림 생성
 
-- [x] `GET /diaries/{diaryId}/image/events` 그림 결과 구독 (SSE)
 - [x] `POST /diaries/{diaryId}/image` 그림 만들기 — 당일 일기만. 캐릭터 테이블 전까지 기본 캐릭터 사용
 - [x] GMS 번역 → SQS `ai-request` 발행, `ai-response` 수신 — 실제 AWS 큐로는 아직 검증 안 함 (테스트는 큐 없이 실행)
+- [x] 그림 결과 FCM 푸시 (성공·실패) — SSE는 제거. 실제 Firebase 키로는 아직 검증 안 함
 
 ### 홈 · 메타
 
@@ -86,9 +86,9 @@
 | A-02 Google 첫 로그인 | `POST /auth/google` 응답의 `maskedEmail`, `POST /auth/signup` |
 | H-01 · H-02 · H-03 홈, E-01 홈 생성 실패 | `GET /home` |
 | R-01 기분 선택 | `GET /emoticons` |
-| R-02 아이콘·한 줄 일기 | `GET /my-icons?category=`, `POST /my-icons`, `DELETE /my-icons/{id}`, `GET /icons` |
+| R-02 아이콘·한 줄 일기 | `GET /my-icons?category=`, `POST /my-icons`, `DELETE /my-icons/{id}` |
 | R-03 저장 중, E-02 저장 실패 | `POST /diaries` |
-| G-01 그림 생성 중, E-01 · E-03 생성 실패 | `GET /diaries/{id}/image/events` (SSE) 연결 후 `POST /diaries/{id}/image`. 실패 후 다시 그리기도 같은 POST |
+| G-01 그림 생성 중, E-01 · E-03 생성 실패 | `POST /diaries/{id}/image` 후 FCM 푸시로 결과 수신. 실패 후 다시 그리기도 같은 POST |
 | G-02 생성 완료, D-01 기록 상세 | `GET /diaries/daily?date=` |
 | C-01 캘린더, C-02 빈 날짜 | `GET /diaries/monthly?yearMonth=` |
 | 지난 일기 모아 보기 | `GET /diaries` (감정·기간 필터) |

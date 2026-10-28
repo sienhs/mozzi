@@ -19,6 +19,7 @@ import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.domain.member.service.MemberService;
+import com.ssafy.mozzi.domain.member.service.PushDeviceService;
 import com.ssafy.mozzi.domain.member.service.TermsAgreementCommand;
 import com.ssafy.mozzi.global.exception.BusinessException;
 import com.ssafy.mozzi.global.security.AuthProperties;
@@ -46,19 +47,21 @@ public class AuthService {
     private final MemberRepository memberRepository;
     private final MemberService memberService;
     private final MemberSessionService sessionService;
+    private final PushDeviceService pushDeviceService;
     private final SignupTicketRepository signupTicketRepository;
     private final AuthProperties properties;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
     public AuthService(GoogleIdTokenVerifier googleIdTokenVerifier, MemberRepository memberRepository,
-            MemberService memberService, MemberSessionService sessionService,
+            MemberService memberService, MemberSessionService sessionService, PushDeviceService pushDeviceService,
             SignupTicketRepository signupTicketRepository, AuthProperties properties,
             TransactionTemplate transactionTemplate, Clock clock) {
         this.googleIdTokenVerifier = googleIdTokenVerifier;
         this.memberRepository = memberRepository;
         this.memberService = memberService;
         this.sessionService = sessionService;
+        this.pushDeviceService = pushDeviceService;
         this.signupTicketRepository = signupTicketRepository;
         this.properties = properties;
         this.transactionTemplate = transactionTemplate;
@@ -122,11 +125,16 @@ public class AuthService {
         return sessionService.rotate(memberId, refreshToken);
     }
 
-    /** Ends the session the request was made with, if it is still the current one. */
+    /**
+     * Ends the session the request was made with, if it is still the current one, and stops
+     * pushes to the member's devices. A member has one session, so after logout no device is
+     * signed in.
+     */
     @Transactional
     public void logout(AuthenticatedMember member) {
         if (memberRepository.findActiveByIdForUpdate(member.memberId()).isPresent()) {
             sessionService.end(member.memberId(), member.sessionId());
+            pushDeviceService.deactivateAll(member.memberId());
         }
     }
 

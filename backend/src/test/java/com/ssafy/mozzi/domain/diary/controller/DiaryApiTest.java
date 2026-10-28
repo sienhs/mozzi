@@ -102,10 +102,9 @@ class DiaryApiTest {
         today = LocalDate.now(clock);
         calm = fixtures.emoticon(Emotion.CALM);
         sad = fixtures.emoticon(Emotion.SAD);
-        Long icon = fixtures.icon();
-        home = fixtures.myIcon(me, icon, "우리집", IconCategory.WHERE);
-        cooking = fixtures.myIcon(me, icon, "요리", IconCategory.WHAT);
-        reading = fixtures.myIcon(me, icon, "독서", IconCategory.WHAT);
+        home = fixtures.myIcon(me, "우리집", IconCategory.WHERE);
+        cooking = fixtures.myIcon(me, "요리", IconCategory.WHAT);
+        reading = fixtures.myIcon(me, "독서", IconCategory.WHAT);
     }
 
     @Test
@@ -123,7 +122,6 @@ class DiaryApiTest {
                 .andExpect(jsonPath("$.content").value("오므라이스를 만들어 먹었어"))
                 .andExpect(jsonPath("$.myIcons.WHERE[0].myIconId").value(home))
                 .andExpect(jsonPath("$.myIcons.WHERE[0].name").value("우리집"))
-                .andExpect(jsonPath("$.myIcons.WHERE[0].imageUrl").isNotEmpty())
                 .andExpect(jsonPath("$.myIcons.WHO").isEmpty())
                 .andExpect(jsonPath("$.myIcons.WHAT[0].myIconId").value(cooking))
                 .andExpect(jsonPath("$.image").isEmpty())
@@ -181,7 +179,7 @@ class DiaryApiTest {
 
     @Test
     void onlyTheMembersLiveIconsCanBeAttached() throws Exception {
-        Long theirs = fixtures.myIcon(someoneElse, fixtures.icon(), "회사", IconCategory.WHAT);
+        Long theirs = fixtures.myIcon(someoneElse, "회사", IconCategory.WHAT);
         create(me, calm, "null", cooking, theirs)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"));

@@ -14,7 +14,6 @@ import com.ssafy.mozzi.domain.icon.entity.MyIcon;
  *             limit nor pass as a name
  */
 public record MyIconCreateRequestDto(
-        @NotNull(message = "이미지를 골라 주세요.") Long iconId,
         @NotBlank(message = "이름을 입력해 주세요.")
         @Size(max = MyIcon.NAME_MAX_LENGTH, message = "10자 이하로 입력해 주세요.") String name,
         @NotNull(message = "카테고리를 골라 주세요.") IconCategory category) {

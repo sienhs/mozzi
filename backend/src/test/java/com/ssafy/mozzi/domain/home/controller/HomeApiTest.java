@@ -78,7 +78,7 @@ class HomeApiTest {
     void beforeWritingShowsTheLatestEarlierDiaryWithItsIcons() throws Exception {
         fixtures.diary(me, today.minusDays(5), calm, Emotion.CALM, "오래된 기록");
         Long yesterday = fixtures.diary(me, today.minusDays(1), calm, Emotion.CALM, "조금 늦었던 퇴근");
-        fixtures.attach(yesterday, fixtures.myIcon(me, fixtures.icon(), "업무", IconCategory.WHAT));
+        fixtures.attach(yesterday, fixtures.myIcon(me, "업무", IconCategory.WHAT));
         fixtures.diary(someoneElse, today, calm, Emotion.CALM, "남의 오늘");
         fixtures.diary(someoneElse, today.minusDays(1), calm, Emotion.CALM, "남의 어제");
 
@@ -117,7 +117,7 @@ class HomeApiTest {
     @Test
     void cannotAskForAPictureOnceTheLastWhatIconIsDeleted() throws Exception {
         Long diaryId = fixtures.diary(me, today, calm, Emotion.CALM);
-        Long what = fixtures.myIcon(me, fixtures.icon(), "요리", IconCategory.WHAT);
+        Long what = fixtures.myIcon(me, "요리", IconCategory.WHAT);
         fixtures.attach(diaryId, what);
         fixtures.picture(diaryId, ImageStatus.FAILED, 1, null);
         jdbcTemplate.update("update my_icon set deleted_at = now() where my_icon_id = ?", what);
@@ -171,7 +171,7 @@ class HomeApiTest {
     /** Today's diary with a "what" icon, as every saved diary starts out. */
     private Long writtenToday() {
         Long diaryId = fixtures.diary(me, today, calm, Emotion.CALM);
-        fixtures.attach(diaryId, fixtures.myIcon(me, fixtures.icon(), "요리", IconCategory.WHAT));
+        fixtures.attach(diaryId, fixtures.myIcon(me, "요리", IconCategory.WHAT));
         return diaryId;
     }
 

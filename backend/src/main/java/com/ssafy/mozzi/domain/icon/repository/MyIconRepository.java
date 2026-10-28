@@ -23,7 +23,7 @@ public interface MyIconRepository extends JpaRepository<MyIcon, Long> {
 
     /** Oldest first, the order the member made them in. */
     @Query("""
-            select mi from MyIcon mi join fetch mi.icon
+            select mi from MyIcon mi
             where mi.memberId = :memberId
               and mi.category = :category
               and mi.deletedAt is null

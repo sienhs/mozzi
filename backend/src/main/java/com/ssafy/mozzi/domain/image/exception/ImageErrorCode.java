@@ -5,13 +5,16 @@ import org.springframework.http.HttpStatus;
 import com.ssafy.mozzi.global.exception.ErrorCode;
 
 /**
- * Codes from {@code POST /diaries/{diaryId}/image}.
+ * Codes from {@code POST /diaries/{diaryId}/image}, and the reason a picture failed in the
+ * push that reports it.
  */
 public enum ImageErrorCode implements ErrorCode {
 
     IMAGE_ONLY_TODAY(HttpStatus.BAD_REQUEST, "그림일기는 그날에만 만들 수 있어요."),
     IMAGE_ALREADY_REQUESTED(HttpStatus.CONFLICT, "이미 그림을 그리고 있거나 완성했어요."),
-    RETRY_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "그림은 세 번까지만 그릴 수 있어요.");
+    RETRY_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "그림은 세 번까지만 그릴 수 있어요."),
+    /** Only in the push: the request was accepted, then the inputs were judged unfit. */
+    INAPPROPRIATE_CONTENT(HttpStatus.BAD_REQUEST, "그림으로 그릴 수 없는 내용이 있어요. 아이콘을 바꿔서 다시 그려 주세요.");
 
     private final HttpStatus status;
     private final String message;

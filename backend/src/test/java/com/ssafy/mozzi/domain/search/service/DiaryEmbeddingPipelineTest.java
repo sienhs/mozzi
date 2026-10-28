@@ -84,9 +84,8 @@ class DiaryEmbeddingPipelineTest {
         me = memberRepository.saveAndFlush(Member.signUp("me@gmail.com", AuthProvider.GOOGLE, "me", "me")).getId();
         today = LocalDate.now(clock);
         calm = fixtures.emoticon(Emotion.CALM);
-        Long icon = fixtures.icon();
-        rest = fixtures.myIcon(me, icon, "휴식", IconCategory.WHAT);
-        family = fixtures.myIcon(me, icon, "가족", IconCategory.WHO);
+        rest = fixtures.myIcon(me, "휴식", IconCategory.WHAT);
+        family = fixtures.myIcon(me, "가족", IconCategory.WHO);
         when(embeddingClient.embedAll(anyList())).thenAnswer(invocation -> {
             List<String> texts = invocation.getArgument(0);
             return IntStream.range(0, texts.size()).mapToObj(i -> unit()).toList();

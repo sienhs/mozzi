@@ -38,6 +38,12 @@ dependencies {
 	implementation('software.amazon.awssdk:sqs') {
 		exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
 	}
+	// Push notifications through FCM. Only Messaging is used, so the Firestore and Cloud
+	// Storage clients the Admin SDK pulls in are left out.
+	implementation('com.google.firebase:firebase-admin:9.9.0') {
+		exclude group: 'com.google.cloud', module: 'google-cloud-firestore'
+		exclude group: 'com.google.cloud', module: 'google-cloud-storage'
+	}
 	// spring-boot-starter-flyway only brings flyway-core. Flyway 10 split database support
 	// into per-database modules, so without this it cannot talk to PostgreSQL at all.
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'

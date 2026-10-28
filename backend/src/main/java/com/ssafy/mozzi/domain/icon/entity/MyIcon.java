@@ -6,12 +6,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.SQLRestriction;
@@ -19,7 +16,7 @@ import org.hibernate.annotations.SQLRestriction;
 import com.ssafy.mozzi.global.entity.BaseTimeEntity;
 
 /**
- * An icon a member made from a base {@link Icon} and a name (ERD {@code my_icon}).
+ * A word a member made under a category (ERD {@code my_icon}): text only, with no image.
  *
  * <p>Deleting is soft. {@link SQLRestriction} keeps deleted icons out of every read,
  * including a diary's icons loaded through {@code diary_icon}, so a deleted icon disappears
@@ -42,11 +39,6 @@ public class MyIcon extends BaseTimeEntity {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    /** Every response shows the base image, so reads fetch it together with the icon. */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "icon_id", nullable = false)
-    private Icon icon;
-
     @Column(nullable = false, length = NAME_MAX_LENGTH)
     private String name;
 
@@ -61,15 +53,14 @@ public class MyIcon extends BaseTimeEntity {
         // JPA
     }
 
-    private MyIcon(Long memberId, Icon icon, String name, IconCategory category) {
+    private MyIcon(Long memberId, String name, IconCategory category) {
         this.memberId = memberId;
-        this.icon = icon;
         this.name = name;
         this.category = category;
     }
 
-    public static MyIcon create(Long memberId, Icon icon, String name, IconCategory category) {
-        return new MyIcon(memberId, icon, name, category);
+    public static MyIcon create(Long memberId, String name, IconCategory category) {
+        return new MyIcon(memberId, name, category);
     }
 
     public void delete(Clock clock) {
@@ -82,10 +73,6 @@ public class MyIcon extends BaseTimeEntity {
 
     public Long getMemberId() {
         return memberId;
-    }
-
-    public Icon getIcon() {
-        return icon;
     }
 
     public String getName() {
