@@ -12,7 +12,16 @@ services:
   postgres:
     # Pinned to an exact patch so every developer, CI and production agree. Bumping it is a
     # deliberate commit, not something that happens on a fresh `docker compose pull`.
-    image: postgres:17.11-alpine
+    #
+    # The official image plus the pgvector extension, which emotion search needs
+    # (`diary_embedding.embedding`). The pgvector tag only fixes the extension version and is
+    # re-pushed when PostgreSQL gets a new minor release, so the digest is what keeps the
+    # server on 17.11. There is no alpine variant.
+    #
+    # Coming from the old `postgres:17.11-alpine` image, run `docker compose down -v` once.
+    # A data directory created under alpine (musl) sorts text differently under this Debian
+    # (glibc) image, which silently breaks text indexes such as the nickname unique index.
+    image: pgvector/pgvector:0.8.7-pg17-trixie@sha256:7a7e9f22015b67edb4bef5c59daeebcd7e74bfa570df6ce60ae01237c8648a84
     container_name: mozzi-postgres
     environment:
       POSTGRES_DB: mozzi

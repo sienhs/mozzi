@@ -13,3 +13,13 @@ mozzi:
     # Google itself is never called from tests; GoogleIdTokenVerifier is replaced or fed a
     # local key set.
     client-ids: test-web-client-id
+  gms:
+    # GMS itself is never called from tests; its clients are mocked or run against
+    # MockRestServiceServer. Saving a diary still triggers an embedding refresh in the
+    # background, so the address points at a closed local port: the call fails at once and
+    # the refresh is logged as deferred, instead of sending test data to GMS.
+    base-url: http://127.0.0.1:9/v1
+    api-key: test-gms-key
+  search:
+    # Off: a sweep firing mid-test would write rows a test did not expect.
+    embedding-sweep-cron: "-"
