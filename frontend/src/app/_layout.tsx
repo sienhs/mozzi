@@ -74,6 +74,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="record/emotion" />
                 <Stack.Screen name="record/tags" />
+                <Stack.Screen name="record/activity" />
                 <Stack.Screen name="record/generation" />
                 <Stack.Screen name="diary/[id]" />
                 <Stack.Screen name="settings" />

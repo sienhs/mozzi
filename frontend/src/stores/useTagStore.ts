@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CustomTag, PresetTag } from '@/types/diary';
+import type { CustomTag, CustomTagCategory, PresetTag } from '@/types/diary';
 import { tagGateway } from '@/services/tagGateway';
 import { errorMessage } from '@/services/diaryErrors';
 import { checkCustomTag } from '@/features/diary/tagRules';
@@ -17,7 +17,7 @@ interface TagState {
   error: string;
   session: number;
   load: () => Promise<void>;
-  add: (raw: string) => Promise<AddTagResult>;
+  add: (raw: string, category?: CustomTagCategory) => Promise<AddTagResult>;
   remove: (id: string) => Promise<boolean>;
   clearError: () => void;
   resetSession: () => void;
@@ -41,9 +41,9 @@ export const useTagStore = create<TagState>((set, get) => ({
       if (get().session === session) set({ loadStatus: 'error' });
     }
   },
-  add: async raw => {
+  add: async (raw, category = 'activity') => {
     if (get().adding) return { kind: 'none' };
-    const check = checkCustomTag(raw, get().tags);
+    const check = checkCustomTag(raw, get().tags, category);
     if (check.kind === 'error') {
       set({ error: check.message });
       return { kind: 'none' };
@@ -54,7 +54,7 @@ export const useTagStore = create<TagState>((set, get) => ({
     const session = get().session;
     set({ adding: true });
     try {
-      const tag = await tagGateway.create(check.label);
+      const tag = await tagGateway.create(check.label, category);
       if (get().session !== session) return { kind: 'none' };
       set(state => ({
         tags: state.tags.some(item => item.id === tag.id)

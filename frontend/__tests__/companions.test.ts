@@ -99,6 +99,9 @@ test('saved diaries snapshot the character before async save; generation retries
   useAppStore.getState().selectEmotion('happy');
   useAppStore.getState().toggleTag(presetTag('activity.walk')!);
   useMockControls.getState().failNext('generation');
+  useAppStore
+    .getState()
+    .selectMainActivity(useAppStore.getState().draft.tags.activities[0]);
   const save = useAppStore.getState().startGeneration();
   useGachaStore.setState({ equippedId: 'cherry' });
   await jest.advanceTimersByTimeAsync(1000);

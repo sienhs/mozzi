@@ -3,7 +3,7 @@ import type {
   DiaryDraft,
   DiaryEntry,
   Emotion,
-  PresetTag,
+  SelectableTag,
   RecordPhase,
 } from '@/types/diary';
 import { createMockEntries } from '@/mocks/diaries';
@@ -11,13 +11,14 @@ import { diaryGateway } from '@/services/diaryGateway';
 import { errorMessage, toGenerationFailure } from '@/services/diaryErrors';
 import { allowedRecordDate, todayKey } from '@/constants/date';
 import {
-  clearBlockedPlace,
   emptySelection,
+  activityChoices,
+  removeSelectedTag,
+  toImageTags,
   selectCustomTag,
   selectionFromTags,
   toDiaryTags,
   toGenerationRequest,
-  toggleCustomTag,
   toggleTag,
 } from '@/features/diary/tagRules';
 import { createRequestKey } from '@/utils/requestKey';
@@ -27,6 +28,7 @@ import { useGachaStore } from './useGachaStore';
 export const MEMO_MAX_LENGTH = 100;
 export const MEMO_MAX_LINES = 3;
 export const emptyDraft = (): DiaryDraft => ({
+  mainActivityId: null,
   recordDate: null,
   emotion: null,
   tags: emptySelection(),
@@ -50,10 +52,11 @@ interface AppState {
   resetSession: () => void;
   resetDraft: () => void;
   selectEmotion: (emotion: Emotion) => void;
-  toggleTag: (tag: PresetTag) => void;
+  toggleTag: (tag: SelectableTag) => void;
   toggleCustomTag: (id: string) => void;
   selectCustomTag: (id: string) => void;
   forgetCustomTag: (id: string) => void;
+  selectMainActivity: (id: string) => void;
   setMemo: (memo: string) => void;
   startGeneration: () => Promise<DiaryEntry | null>;
   generateImage: (id: string) => Promise<void>;
@@ -175,23 +178,39 @@ export const useAppStore = create<AppState>((set, get) => {
       if (isDraftLocked(get())) return;
       const next = toggleTag(get().draft.tags, tag);
       if (next === get().draft.tags) return;
-      const { selection, cleared } = clearBlockedPlace(next);
-      editDraft(() => ({ tags: selection }));
-      set({
-        tagNotice: cleared ? '활동·동행과 맞지 않아 장소 선택을 풀었어요.' : '',
-      });
+      editDraft(draft => ({
+        tags: next,
+        mainActivityId:
+          draft.mainActivityId && next.activities.includes(draft.mainActivityId)
+            ? draft.mainActivityId
+            : null,
+      }));
+      set({ tagNotice: '' });
     },
-    toggleCustomTag: id =>
-      editDraft(draft => ({ tags: toggleCustomTag(draft.tags, id) })),
-    selectCustomTag: id =>
-      editDraft(draft => ({ tags: selectCustomTag(draft.tags, id) })),
+    toggleCustomTag: id => {
+      const tag = useTagStore.getState().tags.find(tag => tag.id === id);
+      if (tag) get().toggleTag(tag);
+    },
+    selectCustomTag: id => {
+      const tag = useTagStore.getState().tags.find(tag => tag.id === id);
+      if (tag) editDraft(draft => ({ tags: selectCustomTag(draft.tags, tag) }));
+    },
     forgetCustomTag: id =>
       editDraft(draft => ({
-        tags: {
-          ...draft.tags,
-          custom: draft.tags.custom.filter(item => item !== id),
-        },
+        tags: removeSelectedTag(draft.tags, id),
+        mainActivityId:
+          draft.mainActivityId === id ? null : draft.mainActivityId,
       })),
+    selectMainActivity: id => {
+      if (get().draft.mainActivityId === id) return;
+      if (
+        !activityChoices(get().draft.tags, useTagStore.getState().tags).some(
+          tag => tag.id === id,
+        )
+      )
+        return;
+      editDraft(() => ({ mainActivityId: id }));
+    },
     setMemo: memo => {
       if (get().saveStatus === 'saving') return;
       set(state => ({
@@ -211,13 +230,20 @@ export const useAppStore = create<AppState>((set, get) => {
       const request = toGenerationRequest(draft, library, recordDate);
       if (!request) return null;
       const tags = toDiaryTags(draft.tags, library);
+      const imageTags = toImageTags(draft, library);
       const requestKey = state.requestKey ?? createRequestKey();
       const session = state.session;
       set({ draft, requestStatus: 'requesting', requestError: '', requestKey });
       try {
         const result = existing
-          ? await diaryGateway.rewrite(existing.id, request, tags, requestKey)
-          : await diaryGateway.start(request, tags, requestKey);
+          ? await diaryGateway.rewrite(
+              existing.id,
+              request,
+              tags,
+              requestKey,
+              imageTags,
+            )
+          : await diaryGateway.start(request, tags, requestKey, imageTags);
         if (get().session !== session) return null;
         const entry = { ...result, companionId };
         set(current => ({
@@ -267,6 +293,7 @@ export const useAppStore = create<AppState>((set, get) => {
         ...initialRecordState(),
         rewriteId: id,
         draft: {
+          mainActivityId: null,
           recordDate: entry.date,
           emotion: entry.emotion,
           tags: selectionFromTags(entry.tags, useTagStore.getState().tags),

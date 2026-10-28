@@ -4,11 +4,11 @@ import { Plus } from 'lucide-react-native';
 import { Button, TextButton } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { TagChip } from '@/components/ui/Selection';
-import { ConfirmModal } from '@/components/ui/Sheet';
+import { ConfirmModal, Sheet } from '@/components/ui/Sheet';
 import { AppText } from '@/components/ui/Text';
-import { customTagLimits } from '@/constants/tags';
+import { customTagLimits, tagCategories } from '@/constants/tags';
 import { colors } from '@/theme/tokens';
-import type { CustomTag, TagSelection } from '@/types/diary';
+import type { CustomTag, CustomTagCategory, TagSelection } from '@/types/diary';
 import { useAppStore } from '@/stores/useAppStore';
 import { useTagStore } from '@/stores/useTagStore';
 import {
@@ -17,18 +17,21 @@ import {
   labelLength,
   normalizeTagLabel,
 } from './tagRules';
-import { TagSection } from './TagSection';
 
-// 내 태그: 계정별로 저장돼 다음 기록에서도 다시 고를 수 있다.
-// 선택 해제는 이번 기록에서만 빼고, 삭제(편집 → ✕)는 목록에서 지운다. 지난 기록의 라벨은 그대로 남는다.
+const categoryNames = {
+  activity: '무엇을',
+  place: '어디서',
+  companion: '누구와',
+} as const;
+// 별도 내 태그 목록 없이 각 카테고리 안에서 추가·선택·삭제한다.
 export function CustomTagSection({
+  category,
   selection,
-  disabled,
 }: {
+  category: CustomTagCategory;
   selection: TagSelection;
-  disabled?: boolean;
 }) {
-  const tags = useTagStore(state => state.tags);
+  const library = useTagStore(state => state.tags);
   const adding = useTagStore(state => state.adding);
   const removing = useTagStore(state => state.removing);
   const error = useTagStore(state => state.error);
@@ -38,26 +41,33 @@ export function CustomTagSection({
   const [text, setText] = useState('');
   const [notice, setNotice] = useState('');
   const [pendingDelete, setPendingDelete] = useState<CustomTag | null>(null);
-  const full = selection.custom.length >= customTagLimits.maxSelected;
+  const name = categoryNames[category];
+  const tags = library.filter(tag => tag.category === category);
   const typed = normalizeTagLabel(text);
+  function close() {
+    if (adding) return;
+    setInputOpen(false);
+    setText('');
+    useTagStore.getState().clearError();
+  }
   async function add() {
     if (!typed || adding) return;
-    const result = await useTagStore.getState().add(text);
+    const result = await useTagStore.getState().add(text, category);
     if (result.kind === 'none') return;
-    if (result.kind === 'preset') {
-      const current = useAppStore.getState().draft.tags;
-      const already = isTagSelected(current, result.tag);
-      if (!already && canSelectTag(current, result.tag))
-        useAppStore.getState().toggleTag(result.tag);
-      setNotice(
-        already || canSelectTag(current, result.tag)
-          ? `‘${result.tag.label}’ 기본 태그를 골랐어요.`
-          : `‘${result.tag.label}’ 기본 태그가 있어요. 위에서 골라 주세요.`,
-      );
-    } else {
-      useAppStore.getState().selectCustomTag(result.id);
-      setNotice('');
-    }
+    const tag =
+      result.kind === 'preset'
+        ? result.tag
+        : useTagStore.getState().tags.find(tag => tag.id === result.id);
+    if (!tag) return;
+    const current = useAppStore.getState().draft.tags;
+    const canSelect = canSelectTag(current, tag);
+    if (!isTagSelected(current, tag) && canSelect)
+      useAppStore.getState().toggleTag(tag);
+    setNotice(
+      canSelect
+        ? `‘${tag.label}’ 태그를 골랐어요.`
+        : `‘${tag.label}’ 태그를 추가했어요. ${tagCategories[category].max}개까지 선택할 수 있어요.`,
+    );
     setText('');
     setInputOpen(false);
   }
@@ -67,130 +77,122 @@ export function CustomTagSection({
     if (!tag) return;
     if (await useTagStore.getState().remove(tag.id))
       useAppStore.getState().forgetCustomTag(tag.id);
+    else setNotice(useTagStore.getState().error);
   }
   return (
-    <TagSection
-      title={customTagLimits.title}
-      limit={customTagLimits.limit}
-      notice={
-        inputOpen
-          ? notice
-          : loadStatus === 'error'
-            ? '내 태그를 불러오지 못했어요.'
-            : error || notice
-      }
-      action={
-        loadStatus === 'error' ? (
-          <TextButton
-            label="다시 불러오기"
-            onPress={() => void useTagStore.getState().load()}
-          />
-        ) : tags.length > 0 && !disabled ? (
-          <TextButton
-            label={editing ? '완료' : '편집'}
-            onPress={() => {
-              setEditing(!editing);
-              setInputOpen(false);
-              setNotice('');
-            }}
-          />
-        ) : undefined
-      }
-    >
-      {tags.map(tag => {
-        const selected = selection.custom.includes(tag.id);
-        return (
+    <View style={{ width: '100%', gap: 8 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        {tags.map(tag => (
           <TagChip
             key={tag.id}
             label={tag.label}
-            selected={!editing && selected}
+            single={tagCategories[category].single}
+            selected={!editing && isTagSelected(selection, tag)}
             removable={editing}
             disabled={
-              disabled || (editing ? removing === tag.id : !selected && full)
+              editing ? removing === tag.id : !canSelectTag(selection, tag)
             }
             onPress={() =>
               editing
                 ? setPendingDelete(tag)
-                : useAppStore.getState().toggleCustomTag(tag.id)
+                : useAppStore.getState().toggleTag(tag)
             }
           />
-        );
-      })}
-      {!editing && !inputOpen && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="내 태그 추가"
-          accessibilityState={{ disabled: !!disabled || full }}
-          disabled={disabled || full}
-          onPress={() => {
-            setInputOpen(true);
-            setNotice('');
-            useTagStore.getState().clearError();
-          }}
-          style={{
-            minHeight: 44,
-            paddingHorizontal: 14,
-            borderRadius: 16,
-            borderWidth: 1,
-            borderStyle: 'dashed',
-            borderColor: colors.border,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 4,
-            opacity: disabled || full ? 0.4 : 1,
-          }}
-        >
-          <Plus size={14} color={colors.ink} />
-          <AppText variant="small" style={{ color: colors.ink }}>
-            추가
-          </AppText>
-        </Pressable>
-      )}
-      {inputOpen && (
-        <View
-          style={{
-            width: '100%',
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            gap: 8,
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Input
-              accessibilityLabel="내 태그 입력"
-              value={text}
-              onChangeText={value => {
-                setText(value);
-                if (error) useTagStore.getState().clearError();
-              }}
-              placeholder="예: 오므라이스"
-              returnKeyType="done"
-              autoFocus
-              editable={!adding}
-              onSubmitEditing={() => void add()}
-              error={error}
-              helper={`${labelLength(typed)} / ${customTagLimits.maxLength}`}
-            />
-          </View>
-          <Button
-            label="추가"
-            disabled={!typed}
-            loading={adding}
-            onPress={() => void add()}
-            style={{ minWidth: 72, minHeight: 56 }}
+        ))}
+        {loadStatus === 'error' ? (
+          <TextButton
+            label="다시 불러오기"
+            onPress={() => void useTagStore.getState().load()}
           />
-        </View>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${name} 태그 추가`}
+            disabled={adding || loadStatus === 'loading'}
+            onPress={() => {
+              setEditing(false);
+              setInputOpen(true);
+              setNotice('');
+              useTagStore.getState().clearError();
+            }}
+            style={{
+              minHeight: 44,
+              paddingHorizontal: 12,
+              borderRadius: 16,
+              borderWidth: 1,
+              borderStyle: 'dashed',
+              borderColor: colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <Plus size={14} color={colors.ink} />
+            <AppText variant="small" style={{ color: colors.ink }}>
+              추가
+            </AppText>
+          </Pressable>
+        )}
+        {tags.length > 0 && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${name} 태그 ${editing ? '편집 완료' : '편집'}`}
+            onPress={() => {
+              setEditing(!editing);
+              setNotice('');
+            }}
+            style={{
+              minHeight: 44,
+              justifyContent: 'center',
+              paddingHorizontal: 8,
+            }}
+          >
+            <AppText variant="caption">{editing ? '완료' : '편집'}</AppText>
+          </Pressable>
+        )}
+      </View>
+      {!!notice && (
+        <AppText variant="caption" accessibilityLiveRegion="polite">
+          {notice}
+        </AppText>
       )}
-      {inputOpen && (
-        <TextButton
-          label="취소"
-          onPress={() => {
-            setInputOpen(false);
-            setText('');
-            useTagStore.getState().clearError();
+      <Sheet visible={inputOpen} onClose={close} title={`${name} 태그 추가`}>
+        <Input
+          accessibilityLabel={`${name} 태그 입력`}
+          label="태그 이름"
+          value={text}
+          onChangeText={value => {
+            setText(value);
+            if (error) useTagStore.getState().clearError();
           }}
+          placeholder={
+            category === 'activity'
+              ? '예: 악기 연습'
+              : category === 'place'
+                ? '예: 연습실'
+                : '예: 동아리 친구'
+          }
+          returnKeyType="done"
+          editable={!adding}
+          onSubmitEditing={() => void add()}
+          error={error}
+          helper={`${labelLength(typed)} / ${customTagLimits.maxLength}`}
         />
-      )}
+        <Button
+          label="태그 만들기"
+          disabled={!typed || labelLength(typed) > customTagLimits.maxLength}
+          loading={adding}
+          onPress={() => void add()}
+        />
+        <TextButton label="취소" onPress={close} />
+      </Sheet>
       <ConfirmModal
         visible={!!pendingDelete}
         title={`‘${pendingDelete?.label ?? ''}’ 태그를 지울까요?`}
@@ -199,6 +201,6 @@ export function CustomTagSection({
         onConfirm={() => void confirmDelete()}
         onClose={() => setPendingDelete(null)}
       />
-    </TagSection>
+    </View>
   );
 }

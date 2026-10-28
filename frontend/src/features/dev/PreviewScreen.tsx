@@ -65,6 +65,7 @@ export function PreviewScreen() {
     useAppStore.getState().resetDraft();
     useAppStore.setState({
       draft: {
+        mainActivityId: null,
         recordDate: todayKey(),
         emotion: 'calm',
         tags: {
@@ -72,7 +73,6 @@ export function PreviewScreen() {
           place: 'place.home',
           companions: ['companion.family'],
           weather: null,
-          custom: [],
         },
         memo: '',
       },

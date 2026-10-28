@@ -5,6 +5,8 @@ export type GenerationStatus = 'generating' | 'ready' | 'failed';
 
 // 기본 태그 분류. 그림의 장면 축(무엇을·어디서·누구와·날씨)과 같다.
 export type TagCategory = 'activity' | 'place' | 'companion' | 'weather';
+export type CustomTagCategory = Exclude<TagCategory, 'weather'>;
+export type SelectableTag = PresetTag | CustomTag;
 export interface PresetTag {
   // 앱 안에서 바뀌지 않는 ID ('activity.cooking').
   id: string;
@@ -15,6 +17,7 @@ export interface PresetTag {
 }
 // 사용자가 만든 내 태그. 계정별로 서버에 저장한다 (CONTRACT: B3).
 export interface CustomTag {
+  category: CustomTagCategory;
   id: string;
   label: string;
   // 중복 비교용 (정규화 + 영문 소문자).
@@ -23,21 +26,22 @@ export interface CustomTag {
 }
 // 이번 기록에서 고른 태그. ID만 담는다.
 export interface TagSelection {
-  // 누른 순서. 첫 번째가 대표 활동.
+  // 고른 활동 목록. 그림으로 남길 활동은 다음 단계에서 별도로 고른다.
   activities: string[];
   place: string | null;
   companions: string[];
   // null이면 서버가 맑음으로 그린다.
   weather: string | null;
-  custom: string[];
 }
 // 기록에 남는 태그 스냅샷. 내 태그를 지워도 지난 기록의 라벨은 그대로다.
 export interface DiaryTag {
+  customTagId?: string;
   category: TagCategory | 'custom' | 'legacy';
   code: string | null;
   label: string;
 }
 export interface DiaryDraft {
+  mainActivityId: string | null;
   // 첫 선택 때 고정한다. 자정을 넘겨도 시작한 날의 기록으로 보낸다.
   recordDate: string | null;
   emotion: Emotion | null;
@@ -72,6 +76,8 @@ export type RecordPhase =
   | 'saving'
   | 'completed';
 export interface DiaryEntry {
+  // 생성 장면에 사용한 태그. 활동 한 가지와 선택한 장소·동행·날씨만 포함한다.
+  imageTags?: DiaryTag[];
   // Absent on legacy records; those retain the default character.
   companionId?: CompanionId;
   id: string;

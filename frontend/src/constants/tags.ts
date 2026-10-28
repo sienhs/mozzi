@@ -71,19 +71,19 @@ export const tagCategoryOrder: TagCategory[] = [
   'companion',
   'weather',
 ];
-// 개수 범위는 AI 규격(활동 1~3, 첫 번째가 메인 · 동행 최대 2)에 맞춘다. 날씨는 선택이고 없으면 맑음.
+// 기본·커스텀을 합쳐 활동 1~3개·장소 최대 1개·동행 최대 2개. 날씨는 선택 사항이다.
 export const tagCategories: Record<
   TagCategory,
   { title: string; limit?: string; single: boolean; min: number; max: number }
 > = {
   activity: {
-    title: '무엇을 했나요',
+    title: '무엇을',
     limit: '3개까지',
     single: false,
     min: 1,
     max: 3,
   },
-  place: { title: '어디서', single: true, min: 0, max: 1 },
+  place: { title: '어디서', limit: '1개까지', single: true, min: 0, max: 1 },
   companion: {
     title: '누구와',
     limit: '2명까지',
@@ -91,13 +91,9 @@ export const tagCategories: Record<
     min: 0,
     max: 2,
   },
-  weather: { title: '날씨', single: true, min: 0, max: 1 },
+  weather: { title: '날씨', limit: '선택', single: true, min: 0, max: 1 },
 };
 export const customTagLimits = {
-  title: '내 태그',
-  limit: '3개까지',
-  // 이번 기록에서 고를 수 있는 수.
-  maxSelected: 3,
   // 라벨 길이(글자 수)와 계정당 개수. 서버 상한이 정해지면 맞춘다 (CONTRACT: B3).
   maxLength: 10,
   maxSaved: 20,

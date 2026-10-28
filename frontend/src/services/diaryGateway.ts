@@ -11,6 +11,7 @@ export interface DiaryGateway {
     request: GenerationRequest,
     tags: DiaryTag[],
     requestKey: string,
+    imageTags?: DiaryTag[],
   ): Promise<DiaryEntry>;
   // 재시도 불가 실패였던 기록을 고친 기분·태그로 다시 그린다.
   rewrite(
@@ -18,6 +19,7 @@ export interface DiaryGateway {
     request: GenerationRequest,
     tags: DiaryTag[],
     requestKey: string,
+    imageTags?: DiaryTag[],
   ): Promise<DiaryEntry>;
   // 그림이 끝날 때까지 기다린다. 실패하면 DiaryGenerationError를 던진다.
   generate(
