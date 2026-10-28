@@ -46,6 +46,9 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
     Optional<Diary> findByMemberIdAndRecordDateAndDeletedAtIsNull(Long memberId, LocalDate recordDate);
 
+    Optional<Diary> findFirstByMemberIdAndRecordDateBeforeAndDeletedAtIsNullOrderByRecordDateDesc(
+            Long memberId, LocalDate recordDate);
+
     /** The calendar month: one row per day written, at most 31. */
     List<Diary> findByMemberIdAndRecordDateBetweenAndDeletedAtIsNullOrderByRecordDateAsc(
             Long memberId, LocalDate from, LocalDate to);

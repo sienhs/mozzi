@@ -8,6 +8,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -136,13 +137,26 @@ public class DiaryService {
         return myIcons;
     }
 
-    /** {@code GET /diaries/daily}. Also how the home screen asks whether today is written. */
+    /** {@code GET /diaries/daily}. */
     @Transactional(readOnly = true)
     public DiaryDetailResponseDto getDaily(Long memberId, LocalDate date) {
-        Diary diary = diaryRepository.findByMemberIdAndRecordDateAndDeletedAtIsNull(memberId, date)
+        return findDaily(memberId, date)
                 .orElseThrow(() -> new BusinessException(
                         CommonErrorCode.NOT_FOUND, "no diary on " + date, "이 날은 기록이 없어요."));
-        return toDetail(diary);
+    }
+
+    /** The day's diary, or empty when none was written; for the home screen, where that is normal. */
+    @Transactional(readOnly = true)
+    public Optional<DiaryDetailResponseDto> findDaily(Long memberId, LocalDate date) {
+        return diaryRepository.findByMemberIdAndRecordDateAndDeletedAtIsNull(memberId, date).map(this::toDetail);
+    }
+
+    /** The most recent diary written before {@code date}, for the home screen's "지난 기록". */
+    @Transactional(readOnly = true)
+    public Optional<DiaryDetailResponseDto> findLatestBefore(Long memberId, LocalDate date) {
+        return diaryRepository
+                .findFirstByMemberIdAndRecordDateBeforeAndDeletedAtIsNullOrderByRecordDateDesc(memberId, date)
+                .map(this::toDetail);
     }
 
     /** One diary by id, for emotion search's big card. */

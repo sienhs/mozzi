@@ -7,7 +7,7 @@
 | [api/common.md](api/common.md) | Base URL, 인증 헤더, 응답·오류 형식, 공통 오류 코드, Enum |
 | [api/auth.md](api/auth.md) | 인증, 회원, 설정, 푸시 토큰 |
 | [api/diary.md](api/diary.md) | 이모티콘, 아이콘, 일기, 그림 생성 |
-| [api/home.md](api/home.md) | 홈, 캘린더, 앱 메타 |
+| [api/home.md](api/home.md) | 홈, 앱 메타 |
 | [api/emotion-search.md](api/emotion-search.md) | 감정 검색 |
 | [api/gacha.md](api/gacha.md) | 모찌 뽑기, 도감, 조각 교환 |
 
@@ -54,8 +54,8 @@
 
 ### 홈 · 메타
 
-- [ ] `GET /home` 홈 — `home.md`에 예전 활동 칩·`GENERATING`이 남아 있어 재설계 필요
-- [ ] `GET /meta` 앱 메타 — 활동 칩이 없어져서 필요한지 다시 정해야 함 (이모티콘·아이콘은 각자 목록 API가 있음)
+- [x] `GET /home` 홈 — 지난 기록은 1건, 뽑기권은 홈에 없음
+- [x] `GET /meta` 앱 메타 — 약관 버전, 강제·권장 업데이트 버전
 
 월간 캘린더(`GET /calendar`)는 `GET /diaries/monthly`로 대체했다.
 
@@ -84,7 +84,7 @@
 |---|---|
 | A-01 시작, E-06 로그인 실패 | `POST /auth/google` |
 | A-02 Google 첫 로그인 | `POST /auth/google` 응답의 `maskedEmail`, `POST /auth/signup` |
-| H-01 · H-02 · H-03 홈 | `GET /home` (재설계 예정), 오늘 썼는지는 `GET /diaries/daily?date=오늘` |
+| H-01 · H-02 · H-03 홈, E-01 홈 생성 실패 | `GET /home` |
 | R-01 기분 선택 | `GET /emoticons` |
 | R-02 아이콘·한 줄 일기 | `GET /my-icons?category=`, `POST /my-icons`, `DELETE /my-icons/{id}`, `GET /icons` |
 | R-03 저장 중, E-02 저장 실패 | `POST /diaries` |
