@@ -387,7 +387,7 @@ Response `202`
 - 보내기에 실패해도 다시 보내지 않는다. 그림 결과는 저장되어 있으므로 앱은 일기에서 확인한다.
 - FCM이 앱이 지워진 토큰이라고 답하면 그 기기는 비활성화한다.
 - 실패 이유(`code`)는 저장하지 않는다. `GET /diaries/daily`에서는 `FAILED`만 보인다.
-- 서버에 Firebase 키(`FIREBASE_SERVICE_ACCOUNT_JSON`)가 없으면 푸시는 로그로만 남는다.
+- 서버에 Firebase 서비스 계정 키(`FIREBASE_SA_KEY`, JSON 원문 또는 Base64)가 없으면 푸시는 로그로만 남는다.
 
 ### AI 서버와 주고받는 메시지
 

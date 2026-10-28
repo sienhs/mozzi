@@ -120,9 +120,9 @@ mozzi:
     response-url: ${SQS_AI_RESPONSE_QUEUE_URL:}
     region: ${AWS_REGION:ap-northeast-2}
   fcm:
-    # The Firebase service account key's JSON content. Blank: pushes are only logged, and the
-    # app finds picture results when it opens the diary.
-    service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
+    # The Firebase service account key file's content, as JSON or Base64. Blank: pushes are only
+    # logged, and the app finds picture results when it opens the diary.
+    service-account-key: ${FIREBASE_SA_KEY:}
 
 springdoc:
   # Only our API. Actuator is left out; its endpoints are not part of the spec.

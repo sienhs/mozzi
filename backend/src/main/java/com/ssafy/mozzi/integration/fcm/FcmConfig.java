@@ -3,6 +3,7 @@ package com.ssafy.mozzi.integration.fcm;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,21 +31,32 @@ public class FcmConfig {
     @Bean
     PushSender pushSender(FcmProperties properties) throws IOException {
         if (!properties.configured()) {
-            log.warn("FIREBASE_SERVICE_ACCOUNT_JSON is not set; push notifications are only logged");
+            log.warn("FIREBASE_SA_KEY is not set; push notifications are only logged");
             return new LoggingPushSender();
         }
-        return new FcmPushSender(FirebaseMessaging.getInstance(firebaseApp(properties.serviceAccountJson())));
+        return new FcmPushSender(FirebaseMessaging.getInstance(firebaseApp(properties.serviceAccountKey())));
     }
 
-    private static FirebaseApp firebaseApp(String serviceAccountJson) throws IOException {
+    private static FirebaseApp firebaseApp(String serviceAccountKey) throws IOException {
         for (FirebaseApp app : FirebaseApp.getApps()) {
             if (app.getName().equals(APP_NAME)) {
                 return app;
             }
         }
-        GoogleCredentials credentials = GoogleCredentials.fromStream(
-                new ByteArrayInputStream(serviceAccountJson.getBytes(StandardCharsets.UTF_8)));
+        GoogleCredentials credentials =
+                GoogleCredentials.fromStream(new ByteArrayInputStream(serviceAccountJson(serviceAccountKey)));
         return FirebaseApp.initializeApp(FirebaseOptions.builder().setCredentials(credentials).build(), APP_NAME);
+    }
+
+    /**
+     * The key file's JSON, given either as is or Base64-encoded. Secret stores often hold the
+     * Base64 form, since a multi-line JSON with quotes is awkward in an environment variable.
+     */
+    static byte[] serviceAccountJson(String serviceAccountKey) {
+        String key = serviceAccountKey.strip();
+        return key.startsWith("{")
+                ? key.getBytes(StandardCharsets.UTF_8)
+                : Base64.getMimeDecoder().decode(key);
     }
 
 }
