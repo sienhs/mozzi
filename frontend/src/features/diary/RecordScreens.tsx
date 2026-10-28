@@ -43,7 +43,7 @@ export function EmotionScreen() {
       }
     >
       <Heading
-        eyebrow="1 / 3"
+        eyebrow="1 / 4"
         title="오늘 기분은 어땠나요?"
         description="가장 가까운 모찌를 하나 골라 주세요."
       />
@@ -170,7 +170,7 @@ export function GenerationScreen() {
     >
       <Heading
         eyebrow={
-          phase === 'reviewing' || phase === 'saving' ? '3 / 3' : undefined
+          phase === 'reviewing' || phase === 'saving' ? '4 / 4' : undefined
         }
         title={copy.title}
         description={copy.description}
@@ -200,7 +200,7 @@ export function GenerationScreen() {
       )}
       {phase !== 'completed' && (
         <UsedTags
-          tags={blocked.length ? blocked : entry.tags}
+          tags={blocked.length ? blocked : (entry.imageTags ?? entry.tags)}
           label={
             blocked.length
               ? '다시 볼 태그'

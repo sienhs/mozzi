@@ -37,6 +37,8 @@ function pickDay() {
   store().toggleTag(tag('companion.family'));
 }
 async function requestPicture() {
+  if (!store().draft.mainActivityId)
+    store().selectMainActivity(store().draft.tags.activities[0]);
   const pending = store().startGeneration();
   await jest.advanceTimersByTimeAsync(1000);
   return (await pending)!;
@@ -48,6 +50,9 @@ async function finishPicture() {
 test('one tap sends one picture request built from tags alone, and a finished picture is not yet a saved record', async () => {
   const start = jest.spyOn(mockDiaryService, 'start');
   pickDay();
+  useAppStore
+    .getState()
+    .selectMainActivity(useAppStore.getState().draft.tags.activities[0]);
   const first = store().startGeneration();
   expect(await store().startGeneration()).toBeNull();
   await jest.advanceTimersByTimeAsync(1000);
@@ -196,6 +201,7 @@ test('a blocked picture reopens the day with the earlier choices; the fixed choi
   useMockControls.getState().failNext('generationBlocked');
   pickDay();
   store().selectCustomTag(result.id);
+  store().selectMainActivity(result.id);
   const entry = await requestPicture();
   await finishPicture();
   const blocked = today()!;
@@ -210,10 +216,9 @@ test('a blocked picture reopens the day with the earlier choices; the fixed choi
     emotion: 'calm',
     memo: '',
     tags: {
-      activities: ['activity.cooking'],
+      activities: ['activity.cooking', result.id],
       place: 'place.home',
       companions: ['companion.family'],
-      custom: [result.id],
     },
   });
   store().toggleCustomTag(result.id);
@@ -253,4 +258,35 @@ test('an account reset discards late picture, save and custom-tag results', asyn
   await jest.advanceTimersByTimeAsync(400);
   expect(await added).toEqual({ kind: 'none' });
   expect(useTagStore.getState().tags).toEqual([]);
+});
+
+test('same names in different categories remain distinct; deleting the chosen custom activity invalidates the scene', async () => {
+  const ids: string[] = [];
+  for (const category of ['activity', 'place', 'companion'] as const) {
+    const creating = useTagStore.getState().add('모임', category);
+    await jest.advanceTimersByTimeAsync(400);
+    const result = await creating;
+    if (result.kind !== 'custom') throw new Error('custom tag not created');
+    ids.push(result.id);
+    store().selectCustomTag(result.id);
+  }
+  expect(new Set(ids).size).toBe(3);
+  expect(useTagStore.getState().tags.map(tag => tag.category)).toEqual([
+    'activity',
+    'place',
+    'companion',
+  ]);
+  store().selectEmotion('calm');
+  store().toggleTag(tag('activity.cooking'));
+  store().selectMainActivity(ids[0]);
+  expect(store().draft.mainActivityId).toBe(ids[0]);
+  const removing = useTagStore.getState().remove(ids[0]);
+  await jest.advanceTimersByTimeAsync(300);
+  expect(await removing).toBe(true);
+  store().forgetCustomTag(ids[0]);
+  expect(store().draft.mainActivityId).toBeNull();
+  expect(store().draft.tags.activities).toEqual(['activity.cooking']);
+  expect(store().draft.tags.place).toBe(ids[1]);
+  expect(store().draft.tags.companions).toEqual([ids[2]]);
+  expect(await store().startGeneration()).toBeNull();
 });

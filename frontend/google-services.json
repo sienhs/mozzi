@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "853884956693",
+    "project_id": "mozzi-c407b",
+    "storage_bucket": "mozzi-c407b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:853884956693:android:b0c938637020b3368ede1c",
+        "android_client_info": {
+          "package_name": "com.ssafy.mozzi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAg8q-H_KtLxQdZyMLgw5ZgCNgC9TRWEVE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

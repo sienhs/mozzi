@@ -320,6 +320,7 @@ test('signout resets account data and cannot restore old saved profile', async (
     tags: [
       {
         id: 'custom-1',
+        category: 'activity',
         label: '비밀 태그',
         key: '비밀 태그',
         createdAt: '2026-10-26T00:00:00Z',

@@ -7,54 +7,53 @@ import {
 } from '@/constants/tags';
 import type {
   CustomTag,
+  CustomTagCategory,
   DiaryDraft,
   DiaryTag,
   GenerationRequest,
-  PresetTag,
+  SelectableTag,
   TagCategory,
   TagSelection,
 } from '@/types/diary';
 
-// 태그 선택 규칙. 상태가 없는 함수만 둔다 — 스토어와 화면이 같은 규칙을 쓴다.
 export const emptySelection = (): TagSelection => ({
   activities: [],
   place: null,
   companions: [],
   weather: null,
-  custom: [],
 });
-
 export function selectedIds(selection: TagSelection, category: TagCategory) {
   if (category === 'activity') return selection.activities;
   if (category === 'companion') return selection.companions;
   const id = selection[category];
   return id ? [id] : [];
 }
-export const isTagSelected = (selection: TagSelection, tag: PresetTag) =>
-  selectedIds(selection, tag.category).includes(tag.id);
-
-export const mainActivity = (selection: TagSelection) =>
-  selection.activities[0] ? presetTag(selection.activities[0]) : undefined;
-
-const codesOf = (ids: string[]) =>
-  ids.map(id => presetTag(id)?.code).filter((code): code is string => !!code);
-
-// 칩을 누를 수 있는지. 이미 고른 칩은 언제든 해제할 수 있다.
-export function canSelectTag(selection: TagSelection, tag: PresetTag) {
-  if (isTagSelected(selection, tag)) return true;
-  const rule = tagCategories[tag.category];
-  return rule.single || selectedIds(selection, tag.category).length < rule.max;
+export function resolveTag(
+  id: string | null,
+  library: CustomTag[],
+): SelectableTag | undefined {
+  return id ? (presetTag(id) ?? library.find(tag => tag.id === id)) : undefined;
 }
-
+export const isTagSelected = (selection: TagSelection, tag: SelectableTag) =>
+  selectedIds(selection, tag.category).includes(tag.id);
+export function canSelectTag(selection: TagSelection, tag: SelectableTag) {
+  const rule = tagCategories[tag.category];
+  return (
+    isTagSelected(selection, tag) ||
+    rule.single ||
+    selectedIds(selection, tag.category).length < rule.max
+  );
+}
 export function toggleTag(
   selection: TagSelection,
-  tag: PresetTag,
+  tag: SelectableTag,
 ): TagSelection {
   if (!canSelectTag(selection, tag)) return selection;
-  if (tag.category === 'place' || tag.category === 'weather') {
-    const key = tag.category;
-    return { ...selection, [key]: selection[key] === tag.id ? null : tag.id };
-  }
+  if (tag.category === 'place' || tag.category === 'weather')
+    return {
+      ...selection,
+      [tag.category]: selection[tag.category] === tag.id ? null : tag.id,
+    };
   const key = tag.category === 'activity' ? 'activities' : 'companions';
   const list = selection[key];
   return {
@@ -64,28 +63,19 @@ export function toggleTag(
       : [...list, tag.id],
   };
 }
-
-// 활동·동행을 바꿔도 장소 선택은 유지한다. 카테고리 사이 조합 제한은 없다.
-export function clearBlockedPlace(selection: TagSelection) {
-  return { selection, cleared: false };
-}
-
-export function toggleCustomTag(
+export const selectCustomTag = (selection: TagSelection, tag: CustomTag) =>
+  isTagSelected(selection, tag) ? selection : toggleTag(selection, tag);
+export function removeSelectedTag(
   selection: TagSelection,
   id: string,
 ): TagSelection {
-  if (selection.custom.includes(id))
-    return {
-      ...selection,
-      custom: selection.custom.filter(item => item !== id),
-    };
-  if (selection.custom.length >= customTagLimits.maxSelected) return selection;
-  return { ...selection, custom: [...selection.custom, id] };
+  return {
+    activities: selection.activities.filter(value => value !== id),
+    place: selection.place === id ? null : selection.place,
+    companions: selection.companions.filter(value => value !== id),
+    weather: selection.weather === id ? null : selection.weather,
+  };
 }
-export const selectCustomTag = (selection: TagSelection, id: string) =>
-  selection.custom.includes(id) ? selection : toggleCustomTag(selection, id);
-
-// 내 태그 입력 정규화: 줄바꿈·제어문자 제거 → 연속 공백 한 칸 → 앞뒤 공백 제거.
 export function normalizeTagLabel(raw: string) {
   return raw
     .normalize('NFC')
@@ -95,22 +85,26 @@ export function normalizeTagLabel(raw: string) {
 }
 export const tagKey = (label: string) => normalizeTagLabel(label).toLowerCase();
 export const labelLength = (label: string) => Array.from(label).length;
-
 export type CustomTagCheck =
   | { kind: 'create'; label: string; key: string }
   | { kind: 'reuse'; id: string }
-  | { kind: 'preset'; tag: PresetTag }
+  | { kind: 'preset'; tag: (typeof presetTags)[number] }
   | { kind: 'error'; message: string };
 export function checkCustomTag(
   raw: string,
   library: CustomTag[],
+  category: CustomTagCategory = 'activity',
 ): CustomTagCheck {
   const label = normalizeTagLabel(raw);
   if (!label) return { kind: 'error', message: '태그를 입력해 주세요.' };
   const key = tagKey(label);
-  const preset = presetTags.find(tag => tagKey(tag.label) === key);
+  const preset = presetTags.find(
+    tag => tag.category === category && tagKey(tag.label) === key,
+  );
   if (preset) return { kind: 'preset', tag: preset };
-  const existing = library.find(tag => tag.key === key);
+  const existing = library.find(
+    tag => tag.category === category && tag.key === key,
+  );
   if (existing) return { kind: 'reuse', id: existing.id };
   if (labelLength(label) > customTagLimits.maxLength)
     return {
@@ -120,76 +114,111 @@ export function checkCustomTag(
   if (library.length >= customTagLimits.maxSaved)
     return {
       kind: 'error',
-      message: `내 태그는 ${customTagLimits.maxSaved}개까지 만들 수 있어요.`,
+      message: `추가한 태그는 ${customTagLimits.maxSaved}개까지 보관할 수 있어요.`,
     };
   return { kind: 'create', label, key };
 }
-
-const customOf = (selection: TagSelection, library: CustomTag[]) =>
-  selection.custom
-    .map(id => library.find(tag => tag.id === id))
-    .filter((tag): tag is CustomTag => !!tag);
-
-// 기록에 남길 태그 스냅샷. 순서: 무엇을(대표 먼저) → 어디서 → 누구와 → 날씨 → 내 태그.
+export function snapshotTag(tag: SelectableTag): DiaryTag {
+  return 'code' in tag
+    ? { category: tag.category, code: tag.code, label: tag.label }
+    : {
+        category: tag.category,
+        code: null,
+        label: tag.label,
+        customTagId: tag.id,
+      };
+}
 export function toDiaryTags(
   selection: TagSelection,
   library: CustomTag[],
 ): DiaryTag[] {
-  const presets = tagCategoryOrder
-    .flatMap(category => selectedIds(selection, category))
-    .map(id => presetTag(id))
-    .filter((tag): tag is PresetTag => !!tag)
-    .map(tag => ({ category: tag.category, code: tag.code, label: tag.label }));
+  return tagCategoryOrder.flatMap(category =>
+    selectedIds(selection, category)
+      .map(id => resolveTag(id, library))
+      .filter((tag): tag is SelectableTag => !!tag && tag.category === category)
+      .map(snapshotTag),
+  );
+}
+export function activityChoices(selection: TagSelection, library: CustomTag[]) {
+  return selection.activities
+    .map(id => resolveTag(id, library))
+    .filter(
+      (tag): tag is SelectableTag => !!tag && tag.category === 'activity',
+    );
+}
+export function chosenActivity(draft: DiaryDraft, library: CustomTag[]) {
+  return activityChoices(draft.tags, library).find(
+    tag => tag.id === draft.mainActivityId,
+  );
+}
+// 기록에 남길 태그와 그림의 장면을 분리한다. 활동은 사용자가 명시적으로 고른 하나만 남긴다.
+export function toImageTags(
+  draft: DiaryDraft,
+  library: CustomTag[],
+): DiaryTag[] {
+  const activity = chosenActivity(draft, library);
+  if (!activity) return [];
   return [
-    ...presets,
-    ...customOf(selection, library).map(tag => ({
-      category: 'custom' as const,
-      code: null,
-      label: tag.label,
-    })),
+    snapshotTag(activity),
+    ...toDiaryTags(draft.tags, library).filter(
+      tag => tag.category !== 'activity',
+    ),
   ];
 }
-
-// 그림 요청 값. 문장형 프롬프트와 한 줄 일기는 넣지 않는다. 고르지 않은 장소·날씨는 null로 보내고
-// 기본값(집·맑음)은 서버가 적용한다 (CONTRACT: B1·B8).
 export function toGenerationRequest(
   draft: DiaryDraft,
   library: CustomTag[],
   fallbackDate: string,
 ): GenerationRequest | null {
-  if (!draft.emotion || !draft.tags.activities.length) return null;
-  const code = (id: string | null) => (id && presetTag(id)?.code) || null;
+  const activity = chosenActivity(draft, library);
+  if (!draft.emotion || !activity) return null;
+  const imageTags = toImageTags(draft, library);
+  const code = (id: string | null) => {
+    const tag = resolveTag(id, library);
+    return tag && 'code' in tag ? tag.code : null;
+  };
   return {
     recordDate: draft.recordDate ?? fallbackDate,
     emotion: draft.emotion,
-    activities: codesOf(draft.tags.activities),
+    activities: 'code' in activity ? [activity.code] : [],
     place: code(draft.tags.place),
-    companions: codesOf(draft.tags.companions),
+    companions: draft.tags.companions
+      .map(code)
+      .filter((value): value is string => !!value),
     weather: code(draft.tags.weather),
-    customTagIds: customOf(draft.tags, library).map(tag => tag.id),
+    customTagIds: imageTags.flatMap(tag =>
+      tag.customTagId ? [tag.customTagId] : [],
+    ),
   };
 }
-
-// 다시 작성하기(재시도 불가 실패) 때 기록의 태그로 선택을 되살린다. 지워진 내 태그는 빠진다.
+// 과거의 별도 내 태그 스냅샷은 같은 이름의 현재 카테고리 태그로 복원한다.
 export function selectionFromTags(
   tags: DiaryTag[],
   library: CustomTag[],
 ): TagSelection {
   let selection = emptySelection();
-  for (const tag of tags) {
-    if (tag.category === 'custom') {
-      const found = library.find(item => item.key === tagKey(tag.label));
-      if (found) selection = selectCustomTag(selection, found.id);
-    } else if (tag.category !== 'legacy') {
-      const preset = presetTags.find(
-        item => item.category === tag.category && item.code === tag.code,
+  for (const snapshot of tags) {
+    if (snapshot.category === 'legacy') continue;
+    const custom =
+      snapshot.code === null
+        ? library.find(
+            tag =>
+              (snapshot.category === 'custom' ||
+                tag.category === snapshot.category) &&
+              (snapshot.customTagId
+                ? tag.id === snapshot.customTagId
+                : tag.key === tagKey(snapshot.label)),
+          )
+        : undefined;
+    const tag =
+      custom ??
+      presetTags.find(
+        tag => tag.category === snapshot.category && tag.code === snapshot.code,
       );
-      if (preset && !isTagSelected(selection, preset))
-        selection = toggleTag(selection, preset);
-    }
+    if (tag && !isTagSelected(selection, tag))
+      selection = toggleTag(selection, tag);
   }
   return selection;
 }
-
 export const tagSummary = (tags: DiaryTag[]) =>
   tags.map(tag => tag.label).join(' · ');

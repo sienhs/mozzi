@@ -2,6 +2,7 @@ import { emotions } from '@/constants/emotions';
 import { todayKey } from '@/constants/date';
 import type {
   CustomTag,
+  CustomTagCategory,
   DiaryEntry,
   DiaryTag,
   Emotion,
@@ -34,12 +35,17 @@ export const fallbackTitle = (emotion: Emotion) =>
 const RETRY_LIMIT = 3;
 const retriesLeft = new Map<string, number>();
 const requestedTags = new Map<string, DiaryTag[]>();
-function draftEntry(request: GenerationRequest, tags: DiaryTag[]): DiaryEntry {
+function draftEntry(
+  request: GenerationRequest,
+  tags: DiaryTag[],
+  imageTags = tags,
+): DiaryEntry {
   const id = `diary-${request.recordDate}`;
   retriesLeft.set(id, RETRY_LIMIT);
-  requestedTags.set(id, tags);
+  requestedTags.set(id, imageTags);
   return {
     id,
+    imageTags,
     date: request.recordDate,
     emotion: request.emotion,
     tags,
@@ -57,12 +63,13 @@ export const mockDiaryService = {
     request: GenerationRequest,
     tags: DiaryTag[],
     _requestKey: string,
+    imageTags?: DiaryTag[],
   ): Promise<DiaryEntry> {
     const failed = useMockControls.getState().consumeFailure('start');
     await mockDelay(1000);
     if (failed)
       throw new Error('그림을 부탁하지 못했어요. 고른 태그는 그대로 있어요.');
-    return draftEntry(request, tags);
+    return draftEntry(request, tags, imageTags);
   },
   // 다시 작성하기: 재시도 불가 실패였던 기록을 새 기분·태그로 다시 그린다 (CONTRACT: B6).
   async rewrite(
@@ -70,12 +77,13 @@ export const mockDiaryService = {
     request: GenerationRequest,
     tags: DiaryTag[],
     _requestKey: string,
+    imageTags?: DiaryTag[],
   ): Promise<DiaryEntry> {
     const failed = useMockControls.getState().consumeFailure('start');
     await mockDelay(1000);
     if (failed)
       throw new Error('그림을 부탁하지 못했어요. 고른 태그는 그대로 있어요.');
-    return draftEntry(request, tags);
+    return draftEntry(request, tags, imageTags);
   },
   // GET /diaries/{id}/image 폴링 자리. 완성되면 끝나고, 실패하면 DiaryGenerationError를 던진다.
   async generate(
@@ -94,7 +102,7 @@ export const mockDiaryService = {
         retryable: false,
         remainingRetries,
         blockedTags: (requestedTags.get(id) ?? []).filter(
-          tag => tag.category === 'custom',
+          tag => !!tag.customTagId || tag.category === 'custom',
         ),
       });
     if (failed)
@@ -141,17 +149,20 @@ export const mockTagService = {
     await mockDelay(300);
     return tagServer.map(tag => ({ ...tag }));
   },
-  async create(label: string): Promise<CustomTag> {
+  async create(label: string, category: CustomTagCategory): Promise<CustomTag> {
     const failed = useMockControls.getState().consumeFailure('tag');
     await mockDelay(400);
     if (failed)
       throw new Error('태그를 저장하지 못했어요. 다시 시도해 주세요.');
     const key = tagKey(label);
-    const existing = tagServer.find(tag => tag.key === key);
+    const existing = tagServer.find(
+      tag => tag.category === category && tag.key === key,
+    );
     if (existing) return { ...existing };
     tagSequence += 1;
     const tag = {
       id: `custom-${tagSequence}`,
+      category,
       label,
       key,
       createdAt: new Date().toISOString(),
