@@ -36,7 +36,7 @@ export const colors = {
   gachaSageInk: '#52644A',
 } as const;
 export const fonts = {
-  // The supplied font has one weight; every text variant uses that same face.
+  // The supplied font has one weight; all variants use the same face.
   regular: 'OwnglyphParkDahyun',
   medium: 'OwnglyphParkDahyun',
   bold: 'OwnglyphParkDahyun',
@@ -62,44 +62,44 @@ export const radii = {
 export const typography = StyleSheet.create({
   display: {
     fontFamily: fonts.bold,
-    fontSize: 32,
-    lineHeight: 44,
+    fontSize: 34,
+    lineHeight: 46,
     color: colors.ink,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 26,
-    lineHeight: 36,
+    fontSize: 28,
+    lineHeight: 38,
     color: colors.ink,
   },
   heading: {
     fontFamily: fonts.bold,
-    fontSize: 22,
-    lineHeight: 32,
+    fontSize: 24,
+    lineHeight: 34,
     color: colors.ink,
   },
   body: {
     fontFamily: fonts.regular,
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 30,
     color: colors.ink,
   },
   label: {
     fontFamily: fonts.medium,
-    fontSize: 18,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 30,
     color: colors.ink,
   },
   small: {
     fontFamily: fonts.regular,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 26,
     color: colors.muted,
   },
   caption: {
     fontFamily: fonts.medium,
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
     color: colors.muted,
   },
 });

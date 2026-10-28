@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Activity, DiaryDraft, DiaryEntry, Emotion } from '@/types/diary';
 import { createMockEntries } from '@/mocks/diaries';
 import { mockDiaryService } from '@/mocks/services';
+import { useGachaStore } from './useGachaStore';
 
 export const emptyDraft = (): DiaryDraft => ({
   emotion: null,
@@ -57,13 +58,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   saveDiary: async () => {
     if (get().saveStatus === 'saving') return null;
     const session = get().session;
+    const companionId = useGachaStore.getState().equippedId;
     const snapshot = {
       ...get().draft,
       activities: [...get().draft.activities],
     };
     set({ saveStatus: 'saving', saveError: '' });
     try {
-      const entry = await mockDiaryService.save(snapshot);
+      const entry = { ...(await mockDiaryService.save(snapshot)), companionId };
       if (get().session !== session) return null;
       set(state => ({
         entries: [
@@ -101,7 +103,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const job = (async () => {
       let generation: DiaryEntry['generation'] = 'ready';
       try {
-        await mockDiaryService.generate();
+        await mockDiaryService.generate({
+          diaryId: entry.id,
+          companionId: entry.companionId ?? 'default',
+        });
       } catch {
         generation = 'failed';
       }

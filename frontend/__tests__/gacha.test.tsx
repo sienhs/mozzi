@@ -15,6 +15,7 @@ import Home from '@/app/(tabs)/home';
 import Calendar from '@/app/(tabs)/calendar';
 import Search from '@/app/(tabs)/search';
 import Gacha from '@/app/(tabs)/gacha';
+import MyPage from '@/app/(tabs)/mypage';
 import Opening from '@/app/gacha/opening';
 import Reveal from '@/app/gacha/reveal';
 import Results from '@/app/gacha/results';
@@ -46,6 +47,7 @@ const routes = {
   '(tabs)/calendar': Calendar,
   '(tabs)/search': Search,
   '(tabs)/gacha': Gacha,
+  '(tabs)/mypage': MyPage,
   'gacha/opening': Opening,
   'gacha/reveal': Reveal,
   'gacha/results': Results,
@@ -478,12 +480,13 @@ test('shards buy the cheapest missing mochi (Figma: 수박 50, 140 → 90)', asy
   expect(useGachaStore.getState().owned).toContain('watermelon');
 });
 
-test('the tab bar switches between the four tabs', async () => {
+test('the tab bar switches between the five tabs', async () => {
   const app = await renderRouter(routes, { initialUrl: '/home' });
   for (const [label, path] of [
     ['캘린더', '/calendar'],
     ['감정 검색', '/search'],
     ['뽑기', '/gacha'],
+    ['마이페이지', '/mypage'],
     ['홈', '/home'],
   ]) {
     await fireEvent.press(screen.getByRole('tab', { name: label }));

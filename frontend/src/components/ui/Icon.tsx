@@ -1,4 +1,5 @@
 import { Image } from 'react-native';
+import { UserRound } from 'lucide-react-native';
 import { colors } from '@/theme/tokens';
 
 const icons = {
@@ -12,7 +13,7 @@ const icons = {
   pencil: require('../../../assets/figma/pencil.png'),
   google: require('../../../assets/figma/google.png'),
 };
-export type IconName = keyof typeof icons;
+export type IconName = keyof typeof icons | 'profile';
 export function Icon({
   name,
   size = 24,
@@ -22,6 +23,7 @@ export function Icon({
   size?: number;
   color?: string;
 }) {
+  if (name === 'profile') return <UserRound size={size} color={color} />;
   return (
     <Image
       accessible={false}

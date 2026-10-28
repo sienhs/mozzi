@@ -15,6 +15,7 @@ export default function TabLayout() {
       <Tabs.Screen name="calendar" />
       <Tabs.Screen name="search" />
       <Tabs.Screen name="gacha" />
+      <Tabs.Screen name="mypage" />
     </Tabs>
   );
 }

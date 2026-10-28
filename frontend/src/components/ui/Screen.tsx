@@ -82,6 +82,7 @@ export function Screen({
   contentStyle,
   onTitleLongPress,
   tabbed = false,
+  scrollable = true,
 }: {
   children: ReactNode;
   footer?: ReactNode;
@@ -89,6 +90,8 @@ export function Screen({
   contentStyle?: StyleProp<ViewStyle>;
   // Inside the tab navigator the tab bar already owns the bottom inset.
   tabbed?: boolean;
+  // A virtualized list must own its scroll area instead of nesting in ScrollView.
+  scrollable?: boolean;
 } & Parameters<typeof ScreenHeader>[0]) {
   const insets = useSafeAreaInsets();
   const bottomInset = tabbed ? 0 : insets.bottom;
@@ -108,18 +111,22 @@ export function Screen({
             onTitleLongPress={onTitleLongPress}
           />
         )}
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[
-            styles.content,
-            !footer && { paddingBottom: Math.max(bottomInset, 24) },
-            contentStyle,
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {children}
-        </ScrollView>
+        {scrollable ? (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[
+              styles.content,
+              !footer && { paddingBottom: Math.max(bottomInset, 24) },
+              contentStyle,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[{ flex: 1 }, contentStyle]}>{children}</View>
+        )}
         {footer && (
           <View
             style={[

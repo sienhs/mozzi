@@ -77,6 +77,8 @@ export default function RootLayout() {
                 <Stack.Screen name="record/generation" />
                 <Stack.Screen name="diary/[id]" />
                 <Stack.Screen name="settings" />
+                <Stack.Screen name="mypage/owned" />
+                <Stack.Screen name="mypage/mochi/[id]" />
                 <Stack.Screen
                   name="gacha/opening"
                   options={{ animation: 'fade', gestureEnabled: false }}

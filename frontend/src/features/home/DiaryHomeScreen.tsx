@@ -34,17 +34,11 @@ export function DiaryHomeScreen() {
           }}
         />
       }
-      action={{
-        icon: 'settings',
-        label: '설정',
-        onPress: () => router.push('/settings'),
-      }}
       onTitleLongPress={__DEV__ ? () => router.push('/dev') : undefined}
       footer={
         !entry ? (
           <Button
             label="오늘 기록하기"
-            labelStyle={{ fontSize: 20, lineHeight: 30 }}
             onPress={() => router.push('/record/emotion')}
           />
         ) : status === 'failed' ? (
@@ -64,14 +58,13 @@ export function DiaryHomeScreen() {
       <View style={{ gap: 8 }}>
         <AppText variant="small">{formatDate(today)}</AppText>
         <Heading
-          titleStyle={!entry ? { fontSize: 28, lineHeight: 40 } : undefined}
           title={
             !entry
               ? '오늘은 어떤 하루였나요?'
               : status === 'generating'
-                ? '오늘의 모찌를 그리고 있어요'
+                ? '오늘의 모찌를\n그리고 있어요'
                 : status === 'failed'
-                  ? '이번 그림은 완성하지 못했어요'
+                  ? '이번 그림은\n완성하지 못했어요'
                   : '오늘도 한 장 남겼어요'
           }
           description={
@@ -81,12 +74,7 @@ export function DiaryHomeScreen() {
           }
         />
       </View>
-      {!entry && (
-        <PictureState
-          caption="기분 하나만 골라도 그림이 돼요"
-          captionStyle={{ fontSize: 18, lineHeight: 28, textAlign: 'center' }}
-        />
-      )}
+      {!entry && <PictureState caption="기분 하나만 골라도 그림이 돼요" />}
       {entry && status === 'ready' && (
         <DiaryCard entry={entry} onPress={() => openEntry(entry.id)} />
       )}
@@ -102,12 +90,19 @@ export function DiaryHomeScreen() {
               })
             }
           >
-            <PictureState emotion={entry.emotion} generating tone="sage" />
+            <PictureState
+              emotion={entry.emotion}
+              companionId={entry.companionId}
+              generating
+              tone="sage"
+            />
           </Pressable>
           <GenerationProgress home />
         </>
       )}
-      {entry && status === 'failed' && <PictureState emotion={entry.emotion} />}
+      {entry && status === 'failed' && (
+        <PictureState emotion={entry.emotion} companionId={entry.companionId} />
+      )}
       {!entry && recent && (
         <View style={{ gap: 12 }}>
           <AppText variant="heading">지난 기록</AppText>

@@ -1,3 +1,5 @@
+import type { CompanionId } from './companion';
+
 export type Emotion = 'happy' | 'calm' | 'neutral' | 'sad' | 'angry';
 export type Activity =
   '공부' | '업무' | '운동' | '휴식' | '친구' | '취미' | '가족' | '기타';
@@ -8,6 +10,8 @@ export interface DiaryDraft {
   memo: string;
 }
 export interface DiaryEntry {
+  // Absent on legacy records; those retain the default character.
+  companionId?: CompanionId;
   id: string;
   date: string;
   emotion: Emotion;

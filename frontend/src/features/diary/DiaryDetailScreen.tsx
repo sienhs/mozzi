@@ -43,6 +43,7 @@ export function DiaryDetailScreen() {
       ) : (
         <PictureState
           emotion={entry.emotion}
+          companionId={entry.companionId}
           generating={entry.generation === 'generating'}
           tone="sage"
           caption={

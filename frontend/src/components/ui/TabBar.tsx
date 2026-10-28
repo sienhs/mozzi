@@ -2,8 +2,9 @@ import { Image, Pressable, View, type ImageSourcePropType } from 'react-native';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import { colors } from '@/theme/tokens';
 import { AppText } from './Text';
+import { Icon } from './Icon';
 
-const tabs: Record<string, { label: string; icon: ImageSourcePropType }> = {
+const tabs: Record<string, { label: string; icon?: ImageSourcePropType }> = {
   home: { label: '홈', icon: require('../../../assets/gacha/tab-home.png') },
   calendar: {
     label: '캘린더',
@@ -17,9 +18,10 @@ const tabs: Record<string, { label: string; icon: ImageSourcePropType }> = {
     label: '뽑기',
     icon: require('../../../assets/gacha/tab-gacha-jar.png'),
   },
+  mypage: { label: '마이페이지' },
 };
 
-// Figma "Mozzi / Tab bar" (05 · P-01 instance): 4 equal columns, active tab in primary.
+// Shared tab bar: equal columns, active tab in primary.
 export function TabBar({ state, navigateToTab, insets }: BottomTabBarProps) {
   return (
     <View
@@ -56,13 +58,17 @@ export function TabBar({ state, navigateToTab, insets }: BottomTabBarProps) {
               gap: 2,
             }}
           >
-            <Image
-              accessible={false}
-              source={tab.icon}
-              resizeMode="contain"
-              style={{ width: 24, height: 24, tintColor: color }}
-            />
-            <AppText variant="caption" style={{ color }}>
+            {tab.icon ? (
+              <Image
+                accessible={false}
+                source={tab.icon}
+                resizeMode="contain"
+                style={{ width: 24, height: 24, tintColor: color }}
+              />
+            ) : (
+              <Icon name="profile" size={24} color={color} />
+            )}
+            <AppText variant="caption" style={{ color, textAlign: 'center' }}>
               {tab.label}
             </AppText>
           </Pressable>

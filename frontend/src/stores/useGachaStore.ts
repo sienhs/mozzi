@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import type { MochiId, PullItem } from '@/types/gacha';
 import { mochiOrder, mochis, tiers } from '@/constants/gacha';
-import { mockGachaService } from '@/mocks/services';
+import { mockEquipmentService, mockGachaService } from '@/mocks/services';
+import type { CompanionId } from '@/types/companion';
 
 // Figma demo values (P-01: 뽑기권 23 · 별조각 140). The server will own these later.
 const initialOwned: MochiId[] = [
@@ -20,6 +21,11 @@ export const initialGachaState = () => ({
   lastPull: [] as PullItem[],
   pendingDuplicate: null as PullItem | null,
   pulling: false,
+  acquiredAt: {} as Partial<Record<MochiId, string>>,
+  equippedId: 'default' as CompanionId,
+  equipping: false,
+  equipmentError: '',
+  equipmentVersion: 0,
 });
 interface GachaState extends ReturnType<typeof initialGachaState> {
   resetSession: () => void;
@@ -27,6 +33,8 @@ interface GachaState extends ReturnType<typeof initialGachaState> {
   applyDuplicate: () => void;
   markSeen: (id: MochiId) => void;
   exchange: (id: MochiId) => Promise<void>;
+  equip: (id: CompanionId) => Promise<boolean>;
+  resetEquipment: () => void;
 }
 export const exchangeCost = (id: MochiId) =>
   tiers[mochis[id].tier].exchangeCost;
@@ -39,7 +47,11 @@ export const exchangeCandidate = (owned: MochiId[]) =>
 export const useGachaStore = create<GachaState>((set, get) => ({
   ...initialGachaState(),
   resetSession: () =>
-    set(state => ({ ...initialGachaState(), session: state.session + 1 })),
+    set(state => ({
+      ...initialGachaState(),
+      session: state.session + 1,
+      equipmentVersion: state.equipmentVersion + 1,
+    })),
   pull: async count => {
     const { tickets, owned, pulling, session } = get();
     if (pulling || count < 1 || count > tickets) return [];
@@ -61,6 +73,12 @@ export const useGachaStore = create<GachaState>((set, get) => ({
         unseen: [...state.unseen, ...fresh],
         lastPull: items,
         pendingDuplicate: deferred,
+        acquiredAt: {
+          ...state.acquiredAt,
+          ...Object.fromEntries(
+            fresh.map(id => [id, new Date().toISOString()]),
+          ),
+        },
       }));
       return items;
     } finally {
@@ -88,6 +106,39 @@ export const useGachaStore = create<GachaState>((set, get) => ({
       shards: state.shards - cost,
       owned: [...state.owned, id],
       unseen: [...state.unseen, id],
+      acquiredAt: { ...state.acquiredAt, [id]: new Date().toISOString() },
     }));
   },
+  equip: async id => {
+    const state = get();
+    if (state.equipping || state.equippedId === id) return false;
+    if (id !== 'default' && !state.owned.includes(id)) {
+      set({ equipmentError: '보유한 모찌만 장착할 수 있어요.' });
+      return false;
+    }
+    const version = state.equipmentVersion;
+    set({ equipping: true, equipmentError: '' });
+    try {
+      await mockEquipmentService.equip(id);
+      if (get().equipmentVersion !== version) return false;
+      set({ equippedId: id });
+      return true;
+    } catch (error) {
+      if (get().equipmentVersion === version)
+        set({
+          equipmentError:
+            error instanceof Error ? error.message : '장착하지 못했어요.',
+        });
+      return false;
+    } finally {
+      if (get().equipmentVersion === version) set({ equipping: false });
+    }
+  },
+  resetEquipment: () =>
+    set(state => ({
+      equippedId: 'default',
+      equipping: false,
+      equipmentError: '',
+      equipmentVersion: state.equipmentVersion + 1,
+    })),
 }));
