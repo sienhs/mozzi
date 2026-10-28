@@ -1,3 +1,4 @@
+import { setAuthPreview } from '@/mocks/authPreview';
 import {
   act,
   cleanup,
@@ -30,7 +31,6 @@ import { tierOrder, tiers } from '@/constants/gacha';
 import { mockGachaService, rollMochi } from '@/mocks/services';
 import { useMockControls } from '@/mocks/controls';
 import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
-import { useAppStore } from '@/stores/useAppStore';
 import type { PullItem } from '@/types/gacha';
 
 // Jest's default asset transformer maps every video to 1. Distinct IDs catch
@@ -92,7 +92,7 @@ beforeEach(() => {
   jest
     .spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
     .mockResolvedValue(false);
-  useAppStore.getState().login('하루');
+  setAuthPreview();
   useGachaStore.setState(initialGachaState());
   useMockControls.getState().reset();
 });

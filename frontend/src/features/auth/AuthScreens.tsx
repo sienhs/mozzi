@@ -1,38 +1,26 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { View } from 'react-native';
 import { Screen, Heading } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
-import { Button } from '@/components/ui/Button';
+import { Button, TextButton } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Icon } from '@/components/ui/Icon';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { DiaryArtwork } from '@/components/ui/DiaryCard';
+import { Sheet } from '@/components/ui/Sheet';
+import { LegalDocument } from '@/components/ui/LegalDocument';
+import { legalDocuments, type LegalType } from '@/constants/legal';
+import { Checkbox } from '@/components/ui/Selection';
 import { colors } from '@/theme/tokens';
-import { mockAuthService } from '@/mocks/services';
-import { useAppStore } from '@/stores/useAppStore';
+import { authConfig } from '@/services/authConfig';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { validNickname } from '@/types/auth';
 
 export function WelcomeScreen() {
-  const profile = useAppStore(state => state.profile);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const pending = useRef(false);
-  if (profile) return <Redirect href="/home" />;
-  async function signIn() {
-    if (pending.current) return;
-    pending.current = true;
-    setLoading(true);
-    setError('');
-    try {
-      await mockAuthService.signIn();
-      router.push('/onboarding');
-    } catch (error) {
-      setError(error instanceof Error ? error.message : '다시 시도해 주세요.');
-    } finally {
-      pending.current = false;
-      setLoading(false);
-    }
-  }
+  const { status, pending, error, signIn } = useAuthStore();
+  if (status === 'authenticated') return <Redirect href="/home" />;
+  if (status === 'signupRequired') return <Redirect href="/onboarding" />;
   return (
     <Screen
       header={false}
@@ -41,10 +29,15 @@ export function WelcomeScreen() {
         <>
           {!!error && <ErrorBanner message={error} />}
           <Button
-            label={loading ? 'Google 계정 확인 중' : 'Google로 시작하기'}
+            label={pending ? 'Google 계정 확인 중' : 'Google로 시작하기'}
             variant="google"
-            loading={loading}
-            onPress={() => void signIn()}
+            loading={pending}
+            onPress={async () => {
+              await signIn();
+              const next = useAuthStore.getState().status;
+              if (next === 'authenticated') router.replace('/home');
+              else if (next === 'signupRequired') router.replace('/onboarding');
+            }}
           />
         </>
       }
@@ -62,78 +55,116 @@ export function WelcomeScreen() {
 }
 
 export function OnboardingScreen() {
-  const [nickname, setNickname] = useState('하루');
+  const { status, ticket, pending, error, signup, cancelSignup } =
+    useAuthStore();
+  const [nickname, setNickname] = useState('');
   const [touched, setTouched] = useState(false);
-  const login = useAppStore(state => state.login);
-  const valid = nickname.trim().length >= 2 && nickname.trim().length <= 10;
+  const [agreed, setAgreed] = useState({ TERMS: false, PRIVACY: false });
+  const [document, setDocument] = useState<LegalType | null>(null);
+  const termsReady =
+    !!legalDocuments.TERMS.body && !!legalDocuments.PRIVACY.body;
+  if (status === 'authenticated') return <Redirect href="/home" />;
+  if (status !== 'signupRequired' || !ticket) return <Redirect href="/" />;
   return (
     <Screen
       title="Google로 시작"
       back
+      onBack={() => {
+        cancelSignup();
+        router.replace('/');
+      }}
       footer={
         <>
+          {!!error && <ErrorBanner message={error} />}
           <Button
-            label="시작하기"
-            disabled={!valid}
-            onPress={() => {
-              login(nickname.trim());
-              router.replace('/home');
+            label={pending ? '가입하고 있어요' : '시작하기'}
+            loading={pending}
+            disabled={
+              !validNickname(nickname) ||
+              !termsReady ||
+              !agreed.TERMS ||
+              !agreed.PRIVACY
+            }
+            onPress={async () => {
+              await signup(nickname, [
+                { type: 'TERMS', version: authConfig.terms.TERMS.version },
+                { type: 'PRIVACY', version: authConfig.terms.PRIVACY.version },
+              ]);
+              if (useAuthStore.getState().status === 'authenticated')
+                router.replace('/home');
             }}
           />
-          <AppText variant="caption" style={{ textAlign: 'center' }}>
-            시작하면 이용약관과 개인정보 처리방침에 동의하게 돼요.
-          </AppText>
         </>
       }
     >
       <Heading
         title={'Google 계정으로\n처음 오셨네요'}
-        description="모찌가 부를 이름만 정하면 바로 시작해요."
+        description="모찌가 부를 이름을 정해 주세요."
       />
       <View
         style={{
           backgroundColor: colors.white,
           borderRadius: 20,
-          paddingVertical: 14,
-          paddingHorizontal: 16,
+          padding: 16,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
         }}
       >
-        <View
-          style={{
-            width: 40,
-            height: 40,
-            borderWidth: 1,
-            borderColor: colors.line,
-            borderRadius: 20,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Icon name="google" size={20} />
-        </View>
-        <View>
-          <AppText variant="label">Google 계정 연결됨</AppText>
-          <AppText variant="small">ha***@gmail.com</AppText>
-        </View>
+        <Icon name="google" size={20} />
+        <AppText variant="label">Google 계정 연결됨</AppText>
       </View>
       <Input
         label="닉네임"
         value={nickname}
+        editable={!pending}
         onChangeText={value => {
           setNickname(value);
           setTouched(true);
         }}
-        maxLength={10}
+        maxLength={12}
         autoCapitalize="none"
-        helper="2~10자, 나중에 설정에서 바꿀 수 있어요"
+        helper="2~12자의 한글, 영문, 숫자"
         error={
-          touched && !valid ? '닉네임을 2~10자로 입력해 주세요.' : undefined
+          touched && !validNickname(nickname)
+            ? '닉네임은 2~12자의 한글, 영문, 숫자로 입력해 주세요.'
+            : undefined
         }
-        returnKeyType="done"
       />
+      <View style={{ gap: 8 }}>
+        <AppText variant="label">필수 약관 동의</AppText>
+        {!termsReady ? (
+          <AppText variant="small">
+            가입에 필요한 약관을 준비하고 있어요. 준비가 완료되면 가입할 수
+            있어요.
+          </AppText>
+        ) : (
+          (['TERMS', 'PRIVACY'] as const).map(type => (
+            <View key={type}>
+              <TextButton
+                label={`${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 보기`}
+                onPress={() => setDocument(type)}
+              />
+              <Checkbox
+                label={`${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 동의 (필수)`}
+                checked={agreed[type]}
+                onChange={checked => {
+                  if (!pending)
+                    setAgreed(value => ({ ...value, [type]: checked }));
+                }}
+              />
+            </View>
+          ))
+        )}
+      </View>
+      <Sheet
+        visible={document !== null}
+        title={document ? legalDocuments[document].title : ''}
+        onClose={() => setDocument(null)}
+      >
+        {document && <LegalDocument type={document} />}
+        <Button label="닫기" onPress={() => setDocument(null)} />
+      </Sheet>
     </Screen>
   );
 }

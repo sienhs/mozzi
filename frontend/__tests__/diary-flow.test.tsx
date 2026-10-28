@@ -1,3 +1,4 @@
+import { setAuthPreview } from '@/mocks/authPreview';
 import {
   act,
   cleanup,
@@ -43,8 +44,10 @@ const routes = {
   dev: Dev,
 };
 beforeEach(() => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-10-26T12:00:00Z'));
+  setAuthPreview('signedOut');
   useAppStore.setState({
-    profile: null,
     draft: emptyDraft(),
     entries: createMockEntries(),
     saveStatus: 'idle',
@@ -69,16 +72,9 @@ async function renderApp(initialUrl: string) {
   return app;
 }
 
-test('logs in, writes a diary, waits on home, and opens the completed entry from the calendar', async () => {
-  const app = await renderApp('/');
-  await fireEvent.press(
-    screen.getByRole('button', { name: 'Google로 시작하기' }),
-  );
-  await advance(650);
-  expect(app.getPathname()).toBe('/onboarding');
-  await fireEvent.changeText(screen.getByLabelText('닉네임'), '하루');
-  await fireEvent.press(screen.getByRole('button', { name: '시작하기' }));
-  expect(app.getPathname()).toBe('/home');
+test('an authenticated member writes a diary and opens the completed entry from the calendar', async () => {
+  setAuthPreview();
+  const app = await renderApp('/home');
   await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
   expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
   await fireEvent.press(screen.getByRole('radio', { name: '평온' }));
@@ -112,7 +108,7 @@ test('logs in, writes a diary, waits on home, and opens the completed entry from
 }, 30000);
 
 test('calendar empty-day sheet closes and logout removes protected screen access', async () => {
-  useAppStore.getState().login('하루');
+  setAuthPreview();
   const app = await renderApp('/calendar');
   await fireEvent.press(
     screen.getByRole('button', { name: '10월 18일 일요일 기록 없음' }),
@@ -137,7 +133,7 @@ test('calendar empty-day sheet closes and logout removes protected screen access
 }, 20000);
 
 test('search supports suggestions, a failed answer retry, and empty results', async () => {
-  useAppStore.getState().login('하루');
+  setAuthPreview();
   useMockControls.getState().failNext('search');
   await renderApp('/search');
   await fireEvent.press(
