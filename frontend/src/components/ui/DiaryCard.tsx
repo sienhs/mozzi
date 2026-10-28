@@ -7,14 +7,24 @@ import { AppText } from './Text';
 import { Icon } from './Icon';
 import { PictureState } from './Feedback';
 
+const tagLabels = (entry: DiaryEntry) =>
+  entry.tags.map(tag => tag.label).join(' · ');
 export const diaryArtwork = require('../../../assets/figma/warm-evening.png');
-// The frame owns the 3:2 ratio: an Image sized with width + aspectRatio keeps the source's pixel height.
-export function DiaryArtwork({ rounded = true }: { rounded?: boolean }) {
+// 기록 그림은 1:1이다 (AI 결과 768×768). Mock 그림은 3:2라 가운데를 잘라 보여 준다.
+export const DIARY_ARTWORK_RATIO = 1;
+// The frame owns the ratio: an Image sized with width + aspectRatio keeps the source's pixel height.
+export function DiaryArtwork({
+  rounded = true,
+  ratio = DIARY_ARTWORK_RATIO,
+}: {
+  rounded?: boolean;
+  ratio?: number;
+}) {
   return (
     <View
       style={{
         width: '100%',
-        aspectRatio: 3 / 2,
+        aspectRatio: ratio,
         borderRadius: rounded ? radii.card : 0,
         overflow: 'hidden',
       }}
@@ -32,7 +42,7 @@ export function DiaryMeta({ entry }: { entry: DiaryEntry }) {
   return (
     <View className="flex-row flex-wrap items-center gap-2">
       <EmotionPill emotion={entry.emotion} />
-      <AppText variant="small">{entry.activities.join(' · ')}</AppText>
+      <AppText variant="small">{tagLabels(entry)}</AppText>
     </View>
   );
 }
@@ -119,8 +129,10 @@ export function DiaryRow({
         <AppText variant="label" numberOfLines={1}>
           {entry.title}
         </AppText>
-        <AppText variant="caption">
-          {formatDate(entry.date)} · {entry.activities.join(' · ')}
+        <AppText variant="caption" numberOfLines={1}>
+          {[formatDate(entry.date), tagLabels(entry)]
+            .filter(Boolean)
+            .join(' · ')}
         </AppText>
       </View>
       <Icon name="chevronRight" color={colors.muted} />

@@ -5,7 +5,7 @@ import { Screen, Heading } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { ActivityChip, Checkbox } from '@/components/ui/Selection';
+import { Checkbox, TagChip } from '@/components/ui/Selection';
 import { EmotionImage, EmotionPicker } from '@/components/emotion/Emotion';
 import { emotionOrder } from '@/constants/emotions';
 import { todayKey } from '@/constants/date';
@@ -14,6 +14,7 @@ import { useAppStore } from '@/stores/useAppStore';
 import { useMockControls } from '@/mocks/controls';
 import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
 import { createMockEntries } from '@/mocks/diaries';
+import type { MockOperation } from '@/mocks/controls';
 import type { DiaryEntry, Emotion } from '@/types/diary';
 
 // Development-only catalogue. It is protected in the root Stack and has no production entry point.
@@ -30,45 +31,78 @@ export function PreviewScreen() {
     prepare();
     router.push(href);
   }
-  function setToday(generation: DiaryEntry['generation']) {
+  // 오늘 기록을 원하는 단계로 만든다. 저장 전(draft) 기록은 G-02에서 한 줄을 쓰고 저장할 수 있다.
+  function setToday(
+    generation: DiaryEntry['generation'],
+    status: DiaryEntry['status'] = 'draft',
+    failure: DiaryEntry['failure'] = null,
+  ) {
     prepare();
+    useAppStore.getState().resetDraft();
     const sample = createMockEntries().find(
       entry => entry.date === '2026-10-22',
     )!;
     const today = todayKey();
-    const entry = { ...sample, id: `diary-${today}`, date: today, generation };
+    const entry: DiaryEntry = {
+      ...sample,
+      id: `diary-${today}`,
+      date: today,
+      generation,
+      status,
+      failure,
+      memo: status === 'completed' ? sample.memo : '',
+    };
     useAppStore.setState(state => ({
       entries: [entry, ...state.entries.filter(item => item.date !== today)],
     }));
     return entry;
   }
-  function draft(fail?: 'save' | 'generation') {
+  function draft(fail?: MockOperation) {
     prepare();
+    useAppStore.setState(state => ({
+      entries: state.entries.filter(entry => entry.date !== todayKey()),
+    }));
+    useAppStore.getState().resetDraft();
     useAppStore.setState({
       draft: {
+        recordDate: todayKey(),
         emotion: 'calm',
-        activities: ['휴식', '가족'],
-        memo: '퇴근하고 오므라이스를 만들어 먹었어',
+        tags: {
+          activities: ['activity.cooking', 'activity.eating'],
+          place: 'place.home',
+          companions: ['companion.family'],
+          weather: null,
+          custom: [],
+        },
+        memo: '',
       },
-      saveStatus: 'idle',
-      saveError: '',
     });
     if (fail) useMockControls.getState().failNext(fail);
-    router.push('/record/memo');
+    router.push('/record/tags');
   }
   function generating(home = false) {
     const entry = setToday('generating');
-    void useAppStore.getState().generateImage(entry.id);
+    void useAppStore.getState().resumeImage(entry.id);
     router.push(
       home
         ? '/home'
         : { pathname: '/record/generation', params: { id: entry.id } },
     );
   }
-  function generationPreview(status: 'ready' | 'failed') {
-    const entry = setToday(status);
+  function generationPreview(
+    generation: DiaryEntry['generation'],
+    failure: DiaryEntry['failure'] = null,
+  ) {
+    const entry = setToday(generation, 'draft', failure);
     router.push({ pathname: '/record/generation', params: { id: entry.id } });
   }
+  const retryable = {
+    code: 'GENERATION_TIMEOUT',
+    message: '그림을 완성하지 못했어요.',
+    retryable: true,
+    remainingRetries: 3,
+    blockedTags: [],
+  };
   return (
     <Screen title="00–04 화면 미리보기" back>
       <Heading
@@ -97,11 +131,20 @@ export function PreviewScreen() {
       />
       <Input label="오류 상태" value="" error="내용을 확인해 주세요" />
       <Checkbox checked={checked} onChange={setChecked} label="체크박스" />
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <ActivityChip
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        <TagChip
           label="운동"
           selected={checked}
+          main
           onPress={() => setChecked(!checked)}
+        />
+        <TagChip label="그림 그리기" selected={false} onPress={() => {}} />
+        <TagChip
+          label="공원"
+          single
+          selected={false}
+          disabled
+          onPress={() => {}}
         />
       </View>
       <EmotionPicker value={emotion} onChange={setEmotion} />
@@ -145,12 +188,15 @@ export function PreviewScreen() {
         variant="secondary"
         onPress={() => {
           prepare();
+          useAppStore.setState(state => ({
+            entries: state.entries.filter(entry => entry.date !== todayKey()),
+          }));
           useAppStore.getState().resetDraft();
           router.push('/record/emotion');
         }}
       />
       <Button
-        label="R-02 활동·메모 / R-03 저장 중"
+        label="R-02 태그 선택 / 그림 요청 중"
         variant="secondary"
         onPress={() => draft()}
       />
@@ -160,9 +206,17 @@ export function PreviewScreen() {
         onPress={() => generating()}
       />
       <Button
-        label="G-02 그림 생성 완료"
+        label="G-02 그림 확인 · 오늘의 한 줄"
         variant="secondary"
         onPress={() => generationPreview('ready')}
+      />
+      <Button
+        label="H-04 홈 · 그림 완성 · 저장 전"
+        variant="secondary"
+        onPress={() => {
+          setToday('ready');
+          router.push('/home');
+        }}
       />
       <Button
         label="H-03 홈 · 그림 생성 중"
@@ -173,7 +227,7 @@ export function PreviewScreen() {
         label="H-02 홈 · 기록 후"
         variant="secondary"
         onPress={() => {
-          setToday('ready');
+          setToday('ready', 'completed');
           router.push('/home');
         }}
       />
@@ -215,24 +269,37 @@ export function PreviewScreen() {
         label="E-01 홈 · 그림 생성 실패"
         variant="secondary"
         onPress={() => {
-          setToday('failed');
+          setToday('failed', 'draft', retryable);
           router.push('/home');
         }}
       />
       <Button
-        label="E-02 저장 실패 (저장 버튼으로 실행)"
+        label="E-02 그림 요청 실패 (그림 그리기로 실행)"
         variant="secondary"
-        onPress={() => draft('save')}
+        onPress={() => draft('start')}
       />
       <Button
         label="E-03 그림 생성 실패"
         variant="secondary"
-        onPress={() => generationPreview('failed')}
+        onPress={() => generationPreview('failed', retryable)}
       />
       <Button
-        label="E-03 생성 실패 경로 (저장부터 실행)"
+        label="E-03 생성 실패 경로 (그림 그리기부터 실행)"
         variant="secondary"
         onPress={() => draft('generation')}
+      />
+      <Button
+        label="E-07 유해 판정 → 다시 작성 (그림 그리기부터 실행)"
+        variant="secondary"
+        onPress={() => draft('generationBlocked')}
+      />
+      <Button
+        label="E-08 저장 실패 (기록 저장하기로 실행)"
+        variant="secondary"
+        onPress={() => {
+          generationPreview('ready');
+          useMockControls.getState().failNext('complete');
+        }}
       />
       <Button
         label="E-04 검색 · 빈 결과"

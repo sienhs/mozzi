@@ -51,13 +51,3 @@ export const emotions: Record<
     face: require('../../assets/angry.png'),
   },
 };
-export const activities = [
-  '공부',
-  '업무',
-  '운동',
-  '휴식',
-  '친구',
-  '취미',
-  '가족',
-  '기타',
-] as const;

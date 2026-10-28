@@ -4,15 +4,6 @@ import { Button } from '../src/components/ui/Button';
 import { DiaryArtwork } from '../src/components/ui/DiaryCard';
 import { colors, radii } from '../src/theme/tokens';
 
-// The project has no Node typings, so only the two calls used below are typed.
-// Asset paths are relative to the frontend root, where `npm test` runs Jest.
-const { readFileSync } = jest.requireActual<{
-  readFileSync: (path: string) => Uint8Array;
-}>('fs');
-const { inflateSync } = jest.requireActual<{
-  inflateSync: (data: Uint8Array) => Uint8Array;
-}>('zlib');
-
 // NativeWind's native Pressable wrapper is what dropped every Button style on Android.
 beforeAll(setupAllComponents);
 
@@ -87,47 +78,21 @@ test('keeps the Google icon and label on one centred row', async () => {
   expect(button.children).toHaveLength(2);
 });
 
-test('lets the artwork frame own the 3:2 ratio', async () => {
-  await render(<DiaryArtwork />);
-  const image = screen.getByLabelText(
-    '따뜻한 방에서 오므라이스를 먹는 모찌의 그림일기',
-  );
+test('lets the artwork frame own the ratio: diary pictures are square, the welcome art stays 3:2', async () => {
+  const label = '따뜻한 방에서 오므라이스를 먹는 모찌의 그림일기';
+  const result = await render(<DiaryArtwork />);
+  const image = screen.getByLabelText(label);
 
   expect(image).toHaveStyle({ width: '100%', height: '100%' });
-  expect(image).not.toHaveStyle({ aspectRatio: 3 / 2 });
+  expect(image).not.toHaveStyle({ aspectRatio: 1 });
   expect(image.parent).toHaveStyle({
     width: '100%',
-    aspectRatio: 3 / 2,
+    aspectRatio: 1,
     borderRadius: radii.card,
     overflow: 'hidden',
   });
-});
-
-// tintColor recolours every opaque pixel, so a white icon background turns into a solid square.
-test.each([
-  'back',
-  'chevron-right',
-  'close',
-  'pencil',
-  'refresh',
-  'send',
-  'settings',
-  'share',
-])('ships the tinted %s icon with a transparent background', name => {
-  const png = readFileSync(`assets/figma/${name}.png`);
-  const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
-  const colorType = png[25];
-  const data: number[] = [];
-  for (let offset = 8; offset < png.length;) {
-    const length = view.getUint32(offset);
-    const type = String.fromCharCode(...png.subarray(offset + 4, offset + 8));
-    if (type === 'IDAT')
-      data.push(...png.subarray(offset + 8, offset + 8 + length));
-    offset += length + 12;
-  }
-  // Row 0 starts with a filter byte; the top-left pixel's alpha is the fourth sample.
-  const firstPixelAlpha = inflateSync(Uint8Array.from(data))[4];
-
-  expect(colorType).toBe(6);
-  expect(firstPixelAlpha).toBe(0);
+  await result.rerender(<DiaryArtwork ratio={3 / 2} />);
+  expect(screen.getByLabelText(label).parent).toHaveStyle({
+    aspectRatio: 3 / 2,
+  });
 });

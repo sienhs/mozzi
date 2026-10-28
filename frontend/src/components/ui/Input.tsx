@@ -57,33 +57,41 @@ export function MemoInput({
   value,
   onChangeText,
   editable = true,
+  label = '남기고 싶은 한 줄 (선택)',
+  placeholder = '오늘의 작은 장면을 남겨 보세요',
+  maxLength = 100,
 }: {
   value: string;
   onChangeText: (value: string) => void;
   editable?: boolean;
+  label?: string;
+  placeholder?: string;
+  maxLength?: number;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <View style={{ gap: 8 }}>
       <AppText variant="small" style={{ color: colors.ink }}>
-        남기고 싶은 한 줄 (선택)
+        {label}
       </AppText>
       <View style={[styles.memo, focused && { borderColor: colors.primary }]}>
         <TextInput
-          accessibilityLabel="남기고 싶은 한 줄 (선택)"
+          accessibilityLabel={label}
           multiline
-          maxLength={100}
+          maxLength={maxLength}
           value={value}
           onChangeText={onChangeText}
           editable={editable}
-          placeholder="오늘의 작은 장면을 남겨 보세요"
+          placeholder={placeholder}
           placeholderTextColor={colors.muted}
           textAlignVertical="top"
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={[typography.body, { flex: 1, padding: 0 }]}
         />
-        <AppText variant="caption">{value.length} / 100</AppText>
+        <AppText variant="caption">
+          {value.length} / {maxLength}
+        </AppText>
       </View>
     </View>
   );

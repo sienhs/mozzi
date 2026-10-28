@@ -3,21 +3,48 @@ import { Image, Pressable, View } from 'react-native';
 import { Screen, Heading } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
-import { DiaryCard, DiaryRow } from '@/components/ui/DiaryCard';
+import { DiaryArtwork, DiaryCard, DiaryRow } from '@/components/ui/DiaryCard';
 import { GenerationProgress, PictureState } from '@/components/ui/Feedback';
 import { formatDate, todayKey } from '@/constants/date';
-import { useAppStore } from '@/stores/useAppStore';
+import {
+  canRetry,
+  canRewrite,
+  entryPhase,
+  useAppStore,
+} from '@/stores/useAppStore';
+import { retryEntry, rewriteEntry } from '@/features/diary/recordActions';
 
 export function DiaryHomeScreen() {
   const entries = useAppStore(state => state.entries);
   const today = todayKey();
   const entry = entries.find(item => item.date === today);
-  const recent = [...entries]
-    .filter(item => item.date < today)
+  const recent = entries
+    .filter(item => item.date < today && item.status === 'completed')
     .sort((a, b) => b.date.localeCompare(a.date))[0];
-  const status = entry?.generation;
+  const phase = entry ? entryPhase(entry, false) : null;
   const openEntry = (id: string) =>
     router.push({ pathname: '/diary/[id]', params: { id } });
+  const openGeneration = (id: string) =>
+    router.push({ pathname: '/record/generation', params: { id } });
+  const copy = !entry
+    ? { title: '오늘은 어떤 하루였나요?' }
+    : phase === 'generating'
+      ? { title: '오늘의 모찌를 그리고 있어요' }
+      : phase === 'failed'
+        ? canRewrite(entry)
+          ? {
+              title: '이 내용으로는 그림을 그릴 수 없어요',
+              description: '기분과 태그를 고쳐서 다시 써 주세요.',
+            }
+          : canRetry(entry)
+            ? {
+                title: '이번 그림은 완성하지 못했어요',
+                description: '고른 태그로 다시 그려요.',
+              }
+            : { title: '오늘은 그림을 더 그릴 수 없어요' }
+        : phase === 'reviewing'
+          ? { title: '그림이 완성됐어요' }
+          : { title: '오늘도 한 장 남겼어요' };
   return (
     <Screen
       tabbed
@@ -41,16 +68,23 @@ export function DiaryHomeScreen() {
             label="오늘 기록하기"
             onPress={() => router.push('/record/emotion')}
           />
-        ) : status === 'failed' ? (
+        ) : phase === 'failed' && canRewrite(entry) ? (
+          <Button
+            label="다시 작성하기"
+            onPress={() => rewriteEntry(entry, 'list')}
+          />
+        ) : phase === 'failed' && canRetry(entry) ? (
           <Button
             label="다시 그리기"
             onPress={() => {
-              void useAppStore.getState().generateImage(entry.id);
-              router.push({
-                pathname: '/record/generation',
-                params: { id: entry.id },
-              });
+              retryEntry(entry);
+              openGeneration(entry.id);
             }}
+          />
+        ) : phase === 'reviewing' ? (
+          <Button
+            label="한 줄 남기고 저장하기"
+            onPress={() => openGeneration(entry.id)}
           />
         ) : undefined
       }
@@ -58,37 +92,35 @@ export function DiaryHomeScreen() {
       <View style={{ gap: 8 }}>
         <AppText variant="small">{formatDate(today)}</AppText>
         <Heading
-          title={
-            !entry
-              ? '오늘은 어떤 하루였나요?'
-              : status === 'generating'
-                ? '오늘의 모찌를\n그리고 있어요'
-                : status === 'failed'
-                  ? '이번 그림은\n완성하지 못했어요'
-                  : '오늘도 한 장 남겼어요'
-          }
-          description={
-            status === 'failed'
-              ? '기록은 저장돼 있어요. 그림만 다시 그려요.'
-              : undefined
-          }
+          titleStyle={!entry ? { fontSize: 28, lineHeight: 40 } : undefined}
+          title={copy.title}
+          description={copy.description}
         />
       </View>
-      {!entry && <PictureState caption="기분 하나만 골라도 그림이 돼요" />}
-      {entry && status === 'ready' && (
+      {!entry && (
+        <PictureState
+          caption="태그 몇 개면 그림이 돼요"
+          captionStyle={{ fontSize: 18, lineHeight: 28, textAlign: 'center' }}
+        />
+      )}
+      {entry && phase === 'completed' && (
         <DiaryCard entry={entry} onPress={() => openEntry(entry.id)} />
       )}
-      {entry && status === 'generating' && (
+      {entry && phase === 'reviewing' && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="완성된 그림 보기"
+          onPress={() => openGeneration(entry.id)}
+        >
+          <DiaryArtwork />
+        </Pressable>
+      )}
+      {entry && phase === 'generating' && (
         <>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="그림 생성 화면 보기"
-            onPress={() =>
-              router.push({
-                pathname: '/record/generation',
-                params: { id: entry.id },
-              })
-            }
+            onPress={() => openGeneration(entry.id)}
           >
             <PictureState
               emotion={entry.emotion}
@@ -100,7 +132,7 @@ export function DiaryHomeScreen() {
           <GenerationProgress home />
         </>
       )}
-      {entry && status === 'failed' && (
+      {entry && phase === 'failed' && (
         <PictureState emotion={entry.emotion} companionId={entry.companionId} />
       )}
       {!entry && recent && (

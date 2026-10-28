@@ -8,6 +8,22 @@ export function todayKey(date = new Date()): string {
   const value = (type: string) => parts.find(part => part.type === type)?.value;
   return `${value('year')}-${value('month')}-${value('day')}`;
 }
+// 서버는 오늘(서울)만 받고, 00~03시에는 전날도 받는다 (backend RecordDatePolicy).
+// 전날 시작한 초안을 03시 이후에 보내면 오늘 기록으로 보낸다.
+export const RECORD_GRACE_HOUR = 3;
+export function allowedRecordDate(started: string | null, now = new Date()) {
+  const today = todayKey(now);
+  if (!started || started === today) return today;
+  const hour = Number(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(now),
+  );
+  const yesterday = todayKey(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+  return started === yesterday && hour < RECORD_GRACE_HOUR ? started : today;
+}
 export function formatDate(key: string, weekday = true): string {
   const [year, month, day] = key.split('-').map(Number);
   const name = ['일', '월', '화', '수', '목', '금', '토'][

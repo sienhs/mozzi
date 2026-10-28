@@ -49,7 +49,8 @@ export function WelcomeScreen() {
           '하루를 한 장의 그림으로 남겨요.\n모찌가 오늘의 장면을 그려 줄게요.'
         }
       />
-      <DiaryArtwork />
+      {/* 시작 화면 그림은 기록 그림(1:1)과 별개로 기존 3:2를 유지한다. */}
+      <DiaryArtwork ratio={3 / 2} />
     </Screen>
   );
 }

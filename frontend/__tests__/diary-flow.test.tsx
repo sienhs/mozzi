@@ -14,7 +14,7 @@ import Onboarding from '@/app/onboarding';
 import Tabs from '@/app/(tabs)/_layout';
 import Home from '@/app/(tabs)/home';
 import Emotion from '@/app/record/emotion';
-import Memo from '@/app/record/memo';
+import Tags from '@/app/record/tags';
 import Generation from '@/app/record/generation';
 import Calendar from '@/app/(tabs)/calendar';
 import Detail from '@/app/diary/[id]';
@@ -22,9 +22,9 @@ import Search from '@/app/(tabs)/search';
 import Gacha from '@/app/(tabs)/gacha';
 import Settings from '@/app/settings';
 import Dev from '@/app/dev';
-import { emptyDraft, useAppStore } from '@/stores/useAppStore';
+import { useAppStore } from '@/stores/useAppStore';
+import { useTagStore } from '@/stores/useTagStore';
 import { useMockControls } from '@/mocks/controls';
-import { createMockEntries } from '@/mocks/diaries';
 import { queryClient } from '@/services/queryClient';
 
 const routes = {
@@ -34,7 +34,7 @@ const routes = {
   '(tabs)/_layout': Tabs,
   '(tabs)/home': Home,
   'record/emotion': Emotion,
-  'record/memo': Memo,
+  'record/tags': Tags,
   'record/generation': Generation,
   '(tabs)/calendar': Calendar,
   'diary/[id]': Detail,
@@ -47,12 +47,8 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.setSystemTime(new Date('2026-10-26T12:00:00Z'));
   setAuthPreview('signedOut');
-  useAppStore.setState({
-    draft: emptyDraft(),
-    entries: createMockEntries(),
-    saveStatus: 'idle',
-    saveError: '',
-  });
+  useAppStore.getState().resetSession();
+  useTagStore.getState().resetSession();
   useMockControls.getState().reset();
   queryClient.clear();
 });
@@ -72,39 +68,109 @@ async function renderApp(initialUrl: string) {
   return app;
 }
 
-test('an authenticated member writes a diary and opens the completed entry from the calendar', async () => {
+async function chooseDay() {
+  await fireEvent.press(screen.getByRole('radio', { name: '평온' }));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByRole('button', { name: '그림 그리기' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('checkbox', { name: '요리' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '집' }));
+  await fireEvent.press(screen.getByRole('checkbox', { name: '가족' }));
+}
+async function drawPicture(app: Awaited<ReturnType<typeof renderApp>>) {
+  await fireEvent.press(screen.getByRole('button', { name: '그림 그리기' }));
+  expect(
+    screen.getByRole('button', { name: '그림을 부탁하고 있어요' }),
+  ).toBeDisabled();
+  await advance(1000);
+  expect(app.getPathname()).toBe('/record/generation');
+}
+
+test('tags draw the picture first, then the one-line diary is written and saved', async () => {
   setAuthPreview();
   const app = await renderApp('/home');
   await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
   expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
-  await fireEvent.press(screen.getByRole('radio', { name: '평온' }));
-  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-  await fireEvent.press(screen.getByRole('checkbox', { name: '가족' }));
+  await chooseDay();
+  expect(screen.queryByLabelText(/한 줄/)).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '내 태그 추가' }));
   await fireEvent.changeText(
-    screen.getByLabelText('남기고 싶은 한 줄 (선택)'),
-    '함께 먹은 저녁',
+    screen.getByLabelText('내 태그 입력'),
+    '  오므라이스 ',
   );
-  await fireEvent.press(screen.getByRole('button', { name: '기록 저장하기' }));
-  expect(
-    screen.getByRole('button', { name: '저장하고 있어요' }),
-  ).toBeDisabled();
-  await advance(1000);
-  expect(app.getPathname()).toBe('/record/generation');
+  await fireEvent.press(screen.getByRole('button', { name: '추가' }));
+  await advance(400);
+  expect(screen.getByRole('checkbox', { name: '오므라이스' })).toBeChecked();
+  await drawPicture(app);
+  expect(screen.getByText('요리 · 집 · 가족 · 오므라이스')).toBeOnTheScreen();
   await fireEvent.press(
     screen.getByRole('button', { name: '홈에서 기다리기' }),
   );
   expect(app.getPathname()).toBe('/home');
   await advance(6000);
-  expect(screen.getByText('오늘도 한 장 남겼어요')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('tab', { name: '캘린더' }));
+  expect(screen.getByText('그림이 완성됐어요')).toBeOnTheScreen();
   await fireEvent.press(
-    screen.getByRole('button', { name: '10월 26일 월요일 평온' }),
+    screen.getByRole('button', { name: '한 줄 남기고 저장하기' }),
   );
+  expect(app.getPathname()).toBe('/record/generation');
+  await fireEvent.changeText(
+    screen.getByLabelText('오늘의 한 줄 (선택)'),
+    '비 오는 날 오므라이스',
+  );
+  await fireEvent.press(screen.getByRole('button', { name: '기록 저장하기' }));
+  await advance(1000);
+  expect(screen.getByText('오늘도 한 장 남겼어요')).toBeOnTheScreen();
   await fireEvent.press(
-    screen.getByRole('button', { name: '10월 26일 월요일 함께 먹은 저녁' }),
+    screen.getByRole('button', { name: '기록 자세히 보기' }),
   );
   expect(app.getPathname()).toBe('/diary/diary-2026-10-26');
-  expect(screen.getByText('함께 먹은 저녁')).toBeOnTheScreen();
+  expect(screen.getByText('비 오는 날 오므라이스')).toBeOnTheScreen();
+  expect(screen.getByText('요리 · 집 · 가족 · 오므라이스')).toBeOnTheScreen();
+}, 30000);
+
+test('after the picture is requested, back goes home and the tag screens cannot be reopened', async () => {
+  setAuthPreview();
+  const app = await renderApp('/home');
+  await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
+  await chooseDay();
+  await drawPicture(app);
+  await act(async () => {
+    router.back();
+  });
+  expect(app.getPathname()).toBe('/home');
+  expect(screen.queryByRole('button', { name: '오늘 기록하기' })).toBeNull();
+  await act(async () => {
+    router.push('/record/tags');
+  });
+  expect(app.getPathname()).toBe('/record/generation');
+  await act(async () => {
+    router.push('/record/emotion');
+  });
+  expect(app.getPathname()).toBe('/record/generation');
+}, 30000);
+
+test('a blocked picture lets the day be rewritten with the earlier choices filled in', async () => {
+  setAuthPreview();
+  useMockControls.getState().failNext('generationBlocked');
+  const app = await renderApp('/home');
+  await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
+  await chooseDay();
+  await drawPicture(app);
+  await advance(6000);
+  expect(
+    screen.getByText('이 내용으로는 그림을 그릴 수 없어요'),
+  ).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '다시 그리기' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 작성하기' }));
+  expect(app.getPathname()).toBe('/record/emotion');
+  expect(screen.getByRole('radio', { name: '평온' })).toBeSelected();
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByRole('checkbox', { name: '요리' })).toBeChecked();
+  expect(screen.getByRole('radio', { name: '집' })).toBeSelected();
+  await fireEvent.press(screen.getByRole('radio', { name: '눈' }));
+  await drawPicture(app);
+  await advance(6000);
+  expect(screen.getByText('그림이 완성됐어요')).toBeOnTheScreen();
+  expect(screen.getByText('요리 · 집 · 가족 · 눈')).toBeOnTheScreen();
 }, 30000);
 
 test('calendar empty-day sheet closes and logout removes protected screen access', async () => {

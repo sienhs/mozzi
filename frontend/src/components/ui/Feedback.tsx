@@ -114,6 +114,7 @@ export function PictureState({
   tone = 'white',
   caption,
   captionStyle,
+  ratio = 1,
 }: {
   emotion?: Emotion;
   companionId?: CompanionId;
@@ -121,12 +122,14 @@ export function PictureState({
   tone?: 'white' | 'sage';
   caption?: string;
   captionStyle?: StyleProp<TextStyle>;
+  // 기록 그림 자리는 그림과 같은 1:1이다.
+  ratio?: number;
 }) {
   return (
     <View
       style={{
         width: '100%',
-        aspectRatio: 3 / 2,
+        aspectRatio: ratio,
         borderRadius: 20,
         backgroundColor: tone === 'sage' ? colors.sageSoft : colors.white,
         alignItems: 'center',
@@ -150,13 +153,16 @@ export function PictureState({
 }
 export function GenerationProgress({ home = false }: { home?: boolean }) {
   const [progress, setProgress] = useState(15);
+  // setInterval 대신 한 번씩 예약한다: 생성 완료와 같은 순간에 interval을 정리하면
+  // Jest 가짜 타이머(@sinonjs/fake-timers 15.4)가 멈추는 경우가 있었다. 화면 동작은 같다.
   useEffect(() => {
-    const timer = setInterval(
+    if (progress >= 94) return;
+    const timer = setTimeout(
       () => setProgress(value => Math.min(value + 6, 94)),
       400,
     );
-    return () => clearInterval(timer);
-  }, []);
+    return () => clearTimeout(timer);
+  }, [progress]);
   return (
     <View style={{ gap: 8 }}>
       <View

@@ -20,6 +20,7 @@ import type {
 import { validNickname } from '@/types/auth';
 import { useAppStore } from './useAppStore';
 import { useGachaStore } from './useGachaStore';
+import { useTagStore } from './useTagStore';
 
 type AuthStatus =
   | 'restoring'
@@ -47,6 +48,7 @@ const resetUserData = () => {
   queryClient.clear();
   useAppStore.getState().resetSession();
   useGachaStore.getState().resetSession();
+  useTagStore.getState().resetSession();
 };
 async function finishLogin(tokens: AuthTokens, version: number) {
   await authSession.save(tokens, version);
