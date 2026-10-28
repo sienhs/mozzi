@@ -108,6 +108,14 @@ public class ImageRequestDispatcher {
         return configured == null || configured.isBlank() ? DEFAULT_CHARACTER_IMAGE : configured;
     }
 
+    /**
+     * Empty for the default character: the AI server draws it from its own description, and
+     * a second one from here could disagree with it.
+     */
+    private static String characterPrompt(String characterImageUrl, String configured) {
+        return DEFAULT_CHARACTER_IMAGE.equals(characterImageUrl) ? "" : nullToEmpty(configured);
+    }
+
     private static long millisSince(long startedNanos) {
         return (System.nanoTime() - startedNanos) / 1_000_000;
     }
@@ -117,13 +125,14 @@ public class ImageRequestDispatcher {
         DiaryImage image = request.image();
         TimeOfDay timeOfDay = image.getTimeOfDay();
         Weather weather = image.getWeather();
+        String characterImageUrl = characterImageUrl(properties.defaultCharacterImageUrl());
         return new ImageRequestPublisher.Message(
                 diary.getId(),
                 diary.getMemberId(),
                 diary.getRecordDate().toString(),
                 diary.getEmotion().name(),
-                characterImageUrl(properties.defaultCharacterImageUrl()),
-                nullToEmpty(properties.defaultCharacterPrompt()),
+                characterImageUrl,
+                characterPrompt(characterImageUrl, properties.defaultCharacterPrompt()),
                 timeOfDay == null ? "" : timeOfDay.english(),
                 weather.english(),
                 nullToEmpty(english.where()),

@@ -19,39 +19,42 @@ class ImageResultMessageHandlerTest {
     @Test
     void appliesASuccess() {
         boolean done = handler.handle("""
-                {"diaryId": 102, "status": "SUCCEEDED", "imageUrl": "https://cdn.test/a.webp"}
+                {"diaryId": 102, "userId": 12, "status": "SUCCEEDED",
+                 "imageUrl": "https://cdn.test/diary/12/102/a.png", "errorCode": null, "errorMessage": null}
                 """);
 
         assertThat(done).isTrue();
-        verify(resultService).succeed(102L, "https://cdn.test/a.webp");
+        verify(resultService).succeed(102L, 12L, "https://cdn.test/diary/12/102/a.png");
     }
 
     @Test
     void appliesAFailure() {
         handler.handle("""
-                {"diaryId": 102, "status": "FAILED"}
+                {"diaryId": 102, "userId": 12, "status": "FAILED", "imageUrl": null,
+                 "errorCode": "GENERATION_FAILED", "errorMessage": "model timed out"}
                 """);
 
-        verify(resultService).fail(102L);
+        verify(resultService).fail(102L, 12L);
     }
 
     /** Fields the AI server adds later must not make every message unreadable. */
     @Test
     void toleratesExtraFields() {
         handler.handle("""
-                {"diaryId": 102, "status": "FAILED", "reason": "MODEL_ERROR"}
+                {"diaryId": 102, "userId": 12, "status": "FAILED", "retryable": true}
                 """);
 
-        verify(resultService).fail(102L);
+        verify(resultService).fail(102L, 12L);
     }
 
     /** These would never become valid by waiting, so they are dropped rather than retried forever. */
     @Test
     void dropsMessagesItCanNeverApply() {
         assertThat(handler.handle("not json")).isTrue();
-        assertThat(handler.handle("{\"status\": \"FAILED\"}")).isTrue();
-        assertThat(handler.handle("{\"diaryId\": 1, \"status\": \"GENERATING\"}")).isTrue();
-        assertThat(handler.handle("{\"diaryId\": 1, \"status\": \"SUCCEEDED\"}")).isTrue();
+        assertThat(handler.handle("{\"userId\": 12, \"status\": \"FAILED\"}")).isTrue();
+        assertThat(handler.handle("{\"diaryId\": 1, \"status\": \"FAILED\"}")).isTrue();
+        assertThat(handler.handle("{\"diaryId\": 1, \"userId\": 12, \"status\": \"GENERATING\"}")).isTrue();
+        assertThat(handler.handle("{\"diaryId\": 1, \"userId\": 12, \"status\": \"SUCCEEDED\"}")).isTrue();
 
         verifyNoInteractions(resultService);
     }

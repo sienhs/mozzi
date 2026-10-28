@@ -415,17 +415,32 @@ AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담�
 - `date`는 오늘 날짜(`YYYY-MM-DD`)다. 그림은 그날 일기에만 요청할 수 있어서 일기 날짜와 같다.
 - `emotion`은 일기의 감정 코드다 (`HAPPY`, `CALM`, `NEUTRAL`, `SAD`, `ANGRY`).
 - `what`만 항상 값이 있다. 나머지 선택 값은 없으면 `null`이 아니라 `""`로 보낸다.
-- `characterImageUrl`은 캐릭터 이미지가 없으면 `"DEFAULT"`다. AI 서버는 기본 캐릭터로 그린다.
+- `characterImageUrl`은 캐릭터 이미지가 없으면 `"DEFAULT"`다. AI 서버는 기본 캐릭터로 그린다. 이때 `characterPrompt`는 `""`다 (AI 서버가 기본 캐릭터의 설명을 자체로 갖고 있다).
 - `timeOfDay`, `where`, `who`는 고르지 않았으면 `""`. `weather`가 `NONE`(입력되지 않음)이어도 `""`.
 - 번역은 GMS `gpt-4.1-mini`로 한 번에 한다. 자주 쓰는 태그(집, 가족, 요리 등)는 프롬프트의 용어집대로 같은 영어로 옮긴다.
-- `timeOfDay`, `weather`, `characterPrompt`는 고정값이라 번역하지 않는다. `characterPrompt`는 설정값(`MOZZI_DEFAULT_CHARACTER_PROMPT`)을 영어로 적어 두고 그대로 보낸다.
+- `timeOfDay`, `weather`, `characterPrompt`는 고정값이라 번역하지 않는다. `characterPrompt`는 캐릭터 이미지가 있을 때만 설정값(`MOZZI_DEFAULT_CHARACTER_PROMPT`, 영어)을 그대로 보낸다.
 
 `ai-response` (AI → 서버)
 
 ```json
-{ "diaryId": 102, "status": "SUCCEEDED", "imageUrl": "https://.../diary/....webp" }
-{ "diaryId": 102, "status": "FAILED" }
+{
+  "diaryId": 102,
+  "userId": 12,
+  "status": "SUCCEEDED",
+  "imageUrl": "https://{bucket}.s3.ap-northeast-2.amazonaws.com/diary/12/102/6f1c2a9e1b2c.png",
+  "errorCode": null,
+  "errorMessage": null
+}
 ```
+
+| 필드 | 설명 |
+|---|---|
+| `diaryId` | 필수 |
+| `userId` | 필수. 일기 주인과 다르면 결과를 버린다 (그림 저장·푸시 모두 하지 않음) |
+| `status` | `SUCCEEDED`, `FAILED` |
+| `imageUrl` | `SUCCEEDED`면 필수. AI 서버가 S3에 올린 공개 URL을 그대로 `diary_image.image_url`에 저장한다 |
+| `errorCode` | `FAILED`일 때. 서버 로그에만 남긴다 |
+| `errorMessage` | `FAILED`일 때. 사용자 입력이 섞일 수 있어 로그에도 남기지 않는다. 사용자에게는 서버가 정한 실패 문구를 푸시로 보낸다 |
 
 - 서버는 `ai-response`를 롱 폴링(20초)으로 계속 받는다. 처리한 메시지만 지운다.
 - 결과는 그 일기의 **현재 요청**에 반영한다. SQS가 같은 결과를 두 번 보내도 한 번만 반영된다.

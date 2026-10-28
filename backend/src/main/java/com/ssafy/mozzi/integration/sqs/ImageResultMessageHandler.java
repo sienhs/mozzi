@@ -11,7 +11,11 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * Applies one {@code ai-response} message:
- * {@code {"diaryId", "status": "SUCCEEDED" | "FAILED", "imageUrl"}}.
+ * {@code {"diaryId", "userId", "status": "SUCCEEDED" | "FAILED", "imageUrl", "errorCode", "errorMessage"}}.
+ *
+ * <p>{@code errorCode} is logged for a failure. {@code errorMessage} is not: it is the AI
+ * server's own text and may repeat the prompt, which holds what the member wrote. The member
+ * is told of a failure in the server's own words ({@code ImagePushListener}).
  *
  * <p>Read as a tree rather than bound to a type, so a field the AI server adds later does not
  * make every message unreadable.
@@ -42,10 +46,15 @@ class ImageResultMessageHandler {
             return true;
         }
         JsonNode diaryId = message.get("diaryId");
+        JsonNode userId = message.get("userId");
         String status = message.path("status").asString("");
         String imageUrl = message.path("imageUrl").asString(null);
         if (diaryId == null || !diaryId.canConvertToLong()) {
             log.warn("image result without diaryId dropped");
+            return true;
+        }
+        if (userId == null || !userId.canConvertToLong()) {
+            log.warn("image result without userId dropped: diaryId={}", diaryId.asLong());
             return true;
         }
         log.info("image pipeline: step=result-received diaryId={} status={}", diaryId.asLong(), status);
@@ -55,9 +64,13 @@ class ImageResultMessageHandler {
                     log.warn("successful image result without imageUrl dropped: diaryId={}", diaryId.asLong());
                     return true;
                 }
-                resultService.succeed(diaryId.asLong(), imageUrl);
+                resultService.succeed(diaryId.asLong(), userId.asLong(), imageUrl);
             }
-            case "FAILED" -> resultService.fail(diaryId.asLong());
+            case "FAILED" -> {
+                log.info("image pipeline: step=ai-failed diaryId={} errorCode={}",
+                        diaryId.asLong(), message.path("errorCode").asString(""));
+                resultService.fail(diaryId.asLong(), userId.asLong());
+            }
             default -> log.warn("image result with unknown status dropped: diaryId={}", diaryId.asLong());
         }
         return true;
