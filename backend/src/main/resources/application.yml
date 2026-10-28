@@ -71,6 +71,26 @@ mozzi:
     # Comma-separated if more than one is accepted.
     client-ids: ${GOOGLE_CLIENT_IDS}
     jwks-uri: https://www.googleapis.com/oauth2/v3/certs
+  gms:
+    # SSAFY GMS, an OpenAI-compatible proxy. Emotion search uses it for both the chat model
+    # and the embeddings (docs/api/emotion-search.md).
+    base-url: https://gms.ssafy.io/gmsapi/api.openai.com/v1
+    # Comes from a Secret; prod has no default.
+    api-key: ${GMS_API_KEY}
+    chat-model: gpt-6-luna
+    reasoning-effort: none
+    max-output-tokens: 1000
+    embedding-model: text-embedding-3-large
+    # Must match diary_embedding.embedding (vector(1536)). Changing either one means a new
+    # migration and re-embedding every diary.
+    embedding-dimensions: 1536
+    connect-timeout: 2s
+    read-timeout: 5s
+  search:
+    # One question end to end (spec: 10 seconds). Past it the question answers 503.
+    time-budget: 10s
+    # Catches up on diary embeddings the change events missed (DiaryEmbeddingSweeper).
+    embedding-sweep-cron: "0 */5 * * * *"
   terms:
     # The version the app must show and send for each required document at sign-up.
     current-versions:

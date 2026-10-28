@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6");
     }
 
     @Test
@@ -40,7 +40,8 @@ class SchemaMigrationTest {
         assertThat(tables).contains(
                 "member", "member_setting", "terms_agreement", "push_device",
                 "idempotency_record", "member_session", "signup_ticket",
-                "activity", "diary", "diary_activity", "diary_image");
+                "activity", "diary", "diary_activity", "diary_image",
+                "emotion_search", "emotion_search_result", "diary_embedding");
         // Replaced by member_session in V5; two refresh schemes must not coexist.
         assertThat(tables).doesNotContain("refresh_token");
     }
@@ -138,6 +139,32 @@ class SchemaMigrationTest {
                 .contains("UNIQUE")
                 .contains("(member_id, record_date)")
                 .contains("WHERE (deleted_at IS NULL)");
+    }
+
+    /**
+     * The dimension is part of the column type. A model that returns a different size must
+     * fail on insert, not end up compared against vectors it has nothing in common with.
+     */
+    @Test
+    void diaryEmbeddingIsAPgvectorColumnOf1536Dimensions() {
+        String type = jdbcTemplate.queryForObject("""
+                select format_type(atttypid, atttypmod) from pg_attribute
+                where attrelid = 'diary_embedding'::regclass and attname = 'embedding'
+                """, String.class);
+
+        assertThat(type).isEqualTo("vector(1536)");
+    }
+
+    /** The response has one big card, so a second featured row for a search is a bug. */
+    @Test
+    void oneFeaturedDiaryPerSearchIsAPartialUniqueIndex() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_emotion_search_result_featured'", String.class);
+
+        assertThat(definition)
+                .contains("UNIQUE")
+                .contains("(emotion_search_id)")
+                .contains("WHERE is_featured");
     }
 
     /** Spec 2.2: the eight chips, in display order. */

@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.hibernate.exception.ConstraintViolationException;
@@ -119,6 +120,7 @@ public class DiaryService {
         diary.showImage(image);
 
         eventPublisher.publishEvent(new ImageGenerationRequestedEvent(image.getId()));
+        eventPublisher.publishEvent(new DiaryContentChangedEvent(diary.getId()));
         return new DiaryCreateResponseDto(
                 diary.getId(), diary.getRecordDate(),
                 new DiaryCreateResponseDto.Image(image.getId(), image.getStatus()));
@@ -155,6 +157,26 @@ public class DiaryService {
     }
 
     /**
+     * List rows for diaries another feature has already picked (emotion search), in the
+     * order given. Ids of deleted diaries or of another member's are left out.
+     */
+    @Transactional(readOnly = true)
+    public List<DiarySummaryResponseDto> summaries(Long memberId, List<Long> diaryIds) {
+        if (diaryIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Diary> byId = diaryRepository.findAllById(diaryIds).stream()
+                .filter(diary -> diary.getMemberId().equals(memberId))
+                .collect(Collectors.toMap(Diary::getId, diary -> diary));
+        Map<Long, List<ActivityCode>> activities = activityCodesOf(List.copyOf(byId.values()));
+        return diaryIds.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(diary -> DiarySummaryResponseDto.of(diary, activities.getOrDefault(diary.getId(), List.of())))
+                .toList();
+    }
+
+    /**
      * Changes only the fields present in the request (spec 4.4). The picture is kept as it
      * is (policy 5).
      */
@@ -175,12 +197,14 @@ public class DiaryService {
         }
         // Flush so updatedAt in the response is the value auditing just wrote.
         diaryRepository.flush();
+        eventPublisher.publishEvent(new DiaryContentChangedEvent(diaryId));
         return toDetail(diary);
     }
 
     @Transactional
     public void delete(Long memberId, Long diaryId) {
         findForUpdate(memberId, diaryId).delete(clock);
+        eventPublisher.publishEvent(new DiaryContentChangedEvent(diaryId));
     }
 
     private Diary find(Long memberId, Long diaryId) {

@@ -29,8 +29,9 @@
 | | `activity` | 활동 칩 마스터 | V3 |
 | | `diary_activity` | 일기-활동 연결 | V3 |
 | | `diary_image` | 그림 생성 시도 이력 | V3 |
-| 감정 검색 | `emotion_search` | 질문·답변 | 예정 |
-| | `emotion_search_result` | 답변 근거 기록 | 예정 |
+| 감정 검색 | `emotion_search` | 질문·답변 | V6 |
+| | `emotion_search_result` | 답변 근거 기록 | V6 |
+| | `diary_embedding` | 일기 의미 검색용 임베딩 (1:1, 메모 있는 일기만) | V6 |
 | 뽑기 | `gacha_season` | 시즌 | 예정 |
 | | `gacha_tier` | 시즌별 등급 확률·조각 규칙 | 예정 |
 | | `mozzi_card` | 카드 마스터 | 예정 |
@@ -63,6 +64,7 @@ erDiagram
     member ||--o{ emotion_search : ""
     emotion_search ||--o{ emotion_search_result : ""
     diary ||--o{ emotion_search_result : ""
+    diary ||--o| diary_embedding : ""
 
     gacha_season ||--|{ gacha_tier : ""
     gacha_season ||--o{ mozzi_card : ""
@@ -123,6 +125,9 @@ erDiagram
         bigint emotion_search_id PK, FK
         bigint diary_id PK, FK
     }
+    diary_embedding {
+        bigint diary_id PK, FK
+    }
     gacha_season {
         bigint season_id PK
     }
@@ -175,7 +180,7 @@ erDiagram
 | role | varchar(20) | | | `USER`, `ADMIN` |
 | status | varchar(20) | | | `ACTIVE` → `WITHDRAWN` |
 | created_at | timestamptz | | | |
-| updated_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
 | deleted_at | timestamptz | | O | 탈퇴 시각 |
 
 - `uq_member_active_provider_subject (provider, provider_subject) where deleted_at is null` — 탈퇴 후 같은 Google 계정으로 재가입 가능
@@ -189,7 +194,7 @@ erDiagram
 | reminder_enabled | boolean | | | 기본 `true` |
 | reminder_time | time | | | 기본 `21:00` |
 | timezone | varchar(40) | | | 기본 `Asia/Seoul` |
-| updated_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
 
 ### terms_agreement
 
@@ -213,7 +218,7 @@ erDiagram
 | platform | varchar(10) | | | `IOS`, `ANDROID` |
 | token | varchar(512) | | | FCM 토큰 |
 | is_active | boolean | | | 로그아웃하면 `false` |
-| updated_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
 
 - `uq_push_device_member_device (member_id, device_id)` — 같은 기기는 덮어쓴다
 
@@ -226,7 +231,7 @@ erDiagram
 | refresh_token_hash | varchar(64) | | | Refresh 토큰의 SHA-256. 원문은 저장하지 않는다 |
 | refresh_expires_at | timestamptz | | | 재발급마다 +30일 |
 | created_at | timestamptz | | | |
-| updated_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
 
 - `uq_member_session_session_id (session_id)`
 - `ix_member_session_refresh_expires_at (refresh_expires_at)` — 만료 정리 배치
@@ -242,7 +247,7 @@ erDiagram
 | email | varchar(255) | | | |
 | expires_at | timestamptz | | | 발급 후 10분 |
 | created_at | timestamptz | | | |
-| updated_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
 
 - `uq_signup_ticket_token_hash (token_hash)`, `ix_signup_ticket_expires_at (expires_at)`
 - 가입이 끝나면 `member` 생성과 같은 트랜잭션에서 지운다. 만료분은 배치가 지운다
@@ -283,7 +288,7 @@ erDiagram
 | current_image_id | bigint | FK | O | 지금 보여 줄 `diary_image` |
 | image_status | varchar(12) | | | 현재 그림 상태 복사본. 홈·캘린더에서 조인 없이 쓴다 |
 | created_at | timestamptz | | | D-01 "오후 9:12에 남긴 기록" |
-| updated_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
 | deleted_at | timestamptz | | O | 소프트 삭제 |
 
 - `uq_diary_member_record_date (member_id, record_date) where deleted_at is null` — 하루 1기록. 삭제한 날은 다시 쓸 수 있다. 최신순 조회에도 이 인덱스를 쓴다
@@ -337,7 +342,7 @@ erDiagram
 
 ---
 
-## 감정 검색 (예정)
+## 감정 검색
 
 ### emotion_search
 
@@ -346,14 +351,15 @@ erDiagram
 | emotion_search_id | bigint | PK | | API의 `searchId` |
 | member_id | bigint | FK | | |
 | question | varchar(200) | | | |
-| interpreted_filter | jsonb | | O | LLM이 해석한 조건 (기간·감정·활동·키워드) |
+| interpreted_filter | jsonb | | O | LLM이 해석한 조건 (기간·감정·활동·키워드). 해석 전에 실패하면 `null` |
 | result_type | varchar(12) | | | `FOUND`, `EMPTY`, `STATS_ONLY`, `FAILED` |
 | answer | varchar(500) | | O | |
 | latency_ms | integer | | O | |
 | created_at | timestamptz | | | |
 
-- `ix_emotion_search_member_created_at (member_id, created_at)`
-- 90일 지난 행은 배치가 지운다 (API 결정 항목 #5)
+- `ix_emotion_search_member_created_at (member_id, created_at)` — 분당 10회 제한, 최근 7일 검색 감정(주간 맥락)
+- 90일 지난 행은 `ExpiredEmotionSearchCleaner`가 매일 04:40에 지운다 (API 결정 항목 #5)
+- 질문·답변을 다시 보여 주는 API는 없다. 저장하는 이유는 제한·주간 맥락·근거 기록이다
 
 ### emotion_search_result
 
@@ -363,6 +369,34 @@ erDiagram
 | diary_id | bigint | PK, FK | | |
 | rank_no | integer | | | 표시 순서 |
 | is_featured | boolean | | | 큰 카드로 보여 줄 대표 기록 |
+
+- `uq_emotion_search_result_rank (emotion_search_id, rank_no)` — 같은 순서가 둘이면 표시 순서가 모호하다
+- `uq_emotion_search_result_featured (emotion_search_id) where is_featured` — 큰 카드는 검색당 하나
+- `ix_emotion_search_result_diary (diary_id)` — 일기를 파기할 때 이 테이블 행을 먼저 찾는다
+- 90일 배치는 이 테이블을 먼저 지우고 `emotion_search`를 지운다. 저장소 전체에서 `on delete cascade`를 쓰지 않는다
+
+### diary_embedding
+
+`keyword` 의미 검색용. 모델을 바꿀 때 `diary` 행을 건드리지 않고 다시 만들 수 있도록 테이블을 나눴다. pgvector 확장(`create extension vector`)이 필요하다.
+
+| 컬럼 | 타입 | 키 | NULL | 설명 |
+|---|---|---|---|---|
+| diary_id | bigint | PK, FK | | |
+| model | varchar(50) | | | 모델과 차원. `text-embedding-3-large@1536`. 설정과 다르면 다시 만든다 |
+| content_hash | varchar(64) | | | 임베딩한 텍스트의 SHA-256. 같으면 다시 만들지 않는다 |
+| embedding | vector(1536) | | | `text-embedding-3-large`를 `dimensions: 1536`으로 줄인 값. HNSW 한도(2,000차원) 안이다 |
+| created_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
+
+- 임베딩 텍스트는 날짜·감정·활동·메모를 합친 한 줄이다 (`2026-10-12 평온 / 휴식, 가족 / {memo}`)
+- 메모가 있는 일기만 만든다. 기간·감정·활동은 SQL이 거르므로 메모 없는 일기는 의미 검색으로 찾을 게 없다
+- 일기 작성·수정·삭제가 커밋된 뒤 비동기로 갱신한다(`DiaryContentChangedEvent`). 실패해도 일기 저장은 성공이다
+- 5분마다 스윕이 놓친 행(갱신 실패, 기존 일기, 다른 모델, 그림 워커의 제목 갱신)을 100건씩 채운다
+- 저장은 `on conflict` upsert이고 `updated_at`이 더 새로운 쪽만 이긴다. 수정이 연달아 와도 마지막 내용이 남는다
+- 저장 직전에 원본 일기를 `for share`로 잠그고 삭제·메모 비움·버전을 다시 확인한다. GMS 응답을 기다리는 사이 지워진 일기의 벡터가 되살아나지 않는다
+- 텍스트가 같으면(`content_hash`) GMS를 부르지 않고 `updated_at`만 올린다
+- 일기를 삭제하면 같이 지운다. 탈퇴 파기 대상이다
+- 후보를 SQL로 먼저 좁힌 뒤 정렬하므로 벡터 인덱스는 데이터가 쌓이면 검토한다
 
 ---
 
@@ -449,7 +483,7 @@ erDiagram
 | member_id | bigint | PK, FK | | |
 | ticket_balance | integer | | | `check (ticket_balance >= 0)` |
 | shard_balance | integer | | | `check (shard_balance >= 0)` |
-| updated_at | timestamptz | | | |
+| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
 
 - 잔액을 바꿀 때는 이 행을 잠그고(`select … for update`) 같은 트랜잭션에서 `wallet_ledger`를 쓴다
 

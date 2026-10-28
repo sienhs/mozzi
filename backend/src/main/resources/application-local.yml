@@ -20,6 +20,9 @@ mozzi:
   google:
     # Google login only works locally once this is set to the real Web client id.
     client-ids: ${GOOGLE_CLIENT_IDS:local-google-client-id-not-set}
+  gms:
+    # The server starts without a key; emotion search answers 503 until GMS_API_KEY is set.
+    api-key: ${GMS_API_KEY:local-gms-key-not-set}
 
 server:
   error:
