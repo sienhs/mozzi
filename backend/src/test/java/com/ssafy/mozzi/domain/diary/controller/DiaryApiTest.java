@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.endsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -12,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,22 +31,22 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
-import com.ssafy.mozzi.domain.diary.entity.Diary;
+import com.ssafy.mozzi.domain.diary.dto.DiaryCreateRequestDto;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
-import com.ssafy.mozzi.domain.diary.repository.ActivityRepository;
-import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
+import com.ssafy.mozzi.domain.icon.entity.IconCategory;
+import com.ssafy.mozzi.domain.image.entity.ImageStatus;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.global.security.AccessTokenProvider;
+import com.ssafy.mozzi.support.DiaryFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * API spec 4.4 end to end, against the real schema.
+ * {@code /diaries} end to end, against the real schema.
  *
  * <p>Requests go through the real authentication filter: {@link #as} logs the member in
  * through {@link MemberSessionService} and sends its access token.
@@ -69,12 +68,6 @@ class DiaryApiTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private DiaryRepository diaryRepository;
-
-    @Autowired
-    private ActivityRepository activityRepository;
-
-    @Autowired
     private MemberSessionService sessionService;
 
     @Autowired
@@ -89,53 +82,60 @@ class DiaryApiTest {
     /** One login per member per test; a second login would revoke the first token. */
     private final Map<Long, String> accessTokens = new HashMap<>();
 
+    private DiaryFixtures fixtures;
     private Long me;
     private Long someoneElse;
     private LocalDate today;
+    private Long calm;
+    private Long sad;
+    private Long home;
+    private Long cooking;
+    private Long reading;
 
     @BeforeEach
     void setUp() {
-        // Cascades to diary, diary_activity and diary_image; the seeded activity rows stay.
-        jdbcTemplate.execute("truncate table member cascade");
+        fixtures = new DiaryFixtures(jdbcTemplate);
+        fixtures.reset();
         me = newMember("me");
         someoneElse = newMember("someoneElse");
         accessTokens.clear();
         today = LocalDate.now(clock);
+        calm = fixtures.emoticon(Emotion.CALM);
+        sad = fixtures.emoticon(Emotion.SAD);
+        Long icon = fixtures.icon();
+        home = fixtures.myIcon(me, icon, "우리집", IconCategory.WHERE);
+        cooking = fixtures.myIcon(me, icon, "요리", IconCategory.WHAT);
+        reading = fixtures.myIcon(me, icon, "독서", IconCategory.WHAT);
     }
 
     @Test
-    void savingADiaryQueuesItsFirstPicture() throws Exception {
-        JsonNode created = body(create(me, today, "CALM", "[\"FAMILY\", \"REST\"]", "\"  오므라이스를 만들어 먹었어  \"")
+    void writingSavesTodayWithoutAPicture() throws Exception {
+        long diaryId = body(create(me, calm, "\"  오므라이스를 만들어 먹었어  \"", home, cooking)
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.recordDate").value(today.toString()))
-                .andExpect(jsonPath("$.image.status").value("PENDING")));
+                .andExpect(jsonPath("$.recordDate").value(today.toString())))
+                .get("diaryId").asLong();
 
-        long diaryId = created.get("diaryId").asLong();
-        long imageId = created.get("image").get("imageId").asLong();
-        assertThat(jdbcTemplate.queryForObject(
-                "select status from diary_image where diary_image_id = ?", String.class, imageId))
-                .isEqualTo("PENDING");
-
-        mockMvc.perform(as(me, get("/api/v1/diaries/{id}", diaryId)))
+        daily(me, today)
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diaryId").value(diaryId))
+                .andExpect(jsonPath("$.emoticonId").value(calm))
                 .andExpect(jsonPath("$.emotion").value("CALM"))
-                // Chip order from the activity table, not the order they were sent in.
-                .andExpect(jsonPath("$.activities[0]").value("REST"))
-                .andExpect(jsonPath("$.activities[1]").value("FAMILY"))
-                .andExpect(jsonPath("$.memo").value("오므라이스를 만들어 먹었어"))
-                .andExpect(jsonPath("$.title").isEmpty())
-                .andExpect(jsonPath("$.image.imageId").value(imageId))
-                .andExpect(jsonPath("$.image.status").value("PENDING"))
-                .andExpect(jsonPath("$.image.imageUrl").isEmpty())
-                .andExpect(jsonPath("$.image.imageUrlExpiresAt").isEmpty())
+                .andExpect(jsonPath("$.content").value("오므라이스를 만들어 먹었어"))
+                .andExpect(jsonPath("$.myIcons.WHERE[0].myIconId").value(home))
+                .andExpect(jsonPath("$.myIcons.WHERE[0].name").value("우리집"))
+                .andExpect(jsonPath("$.myIcons.WHERE[0].imageUrl").isNotEmpty())
+                .andExpect(jsonPath("$.myIcons.WHO").isEmpty())
+                .andExpect(jsonPath("$.myIcons.WHAT[0].myIconId").value(cooking))
+                .andExpect(jsonPath("$.image").isEmpty())
                 .andExpect(jsonPath("$.createdAt").value(endsWith("+09:00")));
+        assertThat(jdbcTemplate.queryForObject("select count(*) from diary_image", Integer.class)).isZero();
     }
 
     @Test
     void secondDiaryForTheSameDayPointsAtTheFirst() throws Exception {
-        long first = body(create(me, today, "CALM", "[]", "null")).get("diaryId").asLong();
+        long first = body(create(me, calm, "null", cooking)).get("diaryId").asLong();
 
-        create(me, today, "SAD", "[]", "null")
+        create(me, sad, "null", cooking)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DIARY_ALREADY_EXISTS"))
                 .andExpect(jsonPath("$.message").value("오늘은 이미 기록을 남겼어요."))
@@ -146,64 +146,158 @@ class DiaryApiTest {
 
     @Test
     void conflictBodyIsJsonWhateverTheClientAccepts() throws Exception {
-        long first = body(create(me, today, "CALM", "[]", "null")).get("diaryId").asLong();
+        long first = body(create(me, calm, "null", cooking)).get("diaryId").asLong();
 
         mockMvc.perform(as(me, post("/api/v1/diaries"))
-                .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_XML)
-                .content(createBody(today, "SAD", "[]", "null")))
+                        .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_XML)
+                        .content(createBody(sad, "null", cooking)))
                 .andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.diaryId").value(first));
     }
 
     @Test
-    void onlyTodayCanBeWritten() throws Exception {
-        create(me, today.minusDays(2), "CALM", "[]", "null")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_RECORD_DATE"));
-    }
-
-    @Test
     void idempotencyKeyIsRequired() throws Exception {
         mockMvc.perform(as(me, post("/api/v1/diaries"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(createBody(today, "CALM", "[]", "null")))
+                        .content(createBody(calm, "null", cooking)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("Idempotency-Key"));
     }
 
     @Test
-    void zeroActivitiesIsAllowed() throws Exception {
-        long diaryId = body(create(me, today, "NEUTRAL", "[]", "null")
-                .andExpect(status().isCreated())).get("diaryId").asLong();
-
-        mockMvc.perform(as(me, get("/api/v1/diaries/{id}", diaryId)))
-                .andExpect(jsonPath("$.activities").isEmpty())
-                .andExpect(jsonPath("$.memo").isEmpty());
+    void aWhatIconIsRequired() throws Exception {
+        create(me, calm, "null", home)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(DiaryCreateRequestDto.WHAT_REQUIRED));
+        create(me, calm, "null")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(DiaryCreateRequestDto.WHAT_REQUIRED));
     }
 
     @Test
-    void theSameActivityTwiceIsRejected() throws Exception {
-        create(me, today, "CALM", "[\"REST\", \"REST\"]", "null")
+    void onlyTheMembersLiveIconsCanBeAttached() throws Exception {
+        Long theirs = fixtures.myIcon(someoneElse, fixtures.icon(), "회사", IconCategory.WHAT);
+        create(me, calm, "null", cooking, theirs)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("activities"));
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+
+        mockMvc.perform(as(me, delete("/api/v1/my-icons/{id}", reading))).andExpect(status().isNoContent());
+        create(me, calm, "null", cooking, reading)
+                .andExpect(status().isBadRequest());
+
+        assertThat(jdbcTemplate.queryForObject("select count(*) from diary", Integer.class)).isZero();
+    }
+
+    @Test
+    void theSameIconTwiceIsRejected() throws Exception {
+        create(me, calm, "null", cooking, cooking)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("myIconIds"));
+    }
+
+    @Test
+    void unknownEmoticonIsNotFound() throws Exception {
+        create(me, 999_999L, "null", cooking)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     /** The limit applies after stripping, so surrounding spaces do not count. */
     @Test
-    void memoLengthIsCountedAfterStripping() throws Exception {
-        String hundred = "가".repeat(100);
+    void contentLengthIsCountedAfterStripping() throws Exception {
+        String fifty = "가".repeat(50);
 
-        create(me, today, "CALM", "[]", "\"" + hundred + "가\"")
+        create(me, calm, "\"" + fifty + "가\"", cooking)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("memo"))
-                .andExpect(jsonPath("$.fieldErrors[0].reason").value("100자 이하로 입력해 주세요."));
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("content"))
+                .andExpect(jsonPath("$.fieldErrors[0].reason").value("50자 이하로 입력해 주세요."));
 
-        create(me, today, "CALM", "[]", "\"   " + hundred + "   \"")
+        create(me, calm, "\"   " + fifty + "   \"", cooking)
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void blankContentIsStoredAsNone() throws Exception {
+        create(me, calm, "\"   \"", cooking).andExpect(status().isCreated());
+
+        daily(me, today).andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    /** Spec: a deleted icon is gone from old diaries too, even when that leaves none. */
+    @Test
+    void aDeletedIconDisappearsFromOldDiaries() throws Exception {
+        create(me, calm, "null", home, cooking).andExpect(status().isCreated());
+
+        mockMvc.perform(as(me, delete("/api/v1/my-icons/{id}", home))).andExpect(status().isNoContent());
+
+        daily(me, today)
+                .andExpect(jsonPath("$.myIcons.WHERE").isEmpty())
+                .andExpect(jsonPath("$.myIcons.WHAT[0].myIconId").value(cooking));
+    }
+
+    @Test
+    void aDayWithoutADiaryIsNotFound() throws Exception {
+        create(me, calm, "null", cooking).andExpect(status().isCreated());
+
+        daily(me, today.minusDays(1))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        // Spec 1.3: someone else's day is answered exactly like an empty one.
+        daily(someoneElse, today).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void dailyNeedsAValidDate() throws Exception {
+        mockMvc.perform(as(me, get("/api/v1/diaries/daily")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        mockMvc.perform(as(me, get("/api/v1/diaries/daily").param("date", "2026-13-01")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
+    void monthlyListsTheDaysWrittenInOrder() throws Exception {
+        YearMonth month = YearMonth.of(2026, 9);
+        Long second = fixtures.diary(me, month.atDay(2), calm, Emotion.CALM);
+        Long thirtieth = fixtures.diary(me, month.atDay(30), sad, Emotion.SAD);
+        fixtures.diary(me, month.atDay(1).minusDays(1), calm, Emotion.CALM);
+        fixtures.diary(me, month.atEndOfMonth().plusDays(1), calm, Emotion.CALM);
+        fixtures.diary(someoneElse, month.atDay(3), calm, Emotion.CALM);
+
+        mockMvc.perform(as(me, get("/api/v1/diaries/monthly").param("yearMonth", "2026-09")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.yearMonth").value("2026-09"))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].diaryId").value(second))
+                .andExpect(jsonPath("$.items[0].recordDate").value("2026-09-02"))
+                .andExpect(jsonPath("$.items[0].emoticonId").value(calm))
+                .andExpect(jsonPath("$.items[0].emotion").value("CALM"))
+                .andExpect(jsonPath("$.items[1].diaryId").value(thirtieth))
+                .andExpect(jsonPath("$.items[1].emotion").value("SAD"));
+    }
+
+    @Test
+    void aFutureMonthIsEmpty() throws Exception {
+        String next = YearMonth.from(today).plusMonths(1).toString();
+
+        mockMvc.perform(as(me, get("/api/v1/diaries/monthly").param("yearMonth", next)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty());
+    }
+
+    @Test
+    void monthlyNeedsAValidMonth() throws Exception {
+        mockMvc.perform(as(me, get("/api/v1/diaries/monthly")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(as(me, get("/api/v1/diaries/monthly").param("yearMonth", "2026-10-01")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 
     @Test
@@ -218,87 +312,14 @@ class DiaryApiTest {
                 .andExpect(jsonPath("$.code").value("SESSION_REVOKED"));
     }
 
-    /** Spec 1.3: someone else's diary is answered exactly like a missing one. */
-    @Test
-    void anotherMembersDiaryIsNotFound() throws Exception {
-        long diaryId = body(create(me, today, "CALM", "[]", "null")).get("diaryId").asLong();
-
-        mockMvc.perform(as(someoneElse, get("/api/v1/diaries/{id}", diaryId)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
-        mockMvc.perform(as(someoneElse, patch("/api/v1/diaries/{id}", diaryId))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"emotion\": \"SAD\"}"))
-                .andExpect(status().isNotFound());
-        mockMvc.perform(as(someoneElse, delete("/api/v1/diaries/{id}", diaryId)))
-                .andExpect(status().isNotFound());
-
-        mockMvc.perform(as(me, get("/api/v1/diaries/{id}", diaryId)))
-                .andExpect(jsonPath("$.emotion").value("CALM"));
-    }
-
-    @Test
-    void patchChangesOnlyTheFieldsSent() throws Exception {
-        long diaryId = body(create(me, today, "CALM", "[\"REST\"]", "\"처음 메모\"")).get("diaryId").asLong();
-
-        patchDiary(diaryId, "{\"emotion\": \"HAPPY\"}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.emotion").value("HAPPY"))
-                .andExpect(jsonPath("$.activities[0]").value("REST"))
-                .andExpect(jsonPath("$.memo").value("처음 메모"));
-
-        patchDiary(diaryId, "{\"memo\": \"   \", \"activities\": []}")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.emotion").value("HAPPY"))
-                .andExpect(jsonPath("$.activities").isEmpty())
-                .andExpect(jsonPath("$.memo").isEmpty());
-    }
-
-    @Test
-    void patchCannotMoveADiaryToAnotherDay() throws Exception {
-        long diaryId = body(create(me, today, "CALM", "[]", "null")).get("diaryId").asLong();
-
-        patchDiary(diaryId, "{\"recordDate\": \"" + today.minusDays(1) + "\"}")
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
-    }
-
-    /** Changing only the activities touches no column of diary itself, but it is still an edit. */
-    @Test
-    void changingOnlyActivitiesMovesUpdatedAt() throws Exception {
-        long diaryId = body(create(me, today, "CALM", "[\"REST\"]", "null")).get("diaryId").asLong();
-        OffsetDateTime before = OffsetDateTime.parse(body(mockMvc.perform(
-                as(me, get("/api/v1/diaries/{id}", diaryId)))).get("updatedAt").asString());
-
-        OffsetDateTime after = OffsetDateTime.parse(body(patchDiary(diaryId, "{\"activities\": [\"WORK\"]}")
-                .andExpect(status().isOk())).get("updatedAt").asString());
-
-        assertThat(after).isAfter(before);
-    }
-
-    /** Soft delete frees the day again (policy 6). */
-    @Test
-    void aDeletedDayCanBeWrittenAgain() throws Exception {
-        long diaryId = body(create(me, today, "CALM", "[]", "null")).get("diaryId").asLong();
-
-        mockMvc.perform(as(me, delete("/api/v1/diaries/{id}", diaryId)))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(as(me, get("/api/v1/diaries/{id}", diaryId)))
-                .andExpect(status().isNotFound());
-        assertThat(jdbcTemplate.queryForObject(
-                "select deleted_at is not null from diary where diary_id = ?", Boolean.class, diaryId))
-                .isTrue();
-
-        create(me, today, "SAD", "[]", "null").andExpect(status().isCreated());
-    }
-
     /** Convention 4.6: walk more than one page, or a skipped or repeated row goes unnoticed. */
     @Test
     void cursorWalksEveryDiaryOnceNewestFirst() throws Exception {
         List<Long> expected = new ArrayList<>();
         for (int daysAgo = 0; daysAgo < 5; daysAgo++) {
-            expected.add(insertDiary(me, today.minusDays(daysAgo), Emotion.CALM, List.of()).getId());
+            expected.add(fixtures.diary(me, today.minusDays(daysAgo), calm, Emotion.CALM));
         }
-        insertDiary(someoneElse, today, Emotion.CALM, List.of());
+        fixtures.diary(someoneElse, today, calm, Emotion.CALM);
 
         List<Long> seen = new ArrayList<>();
         String cursor = null;
@@ -320,37 +341,38 @@ class DiaryApiTest {
 
     @Test
     void listFiltersCombine() throws Exception {
-        Diary calmFamily = insertDiary(me, today, Emotion.CALM, List.of(ActivityCode.FAMILY, ActivityCode.REST));
-        insertDiary(me, today.minusDays(1), Emotion.CALM, List.of(ActivityCode.WORK));
-        insertDiary(me, today.minusDays(2), Emotion.SAD, List.of(ActivityCode.FAMILY));
-        Diary oldCalmFamily = insertDiary(me, today.minusDays(40), Emotion.CALM, List.of(ActivityCode.FAMILY));
+        Long recentCalm = fixtures.diary(me, today, calm, Emotion.CALM);
+        fixtures.diary(me, today.minusDays(1), sad, Emotion.SAD);
+        Long oldCalm = fixtures.diary(me, today.minusDays(40), calm, Emotion.CALM);
 
-        mockMvc.perform(as(me, get("/api/v1/diaries").param("emotion", "CALM").param("activity", "FAMILY")))
+        mockMvc.perform(as(me, get("/api/v1/diaries").param("emotion", "CALM")))
                 .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.items[0].diaryId").value(calmFamily.getId()))
-                .andExpect(jsonPath("$.items[0].activities[0]").value("REST"))
-                .andExpect(jsonPath("$.items[0].activities[1]").value("FAMILY"))
-                .andExpect(jsonPath("$.items[1].diaryId").value(oldCalmFamily.getId()))
+                .andExpect(jsonPath("$.items[0].diaryId").value(recentCalm))
+                .andExpect(jsonPath("$.items[1].diaryId").value(oldCalm))
                 .andExpect(jsonPath("$.nextCursor").isEmpty());
 
         mockMvc.perform(as(me, get("/api/v1/diaries")
-                        .param("emotion", "CALM").param("activity", "FAMILY")
+                        .param("emotion", "CALM")
                         .param("from", today.minusDays(30).toString()).param("to", today.toString())))
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].diaryId").value(calmFamily.getId()));
+                .andExpect(jsonPath("$.items[0].diaryId").value(recentCalm));
     }
 
-    /** Summary leaves out memo, updatedAt and the image URL (spec 4.4). */
+    /** "Happy days only" shows the pictures, so list rows carry the URL once it exists. */
     @Test
-    void summaryCarriesNoMemoOrImageUrl() throws Exception {
-        create(me, today, "CALM", "[]", "\"비밀 메모\"");
+    void listRowsCarryTheirPicture() throws Exception {
+        Long done = fixtures.diary(me, today, calm, Emotion.CALM);
+        fixtures.picture(done, ImageStatus.SUCCEEDED, 0, "https://cdn.test/diary/done.webp");
+        Long failed = fixtures.diary(me, today.minusDays(1), calm, Emotion.CALM);
+        fixtures.picture(failed, ImageStatus.FAILED, 1, null);
+        fixtures.diary(me, today.minusDays(2), calm, Emotion.CALM);
 
-        JsonNode item = body(mockMvc.perform(as(me, get("/api/v1/diaries")))).get("items").get(0);
-
-        assertThat(item.has("memo")).isFalse();
-        assertThat(item.has("updatedAt")).isFalse();
-        assertThat(item.get("image").has("imageUrl")).isFalse();
-        assertThat(item.get("image").get("status").asString()).isEqualTo("PENDING");
+        mockMvc.perform(as(me, get("/api/v1/diaries")))
+                .andExpect(jsonPath("$.items[0].image.status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.items[0].image.imageUrl").value("https://cdn.test/diary/done.webp"))
+                .andExpect(jsonPath("$.items[1].image.status").value("FAILED"))
+                .andExpect(jsonPath("$.items[1].image.imageUrl").isEmpty())
+                .andExpect(jsonPath("$.items[2].image").isEmpty());
     }
 
     @Test
@@ -374,24 +396,31 @@ class DiaryApiTest {
                 .andExpect(status().isBadRequest());
     }
 
-    private ResultActions create(Long memberId, LocalDate recordDate, String emotion, String activities, String memo)
-            throws Exception {
+    /** A day's record stays as it was: there is no deleting a diary. */
+    @Test
+    void diariesCannotBeDeleted() throws Exception {
+        long diaryId = body(create(me, calm, "null", cooking)).get("diaryId").asLong();
+
+        mockMvc.perform(as(me, delete("/api/v1/diaries/{id}", diaryId)))
+                .andExpect(status().isNotFound());
+        daily(me, today).andExpect(jsonPath("$.diaryId").value(diaryId));
+    }
+
+    private ResultActions create(Long memberId, Long emoticonId, String content, Long... myIconIds) throws Exception {
         return mockMvc.perform(as(memberId, post("/api/v1/diaries"))
                 .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(createBody(recordDate, emotion, activities, memo)));
+                .content(createBody(emoticonId, content, myIconIds)));
     }
 
-    private static String createBody(LocalDate recordDate, String emotion, String activities, String memo) {
+    private static String createBody(Long emoticonId, String content, Long... myIconIds) {
         return """
-                {"recordDate": "%s", "emotion": "%s", "activities": %s, "memo": %s}
-                """.formatted(recordDate, emotion, activities, memo);
+                {"emoticonId": %d, "content": %s, "myIconIds": %s}
+                """.formatted(emoticonId, content, List.of(myIconIds));
     }
 
-    private ResultActions patchDiary(long diaryId, String json) throws Exception {
-        return mockMvc.perform(as(me, patch("/api/v1/diaries/{id}", diaryId))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(json));
+    private ResultActions daily(Long memberId, LocalDate date) throws Exception {
+        return mockMvc.perform(as(memberId, get("/api/v1/diaries/daily").param("date", date.toString())));
     }
 
     private MockHttpServletRequestBuilder as(Long memberId, MockHttpServletRequestBuilder request) {
@@ -402,12 +431,6 @@ class DiaryApiTest {
 
     private JsonNode body(ResultActions result) throws Exception {
         return objectMapper.readTree(result.andReturn().getResponse().getContentAsString());
-    }
-
-    private Diary insertDiary(Long memberId, LocalDate recordDate, Emotion emotion, List<ActivityCode> codes) {
-        return diaryRepository.saveAndFlush(Diary.create(
-                memberId, recordDate, emotion, null,
-                codes.isEmpty() ? List.of() : activityRepository.findByCodeInAndActiveTrue(codes)));
     }
 
     private Long newMember(String subject) {

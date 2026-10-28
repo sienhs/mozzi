@@ -31,6 +31,13 @@ dependencies {
 	// Swagger UI and /v3/api-docs. The 3.x line is the one built for Boot 4.
 	// Brings Jackson 2 in through swagger-core; see docs/BE_CODE_CONVENTION.md 5.2.
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0'
+	// SQS queues to and from the AI server. The plain SDK rather than Spring Cloud AWS, whose
+	// releases trail Spring Boot majors. Only the blocking client is used, so the Netty-based
+	// async client is left out.
+	implementation platform('software.amazon.awssdk:bom:2.55.16')
+	implementation('software.amazon.awssdk:sqs') {
+		exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+	}
 	// spring-boot-starter-flyway only brings flyway-core. Flyway 10 split database support
 	// into per-database modules, so without this it cannot talk to PostgreSQL at all.
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'

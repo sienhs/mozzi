@@ -4,19 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
-import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
+import com.ssafy.mozzi.support.DiaryFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 @IntegrationTest
@@ -29,9 +27,6 @@ class ExpiredEmotionSearchCleanerTest {
     private MemberRepository memberRepository;
 
     @Autowired
-    private DiaryRepository diaryRepository;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -42,10 +37,10 @@ class ExpiredEmotionSearchCleanerTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.execute("truncate table member cascade");
+        DiaryFixtures fixtures = new DiaryFixtures(jdbcTemplate);
+        fixtures.reset();
         me = memberRepository.saveAndFlush(Member.signUp("me@gmail.com", AuthProvider.GOOGLE, "me", "me")).getId();
-        diaryId = diaryRepository.saveAndFlush(
-                Diary.create(me, LocalDate.now(clock), Emotion.CALM, "엄마랑 산책", List.of())).getId();
+        diaryId = fixtures.diary(me, LocalDate.now(clock), fixtures.emoticon(Emotion.CALM), Emotion.CALM);
     }
 
     /** The result rows reference the question, so they must go first or the delete fails. */
@@ -62,7 +57,8 @@ class ExpiredEmotionSearchCleanerTest {
                 .containsExactly(kept)
                 .doesNotContain(expired);
         // The diary an answer was based on is the member's own record, not search data.
-        assertThat(diaryRepository.existsById(diaryId)).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from diary where diary_id = ?", Integer.class, diaryId)).isEqualTo(1);
     }
 
     private long insertSearch(String age) {

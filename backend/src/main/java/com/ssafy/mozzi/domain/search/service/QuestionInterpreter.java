@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.search.repository.SearchCriteria;
 import com.ssafy.mozzi.integration.gms.GmsLlmClient;
@@ -22,8 +21,8 @@ import com.ssafy.mozzi.integration.gms.GmsUnavailableException;
 /**
  * Step ① of emotion search: the question becomes conditions (spec emotion-search.md).
  *
- * <p>The model only reads the question; it never sees a diary here. Emotion and activity
- * codes are {@code enum}s in the schema, so the answer can only name codes that exist.
+ * <p>The model only reads the question; it never sees a diary here. Emotion codes are an
+ * {@code enum} in the schema, so the answer can only name codes that exist.
  */
 @Component
 public class QuestionInterpreter {
@@ -42,8 +41,7 @@ public class QuestionInterpreter {
     }
 
     /** The model's answer, bound from {@link #SCHEMA}. Dates are strings until checked. */
-    public record Answer(String from, String to, List<Emotion> emotions, List<ActivityCode> activities,
-            String keyword, Intent intent) {
+    public record Answer(String from, String to, List<Emotion> emotions, String keyword, Intent intent) {
     }
 
     private static final Map<String, Object> NULLABLE_STRING = Map.of("type", List.of("string", "null"));
@@ -51,13 +49,11 @@ public class QuestionInterpreter {
     static final Map<String, Object> SCHEMA = Map.of(
             "type", "object",
             "additionalProperties", false,
-            "required", List.of("from", "to", "emotions", "activities", "keyword", "intent"),
+            "required", List.of("from", "to", "emotions", "keyword", "intent"),
             "properties", Map.of(
                     "from", NULLABLE_STRING,
                     "to", NULLABLE_STRING,
                     "emotions", Map.of("type", "array", "items", Map.of("type", "string", "enum", names(Emotion.values()))),
-                    "activities", Map.of("type", "array",
-                            "items", Map.of("type", "string", "enum", names(ActivityCode.values()))),
                     "keyword", NULLABLE_STRING,
                     "intent", Map.of("type", "string", "enum", names(Intent.values()))));
 
@@ -68,12 +64,11 @@ public class QuestionInterpreter {
     }
 
     /**
-     * @param activityLabels the chip labels the member sees, so "가족" maps to the right code
      * @throws GmsUnavailableException no usable answer, including a date that is not a date
      */
-    public Interpretation interpret(String question, LocalDate today, Map<ActivityCode, String> activityLabels) {
+    public Interpretation interpret(String question, LocalDate today) {
         Answer answer = llmClient.respond(
-                new GmsPrompt(instructions(today, activityLabels), question, "search_filter", SCHEMA), Answer.class);
+                new GmsPrompt(instructions(today), question, "search_filter", SCHEMA), Answer.class);
         requireShape(answer);
         return new Interpretation(normalize(answer, today), answer.intent());
     }
@@ -86,8 +81,7 @@ public class QuestionInterpreter {
     static void requireShape(Answer answer) {
         // anyMatch rather than contains(null), which List.of lists reject with an NPE.
         if (answer.intent() == null
-                || answer.emotions() == null || answer.emotions().stream().anyMatch(Objects::isNull)
-                || answer.activities() == null || answer.activities().stream().anyMatch(Objects::isNull)) {
+                || answer.emotions() == null || answer.emotions().stream().anyMatch(Objects::isNull)) {
             throw new GmsUnavailableException("interpretation breaks the schema");
         }
     }
@@ -114,8 +108,7 @@ public class QuestionInterpreter {
         if (keyword != null && keyword.length() > KEYWORD_MAX_LENGTH) {
             keyword = keyword.substring(0, KEYWORD_MAX_LENGTH);
         }
-        return new SearchCriteria(from, to, answer.emotions().stream().distinct().toList(),
-                answer.activities().stream().distinct().toList(), keyword);
+        return new SearchCriteria(from, to, answer.emotions().stream().distinct().toList(), keyword);
     }
 
     private static LocalDate parse(String date) {
@@ -129,12 +122,9 @@ public class QuestionInterpreter {
         }
     }
 
-    private static String instructions(LocalDate today, Map<ActivityCode, String> activityLabels) {
+    private static String instructions(LocalDate today) {
         String emotions = Arrays.stream(Emotion.values())
                 .map(emotion -> emotion.name() + "(" + emotion.label() + ")")
-                .collect(Collectors.joining(", "));
-        String activities = Arrays.stream(ActivityCode.values())
-                .map(code -> code.name() + "(" + activityLabels.getOrDefault(code, code.name()) + ")")
                 .collect(Collectors.joining(", "));
         return """
                 너는 일기 앱의 검색 조건 해석기다. 사용자의 질문을 검색 조건으로 바꾼다.
@@ -147,13 +137,12 @@ public class QuestionInterpreter {
                 - emotions: 질문이 가리키는 감정. %s.
                   편했던·차분했던 날은 CALM, 기뻤던·좋았던 날은 HAPPY, 슬펐던·힘들었던 날은 SAD,
                   짜증 났던 날은 ANGRY다. 감정을 말하지 않았으면 []이다.
-                - activities: 질문이 가리키는 활동. %s. 말하지 않았으면 []이다.
-                - keyword: 기간·감정·활동으로 나타낼 수 없는 내용만 짧은 명사로 쓴다("칭찬", "바다", "생일").
-                  감정·활동·기간을 뜻하는 말은 넣지 않는다. 없으면 null이다.
+                - keyword: 기간·감정으로 나타낼 수 없는 내용을 짧은 말로 쓴다("칭찬", "바다", "엄마", "요리").
+                  누구와·어디서·무엇을 했는지도 여기에 쓴다. 감정·기간을 뜻하는 말은 넣지 않는다. 없으면 null이다.
                 - intent: 감정이 몇 번이었는지, 어떤 기분이 많았는지처럼 횟수나 분포를 묻는 질문이면 STATS,
                   기록을 찾아 달라는 질문이면 LIST다.
                 """.formatted(today, today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.KOREAN),
-                emotions, activities);
+                emotions);
     }
 
     private static List<String> names(Enum<?>[] values) {

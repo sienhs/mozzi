@@ -4,7 +4,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,24 +33,20 @@ public class DiaryEmbeddingStore {
     /**
      * A live diary with what its embedding is built from.
      *
-     * @param activityLabels chip labels in display order
-     * @param version        {@code diary.updated_at}
+     * @param iconNames the attached icons' names, oldest icon first, deleted ones left out
+     * @param content   the one-line diary
+     * @param version   {@code diary.updated_at}
      */
-    public record Source(Long diaryId, LocalDate recordDate, Emotion emotion, List<String> activityLabels,
-            String memo, OffsetDateTime version) {
+    public record Source(Long diaryId, LocalDate recordDate, Emotion emotion, List<String> iconNames,
+            String content, OffsetDateTime version) {
     }
 
     /** What an existing row was built with. */
     public record Built(String model, String contentHash) {
     }
 
-    private static final String SOURCE_COLUMNS = """
-            select d.diary_id, d.record_date, d.emotion, d.memo, d.updated_at,
-                   (select string_agg(a.label, ',' order by a.sort_order)
-                    from diary_activity da join activity a on a.activity_id = da.activity_id
-                    where da.diary_id = d.diary_id) as activity_labels
-            from diary d
-            """;
+    private static final String SOURCE_COLUMNS = "select d.diary_id, d.record_date, d.emotion, d.content, d.updated_at, "
+            + SearchDiaryQuery.ICON_NAMES + " as icon_names from diary d ";
 
     /** Empty for a deleted or missing diary. */
     public Optional<Source> source(Long diaryId) {
@@ -60,14 +55,14 @@ public class DiaryEmbeddingStore {
     }
 
     /**
-     * Live diaries with a memo whose row is missing, built by another model, or older than
+     * Live diaries with content whose row is missing, built by another model, or older than
      * the diary. Least recently changed first, so a backlog drains in order.
      */
     public List<Source> stale(String model, int limit) {
         MapSqlParameterSource params = new MapSqlParameterSource("model", model).addValue("limit", limit);
         return jdbc.query(SOURCE_COLUMNS + """
                 left join diary_embedding e on e.diary_id = d.diary_id
-                where d.deleted_at is null and d.memo is not null
+                where d.deleted_at is null and d.content is not null
                   and (e.diary_id is null or e.model <> :model or e.updated_at < d.updated_at)
                 order by d.updated_at, d.diary_id
                 limit :limit
@@ -83,18 +78,18 @@ public class DiaryEmbeddingStore {
 
     /**
      * Locks the diary against edits and deletes until the transaction ends, if it is still
-     * live, still has a memo, and is still the version a vector was built from.
+     * live, still has content, and is still the version a vector was built from.
      *
-     * <p>Edits and deletes take {@code for update} on the same row ({@code DiaryRepository
-     * #findForUpdate}), so a write made under this lock cannot land after a delete has
-     * committed and bring the deleted diary's vector back.
+     * <p>Writers to an existing diary take {@code for update} on the same row
+     * ({@code DiaryRepository#findForUpdate}), so a write made under this lock cannot land
+     * after one of theirs has committed.
      *
      * @return {@code false} when the diary changed since; the vector must not be written
      */
     public boolean lockIfCurrent(Long diaryId, OffsetDateTime version) {
         return !jdbc.queryForList("""
                 select diary_id from diary
-                where diary_id = :diaryId and deleted_at is null and memo is not null and updated_at = :version
+                where diary_id = :diaryId and deleted_at is null and content is not null and updated_at = :version
                 for share
                 """, new MapSqlParameterSource("diaryId", diaryId).addValue("version", version), Long.class)
                 .isEmpty();
@@ -124,7 +119,7 @@ public class DiaryEmbeddingStore {
 
     /**
      * Marks the row current without a new vector: the diary changed in a way the embedded
-     * text does not show (its title, its picture).
+     * text does not show (its picture's status).
      *
      * <p>Only if the row still holds the vector the caller checked. Between that check and
      * this update another build can write a different text's vector; stamping the new
@@ -150,24 +145,23 @@ public class DiaryEmbeddingStore {
     }
 
     /**
-     * Rows whose diary was deleted or lost its memo since — the change event that should
+     * Rows whose diary was deleted or lost its content since — the change event that should
      * have removed them was missed.
      */
     public int deleteOrphans() {
         return jdbc.update("""
                 delete from diary_embedding e using diary d
-                where d.diary_id = e.diary_id and (d.deleted_at is not null or d.memo is null)
+                where d.diary_id = e.diary_id and (d.deleted_at is not null or d.content is null)
                 """, new MapSqlParameterSource());
     }
 
     private static Source source(ResultSet rs, int rowNum) throws SQLException {
-        String labels = rs.getString("activity_labels");
         return new Source(
                 rs.getLong("diary_id"),
                 rs.getObject("record_date", LocalDate.class),
                 Emotion.valueOf(rs.getString("emotion")),
-                labels == null ? List.of() : Arrays.asList(labels.split(",")),
-                rs.getString("memo"),
+                SearchDiaryQuery.splitIconNames(rs.getString("icon_names")),
+                rs.getString("content"),
                 rs.getObject("updated_at", OffsetDateTime.class));
     }
 

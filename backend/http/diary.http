@@ -3,34 +3,60 @@
 # member) or POST /auth/signup (new member). See auth.http.
 @accessToken = paste-access-token-here
 
-### Save today's diary (change recordDate to today). Expect 201 with image.status PENDING.
+# Emoticons and base icons are registered by the server outside the migrations; insert a few
+# rows into emoticon and icon locally before trying the requests below.
+
+### Emoticons, one per emotion
+GET {{baseUrl}}/emoticons
+Authorization: Bearer {{accessToken}}
+
+### Base images to make icons from
+GET {{baseUrl}}/icons
+Authorization: Bearer {{accessToken}}
+
+### Make an icon. Expect 201; 409 once the category already has nine.
+POST {{baseUrl}}/my-icons
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "iconId": 1, "name": "요리", "category": "WHAT" }
+
+### My icons in one category, oldest first
+GET {{baseUrl}}/my-icons?category=WHAT
+Authorization: Bearer {{accessToken}}
+
+### Delete an icon. Expect 204; it disappears from old diaries too.
+DELETE {{baseUrl}}/my-icons/1
+Authorization: Bearer {{accessToken}}
+
+### Write today's diary. myIconIds needs at least one WHAT icon. Expect 201.
 POST {{baseUrl}}/diaries
 Authorization: Bearer {{accessToken}}
 Idempotency-Key: {{$uuid}}
 Content-Type: application/json
 
 {
-  "recordDate": "2026-10-27",
-  "emotion": "CALM",
-  "activities": ["REST", "FAMILY"],
-  "memo": "퇴근하고 오므라이스를 만들어 먹었어"
+  "emoticonId": 2,
+  "content": "퇴근하고 오므라이스를 만들어 먹었어",
+  "myIconIds": [1]
 }
 
-### Detail
-GET {{baseUrl}}/diaries/1
+### Request the picture. Expect 202 with imageStatus PENDING.
+POST {{baseUrl}}/diaries/1/image
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: {{$uuid}}
+Content-Type: application/json
+
+{ "characterId": 1, "timeOfDay": "EVENING", "whatMyIconId": 1 }
+
+### One day
+GET {{baseUrl}}/diaries/daily?date=2026-10-28
+Authorization: Bearer {{accessToken}}
+
+### Calendar month
+GET {{baseUrl}}/diaries/monthly?yearMonth=2026-10
 Authorization: Bearer {{accessToken}}
 
 ### List, newest first, with optional filters
-GET {{baseUrl}}/diaries?size=20&emotion=CALM&activity=FAMILY&from=2026-10-01&to=2026-10-31
-Authorization: Bearer {{accessToken}}
-
-### Change only the fields sent ("" clears the memo, [] clears the activities)
-PATCH {{baseUrl}}/diaries/1
-Authorization: Bearer {{accessToken}}
-Content-Type: application/json
-
-{ "emotion": "HAPPY", "activities": ["REST"], "memo": "수정한 한 줄" }
-
-### Soft delete. Expect 204; the day can be written again afterwards.
-DELETE {{baseUrl}}/diaries/1
+GET {{baseUrl}}/diaries?size=20&emotion=CALM&from=2026-10-01&to=2026-10-31
 Authorization: Bearer {{accessToken}}

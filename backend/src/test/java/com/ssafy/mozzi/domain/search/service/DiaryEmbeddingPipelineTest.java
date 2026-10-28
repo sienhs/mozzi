@@ -22,25 +22,23 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.ssafy.mozzi.domain.diary.dto.DiaryCreateRequestDto;
-import com.ssafy.mozzi.domain.diary.entity.ActivityCode;
-import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
-import com.ssafy.mozzi.domain.diary.repository.ActivityRepository;
-import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
 import com.ssafy.mozzi.domain.diary.service.DiaryService;
+import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.domain.search.repository.DiaryEmbeddingStore;
 import com.ssafy.mozzi.integration.gms.GmsEmbeddingClient;
 import com.ssafy.mozzi.integration.gms.GmsUnavailableException;
+import com.ssafy.mozzi.support.DiaryFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 /**
  * The embedding pipeline against the real schema and pgvector, with GMS replaced.
  *
- * <p>Diaries are inserted through the repository, which publishes no event, except where a
- * test is about the event itself.
+ * <p>Diaries are inserted through JDBC, which publishes no event, except where a test is
+ * about the event itself.
  */
 @IntegrationTest
 class DiaryEmbeddingPipelineTest {
@@ -60,12 +58,6 @@ class DiaryEmbeddingPipelineTest {
     private DiaryService diaryService;
 
     @Autowired
-    private DiaryRepository diaryRepository;
-
-    @Autowired
-    private ActivityRepository activityRepository;
-
-    @Autowired
     private MemberRepository memberRepository;
 
     @Autowired
@@ -77,42 +69,47 @@ class DiaryEmbeddingPipelineTest {
     @MockitoBean
     private GmsEmbeddingClient embeddingClient;
 
+    private DiaryFixtures fixtures;
     private Long me;
     private LocalDate today;
+    private Long calm;
+    private Long rest;
+    private Long family;
 
     @BeforeEach
     void setUp() {
-        // Cascades to diary and diary_embedding.
-        jdbcTemplate.execute("truncate table member cascade");
+        // Cascades to diary, its icons and diary_embedding.
+        fixtures = new DiaryFixtures(jdbcTemplate);
+        fixtures.reset();
         me = memberRepository.saveAndFlush(Member.signUp("me@gmail.com", AuthProvider.GOOGLE, "me", "me")).getId();
         today = LocalDate.now(clock);
+        calm = fixtures.emoticon(Emotion.CALM);
+        Long icon = fixtures.icon();
+        rest = fixtures.myIcon(me, icon, "휴식", IconCategory.WHAT);
+        family = fixtures.myIcon(me, icon, "가족", IconCategory.WHO);
         when(embeddingClient.embedAll(anyList())).thenAnswer(invocation -> {
             List<String> texts = invocation.getArgument(0);
             return IntStream.range(0, texts.size()).mapToObj(i -> unit()).toList();
         });
     }
 
-    /** The event path: saved, committed, embedded in the background, deleted with the diary. */
+    /** The event path: saved, committed, embedded in the background. Diaries are never edited or deleted. */
     @Test
-    void savedDiaryIsEmbeddedAndDeletedDiaryLosesItsRow() {
+    void savedDiaryIsEmbedded() {
         Long diaryId = diaryService.create(me, new DiaryCreateRequestDto(
-                today, Emotion.CALM, List.of(ActivityCode.FAMILY, ActivityCode.REST), "엄마랑 산책")).diaryId();
+                calm, "엄마랑 산책", List.of(family, rest))).diaryId();
 
         await().atMost(Duration.ofSeconds(10)).until(() -> rowCount(diaryId) == 1);
-        // Activities in chip order (REST before FAMILY), whatever order they were sent in.
+        // Icons in the order they were made (휴식 before 가족), whatever order they were sent in.
         verify(embeddingClient).embedAll(List.of(today + " 평온 / 휴식, 가족 / 엄마랑 산책"));
         assertThat(jdbcTemplate.queryForObject(
                 "select model from diary_embedding where diary_id = ?", String.class, diaryId)).isEqualTo(MODEL);
         assertThat(embeddingVersion(diaryId)).isEqualTo(diaryVersion(diaryId));
-
-        diaryService.delete(me, diaryId);
-
-        await().atMost(Duration.ofSeconds(10)).until(() -> rowCount(diaryId) == 0);
     }
 
     /** Nothing for a meaning search to find, and nothing to send to GMS. */
     @Test
-    void diaryWithoutAMemoIsNotEmbedded() {
+    void diaryWithoutContentIsNotEmbedded() {
         Diary diary = insertDiary(null);
 
         diaryEmbeddingService.refresh(diary.getId());
@@ -121,12 +118,12 @@ class DiaryEmbeddingPipelineTest {
         verify(embeddingClient, never()).embedAll(anyList());
     }
 
-    /** A title from the picture worker changes the diary, not the embedded text. */
+    /** A picture's status changes the diary, not the embedded text. */
     @Test
     void changeOutsideTheTextOnlyMarksTheRowCurrent() {
         Diary diary = insertDiary("엄마랑 산책");
         diaryEmbeddingService.refresh(diary.getId());
-        jdbcTemplate.update("update diary set title = '산책', updated_at = updated_at + interval '1 minute' "
+        jdbcTemplate.update("update diary set diary_image_status = 'PENDING', updated_at = updated_at + interval '1 minute' "
                 + "where diary_id = ?", diary.getId());
 
         diaryEmbeddingService.refresh(diary.getId());
@@ -136,11 +133,11 @@ class DiaryEmbeddingPipelineTest {
     }
 
     @Test
-    void editedMemoIsEmbeddedAgain() {
+    void changedContentIsEmbeddedAgain() {
         Diary diary = insertDiary("엄마랑 산책");
         diaryEmbeddingService.refresh(diary.getId());
         String firstHash = contentHash(diary.getId());
-        jdbcTemplate.update("update diary set memo = '아빠랑 등산', updated_at = updated_at + interval '1 minute' "
+        jdbcTemplate.update("update diary set content = '아빠랑 등산', updated_at = updated_at + interval '1 minute' "
                 + "where diary_id = ?", diary.getId());
 
         diaryEmbeddingService.refresh(diary.getId());
@@ -150,10 +147,10 @@ class DiaryEmbeddingPipelineTest {
     }
 
     @Test
-    void clearedMemoRemovesTheRow() {
+    void clearedContentRemovesTheRow() {
         Diary diary = insertDiary("엄마랑 산책");
         diaryEmbeddingService.refresh(diary.getId());
-        jdbcTemplate.update("update diary set memo = null where diary_id = ?", diary.getId());
+        jdbcTemplate.update("update diary set content = null where diary_id = ?", diary.getId());
 
         diaryEmbeddingService.refresh(diary.getId());
 
@@ -168,7 +165,7 @@ class DiaryEmbeddingPipelineTest {
     void sweepCatchesUpInOneCall() {
         Diary missing = insertDiary("처음 쓰는 일기");
         Diary otherModel = insertDiary("모델이 바뀐 일기");
-        Diary noMemo = insertDiary(null);
+        Diary noContent = insertDiary(null);
         Diary deleted = insertDiary("지운 일기");
         insertRow(otherModel.getId(), "text-embedding-3-small@1536");
         insertRow(deleted.getId(), MODEL);
@@ -180,7 +177,7 @@ class DiaryEmbeddingPipelineTest {
         verify(embeddingClient, times(1)).embedAll(anyList());
         assertThat(jdbcTemplate.queryForList("select diary_id from diary_embedding where model = ? order by diary_id",
                 Long.class, MODEL)).containsExactly(missing.getId(), otherModel.getId());
-        assertThat(rowCount(noMemo.getId())).isZero();
+        assertThat(rowCount(noContent.getId())).isZero();
         assertThat(rowCount(deleted.getId())).isZero();
 
         // Everything is current now, so the next sweep has nothing to send.
@@ -237,13 +234,13 @@ class DiaryEmbeddingPipelineTest {
     }
 
     /**
-     * The memo is cleared while GMS is answering, and that change's refresh has already run.
-     * The late vector must not bring the old memo's row back.
+     * The content is cleared while GMS is answering, and that change's refresh has already
+     * run. The late vector must not bring the old content's row back.
      */
     @Test
-    void vectorForAMemoClearedMeanwhileIsDropped() {
+    void vectorForContentClearedMeanwhileIsDropped() {
         Diary diary = insertDiary("엄마랑 산책");
-        changeWhileEmbedding("update diary set memo = null, updated_at = updated_at + interval '1 minute' "
+        changeWhileEmbedding("update diary set content = null, updated_at = updated_at + interval '1 minute' "
                 + "where diary_id = ?", diary.getId());
 
         diaryEmbeddingService.refresh(diary.getId());
@@ -266,7 +263,7 @@ class DiaryEmbeddingPipelineTest {
     @Test
     void vectorForAnOutdatedVersionIsDropped() {
         Diary diary = insertDiary("엄마랑 산책");
-        changeWhileEmbedding("update diary set memo = '아빠랑 등산', updated_at = updated_at + interval '1 minute' "
+        changeWhileEmbedding("update diary set content = '아빠랑 등산', updated_at = updated_at + interval '1 minute' "
                 + "where diary_id = ?", diary.getId());
 
         diaryEmbeddingService.refresh(diary.getId());
@@ -286,10 +283,16 @@ class DiaryEmbeddingPipelineTest {
         assertThat(rowCount(diary.getId())).isZero();
     }
 
-    private Diary insertDiary(String memo) {
-        return diaryRepository.saveAndFlush(Diary.create(
-                me, today.minusDays(diaryRepository.count()), Emotion.CALM, memo,
-                activityRepository.findByCodeInAndActiveTrue(List.of(ActivityCode.REST))));
+    /** A diary with the 휴식 icon, on a day of its own. */
+    private Diary insertDiary(String content) {
+        int existing = jdbcTemplate.queryForObject("select count(*) from diary", Integer.class);
+        Long id = fixtures.diary(me, today.minusDays(existing), calm, Emotion.CALM, content);
+        fixtures.attach(id, rest);
+        return new Diary(id);
+    }
+
+    /** Just the id, which is all these tests read from a diary. */
+    private record Diary(Long getId) {
     }
 
     /**

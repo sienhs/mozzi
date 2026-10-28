@@ -1,11 +1,10 @@
 package com.ssafy.mozzi.domain.image.service;
 
 /**
- * Published when an attempt has been stored as {@code PENDING} and needs a worker.
+ * Published when a picture has been stored as {@code PENDING} and needs a worker.
  *
- * <p>Saving a diary and queueing its picture are separate on purpose (spec 4.5): the event
- * is handled after the transaction commits, so a worker can never pick up an attempt whose
- * diary was rolled back.
+ * <p>The event is handled after the transaction commits, so a worker can never pick up a
+ * request that was rolled back.
  */
-public record ImageGenerationRequestedEvent(Long diaryImageId) {
+public record ImageGenerationRequestedEvent(Long diaryId) {
 }

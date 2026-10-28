@@ -46,7 +46,7 @@
   "code": "INVALID_INPUT",
   "message": "입력값을 다시 확인해 주세요.",
   "fieldErrors": [
-    { "field": "memo", "reason": "100자 이하로 입력해 주세요." }
+    { "field": "content", "reason": "50자 이하로 입력해 주세요." }
   ],
   "traceId": "a1b2c3d4e5f6"
 }
@@ -88,26 +88,23 @@
 | `SAD` | 우울 | sad `#B8C5DD` |
 | `ANGRY` | 화남 | — |
 
-감정 얼굴 이미지는 앱 번들 에셋이다. 서버는 코드만 내려준다.
+감정마다 이모티콘이 하나씩 있다. 이미지는 `GET /emoticons`로 내려준다.
 
-### ActivityCode — 활동
+### IconCategory — 아이콘 카테고리
 
-`STUDY` 공부 · `WORK` 업무 · `EXERCISE` 운동 · `REST` 휴식 · `FRIEND` 친구 · `HOBBY` 취미 · `FAMILY` 가족 · `ETC` 기타
+`WHERE` 어디서 · `WHO` 누구와 · `WHAT` 무엇을
 
-라벨과 표시 순서는 서버의 `activity` 테이블 기준이다 (`GET /meta`로 내려줌).
+### TimeOfDay — 그림 시간대
+
+`MORNING` 아침 · `LUNCH` 점심 · `EVENING` 저녁
 
 ### ImageStatus — 그림 생성 상태
 
 | 값 | 의미 |
 |---|---|
-| `PENDING` | 대기 중 |
-| `GENERATING` | 생성 중 |
+| `PENDING` | 그리는 중 |
 | `SUCCEEDED` | 완성 |
 | `FAILED` | 실패 |
-
-### ImageStage — 생성 단계 (G-01 진행 문구)
-
-`ANALYZING` 기록을 읽는 중 → `COMPOSING` 장면을 고르는 중 → `DRAWING` 그리는 중 → `FINISHING` 마무리 중
 
 ### CardTier — 카드 등급
 

@@ -25,9 +25,9 @@ import com.ssafy.mozzi.integration.gms.GmsUnavailableException;
  * Keeps {@code diary_embedding} in step with the diaries, for ranking emotion search
  * candidates by meaning (ERD {@code diary_embedding}).
  *
- * <p>Only diaries with a memo are embedded. Date, emotion and activities are filtered by SQL
- * already, so a diary without words has nothing for a meaning search to find — and its
- * diary need not leave for GMS at all.
+ * <p>Only diaries with a one-line diary ({@code content}) are embedded. Date and emotion are
+ * filtered by SQL already, so a diary without words has nothing for a meaning search to
+ * find — and it need not leave for GMS at all. Its icon names go into the text with it.
  *
  * <p>No transaction is held across the GMS call. Each write runs in a short transaction of
  * its own that re-checks the diary first ({@link DiaryEmbeddingStore#lockIfCurrent}), and
@@ -54,13 +54,13 @@ public class DiaryEmbeddingService {
 
     /**
      * Brings one diary's row up to date: built, rebuilt, marked current, or deleted when the
-     * diary is gone or has no memo.
+     * diary is gone or has no content.
      *
      * @throws GmsUnavailableException the embedding could not be made; the sweep retries
      */
     public void refresh(Long diaryId) {
         Optional<Source> source = store.source(diaryId);
-        if (source.isEmpty() || source.get().memo() == null) {
+        if (source.isEmpty() || source.get().content() == null) {
             store.delete(diaryId);
             return;
         }
@@ -68,7 +68,7 @@ public class DiaryEmbeddingService {
     }
 
     /**
-     * One sweep: drops rows that outlived their memo, then rebuilds up to {@code limit}
+     * One sweep: drops rows that outlived their content, then rebuilds up to {@code limit}
      * stale ones in a single GMS call.
      *
      * @return rows deleted and rows brought up to date
@@ -122,13 +122,16 @@ public class DiaryEmbeddingService {
     }
 
     /**
-     * One line with everything a question might be about ({@code 2026-10-12 평온 / 휴식, 가족 /
-     * 엄마랑 산책}). Date and emotion are in it so "지난주 행복했던" sits closer to the right
-     * diaries than the memo alone would put it.
+     * One line with everything a question might be about ({@code 2026-10-12 평온 / 공원, 엄마,
+     * 산책 / 엄마랑 산책}). Date and emotion are in it so "지난주 행복했던" sits closer to the
+     * right diaries than the content alone would put it, and the icon names so "엄마랑" does.
+     *
+     * <p>Deleting an icon does not change the diary, so an existing vector keeps the old name
+     * until the diary's next change. The name only ranks; it is never shown from here.
      */
     static String text(Source source) {
-        String activities = source.activityLabels().isEmpty() ? "-" : String.join(", ", source.activityLabels());
-        return source.recordDate() + " " + source.emotion().label() + " / " + activities + " / " + source.memo();
+        String icons = source.iconNames().isEmpty() ? "-" : String.join(", ", source.iconNames());
+        return source.recordDate() + " " + source.emotion().label() + " / " + icons + " / " + source.content();
     }
 
     static String sha256(String text) {
