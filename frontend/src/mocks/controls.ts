@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type MockOperation =
-  'login' | 'save' | 'generation' | 'search' | 'gacha';
+  'login' | 'save' | 'generation' | 'search' | 'gacha' | 'equip';
 interface MockControls {
   failures: Partial<Record<MockOperation, boolean>>;
   failNext: (operation: MockOperation) => void;

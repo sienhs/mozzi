@@ -3,18 +3,23 @@ import { emotionOrder, emotions } from '@/constants/emotions';
 import type { Emotion } from '@/types/diary';
 import { colors } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
+import { companionEmotionSource } from '@/constants/companions';
+import type { CompanionId } from '@/types/companion';
+import { useGachaStore } from '@/stores/useGachaStore';
 
 export function EmotionImage({
   emotion,
   size = 64,
+  companionId = 'default',
 }: {
   emotion: Emotion;
   size?: number;
+  companionId?: CompanionId;
 }) {
   return (
     <Image
       accessibilityLabel={`${emotions[emotion].label} 모찌`}
-      source={size <= 32 ? emotions[emotion].face : emotions[emotion].source}
+      source={companionEmotionSource(companionId, emotion, size <= 32)}
       resizeMode="contain"
       style={{ width: size, height: size }}
     />
@@ -27,6 +32,7 @@ export function EmotionPicker({
   value: Emotion | null;
   onChange: (value: Emotion) => void;
 }) {
+  const equippedId = useGachaStore(state => state.equippedId);
   return (
     <View style={styles.grid}>
       {[emotionOrder.slice(0, 3), emotionOrder.slice(3)].map(
@@ -49,7 +55,11 @@ export function EmotionPicker({
                     },
                   ]}
                 >
-                  <EmotionImage emotion={emotion} size={64} />
+                  <EmotionImage
+                    emotion={emotion}
+                    size={64}
+                    companionId={equippedId}
+                  />
                   <AppText variant="small" style={{ color: colors.ink }}>
                     {selected ? '✓ ' : ''}
                     {emotions[emotion].label}

@@ -7,6 +7,7 @@ import type {
   SearchResult,
 } from '@/types/diary';
 import type { MochiId, PullItem } from '@/types/gacha';
+import type { CompanionId } from '@/types/companion';
 import { mochiOrder, mochis, tierOrder, tiers } from '@/constants/gacha';
 import { useMockControls } from './controls';
 
@@ -42,7 +43,10 @@ export const mockDiaryService = {
       generation: 'generating',
     };
   },
-  async generate(): Promise<void> {
+  async generate(_context?: {
+    diaryId: string;
+    companionId: CompanionId;
+  }): Promise<void> {
     const failed = useMockControls.getState().consumeFailure('generation');
     await mockDelay(6000);
     if (failed) throw new Error('그림을 완성하지 못했어요');
@@ -152,6 +156,17 @@ export const mockGachaService = {
   },
   async exchange(id: MochiId): Promise<MochiId> {
     await mockDelay(500);
+    return id;
+  },
+};
+
+// Local demo only: no equip or character-generation endpoint exists in the API contract.
+export const mockEquipmentService = {
+  async equip(id: CompanionId): Promise<CompanionId> {
+    const failed = useMockControls.getState().consumeFailure('equip');
+    await mockDelay(450);
+    if (failed)
+      throw new Error('모찌를 장착하지 못했어요. 다시 시도해 주세요.');
     return id;
   },
 };

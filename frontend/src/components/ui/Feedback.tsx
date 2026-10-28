@@ -7,6 +7,7 @@ import {
   type TextStyle,
 } from 'react-native';
 import type { Emotion } from '@/types/diary';
+import type { CompanionId } from '@/types/companion';
 import { colors } from '@/theme/tokens';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { AppText } from './Text';
@@ -108,12 +109,14 @@ export function StatePanel({
 }
 export function PictureState({
   emotion = 'happy',
+  companionId,
   generating,
   tone = 'white',
   caption,
   captionStyle,
 }: {
   emotion?: Emotion;
+  companionId?: CompanionId;
   generating?: boolean;
   tone?: 'white' | 'sage';
   caption?: string;
@@ -131,7 +134,11 @@ export function PictureState({
         gap: 12,
       }}
     >
-      <EmotionImage emotion={emotion} size={generating ? 80 : 72} />
+      <EmotionImage
+        emotion={emotion}
+        size={generating ? 80 : 72}
+        companionId={companionId}
+      />
       {generating && <Icon name="pencil" color={colors.sage} />}
       {caption && (
         <AppText variant="small" style={captionStyle}>

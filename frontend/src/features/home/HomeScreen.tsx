@@ -67,19 +67,19 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#faf8f4' },
   content: { flex: 1, justifyContent: 'center', padding: 28, gap: 12 },
-  title: { fontFamily: fonts.bold, fontSize: 38, color: '#2c3932' },
+  title: { fontFamily: fonts.bold, fontSize: 40, color: '#2c3932' },
   subtitle: {
     fontFamily: fonts.regular,
-    fontSize: 18,
+    fontSize: 20,
     color: '#626c65',
     marginBottom: 24,
   },
   card: { padding: 24, borderRadius: 20, backgroundColor: '#ffffff', gap: 16 },
-  cardTitle: { fontFamily: fonts.medium, fontSize: 20, color: '#2c3932' },
+  cardTitle: { fontFamily: fonts.medium, fontSize: 22, color: '#2c3932' },
   message: {
     fontFamily: fonts.regular,
-    fontSize: 17,
-    lineHeight: 27,
+    fontSize: 19,
+    lineHeight: 29,
     color: '#626c65',
   },
   button: {
@@ -91,5 +91,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#3d6b55',
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { fontFamily: fonts.medium, color: '#ffffff', fontSize: 18 },
+  buttonText: { fontFamily: fonts.medium, color: '#ffffff', fontSize: 20 },
 });

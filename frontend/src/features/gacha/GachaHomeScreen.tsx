@@ -194,8 +194,9 @@ function NightRoom({
         }}
       >
         <Image
-          accessible={false}
+          accessibilityLabel="유리병 속 기본 모찌"
           source={gachaArt.mochi}
+          resizeMode="contain"
           style={{ width: '100%', height: '100%' }}
         />
       </View>

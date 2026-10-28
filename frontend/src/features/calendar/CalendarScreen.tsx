@@ -58,7 +58,13 @@ export function CalendarDay({
       >
         {Number(date.slice(8))}
       </AppText>
-      {entry && <EmotionImage emotion={entry.emotion} size={28} />}
+      {entry && (
+        <EmotionImage
+          emotion={entry.emotion}
+          size={28}
+          companionId={entry.companionId}
+        />
+      )}
     </Pressable>
   );
 }

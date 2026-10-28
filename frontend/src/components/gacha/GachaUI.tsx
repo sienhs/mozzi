@@ -159,8 +159,8 @@ export function MochiCard({
             position: 'absolute',
             left: 5,
             top: 4,
-            fontSize: 12,
-            lineHeight: 18,
+            fontSize: 14,
+            lineHeight: 20,
             fontFamily: fonts.medium,
             color: colors.gachaRose,
           }}
