@@ -1,4 +1,5 @@
 import { companions } from '@/constants/companions';
+import { presetTag } from '@/constants/tags';
 import {
   filterOwnedCompanions,
   ownedCompanionIds,
@@ -20,6 +21,7 @@ beforeEach(() => {
   useMockControls.getState().reset();
   useGachaStore.setState(initialGachaState());
   setAuthPreview();
+  useAppStore.getState().resetSession();
   useAppStore.setState({
     draft: emptyDraft(),
     saveStatus: 'idle',
@@ -95,7 +97,9 @@ test('saved diaries snapshot the character before async save; generation retries
   const generate = jest.spyOn(mockDiaryService, 'generate');
   useGachaStore.setState({ equippedId: 'grape' });
   useAppStore.getState().selectEmotion('happy');
-  const save = useAppStore.getState().saveDiary();
+  useAppStore.getState().toggleTag(presetTag('activity.walk')!);
+  useMockControls.getState().failNext('generation');
+  const save = useAppStore.getState().startGeneration();
   useGachaStore.setState({ equippedId: 'cherry' });
   await jest.advanceTimersByTimeAsync(1000);
   const saved = (await save)!;
@@ -108,6 +112,10 @@ test('saved diaries snapshot the character before async save; generation retries
     useAppStore.getState().entries.find(item => item.id === oldRecord.id),
   ).toEqual(original);
   await jest.advanceTimersByTimeAsync(6000);
+  expect(
+    useAppStore.getState().entries.find(entry => entry.id === saved.id)
+      ?.generation,
+  ).toBe('failed');
   const retry = useAppStore.getState().generateImage(saved.id);
   await jest.advanceTimersByTimeAsync(6000);
   await retry;

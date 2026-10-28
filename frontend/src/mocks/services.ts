@@ -1,14 +1,18 @@
-import { emotions, activities } from '@/constants/emotions';
+import { emotions } from '@/constants/emotions';
 import { todayKey } from '@/constants/date';
 import type {
-  DiaryDraft,
+  CustomTag,
   DiaryEntry,
+  DiaryTag,
   Emotion,
+  GenerationRequest,
   SearchResult,
 } from '@/types/diary';
 import type { MochiId, PullItem } from '@/types/gacha';
 import type { CompanionId } from '@/types/companion';
 import { mochiOrder, mochis, tierOrder, tiers } from '@/constants/gacha';
+import { DiaryGenerationError } from '@/services/diaryErrors';
+import { tagKey } from '@/features/diary/tagRules';
 import { useMockControls } from './controls';
 
 export const mockDelay = (ms: number) =>
@@ -22,42 +26,156 @@ export const mockAuthService = {
     return { email: 'haru@gmail.com' };
   },
 };
+export const fallbackTitle = (emotion: Emotion) =>
+  `${emotions[emotion].label} 모찌와 남긴 하루`;
+
+// 서버 대신 쓰는 일기 Mock. 그림 요청(작성 중 기록 생성) → 그림 완성 대기 → 최종 저장 순서로,
+// 서버 요청안(04 문서 B4·B5)과 같은 단계를 흉내 낸다. 그림은 실제로 그리지 않는다.
+const RETRY_LIMIT = 3;
+const retriesLeft = new Map<string, number>();
+const requestedTags = new Map<string, DiaryTag[]>();
+function draftEntry(request: GenerationRequest, tags: DiaryTag[]): DiaryEntry {
+  const id = `diary-${request.recordDate}`;
+  retriesLeft.set(id, RETRY_LIMIT);
+  requestedTags.set(id, tags);
+  return {
+    id,
+    date: request.recordDate,
+    emotion: request.emotion,
+    tags,
+    memo: '',
+    title: fallbackTitle(request.emotion),
+    createdAt: new Date().toISOString(),
+    generation: 'generating',
+    status: 'draft',
+    failure: null,
+  };
+}
 export const mockDiaryService = {
-  async save(draft: DiaryDraft): Promise<DiaryEntry> {
-    if (!draft.emotion) throw new Error('기분을 하나 골라 주세요.');
-    const failed = useMockControls.getState().consumeFailure('save');
+  // POST /diaries — 작성 중 기록과 첫 그림 시도를 만든다.
+  async start(
+    request: GenerationRequest,
+    tags: DiaryTag[],
+    _requestKey: string,
+  ): Promise<DiaryEntry> {
+    const failed = useMockControls.getState().consumeFailure('start');
     await mockDelay(1000);
     if (failed)
-      throw new Error('저장하지 못했어요. 적은 내용은 그대로 있어요.');
-    const date = todayKey();
-    return {
-      id: `diary-${date}`,
-      date,
-      emotion: draft.emotion,
-      activities: [...draft.activities],
-      memo: draft.memo.trim(),
-      title:
-        draft.memo.trim() ||
-        `${emotions[draft.emotion].label} 모찌와 남긴 하루`,
-      createdAt: new Date().toISOString(),
-      generation: 'generating',
-    };
+      throw new Error('그림을 부탁하지 못했어요. 고른 태그는 그대로 있어요.');
+    return draftEntry(request, tags);
   },
-  async generate(_context?: {
-    diaryId: string;
-    companionId: CompanionId;
-  }): Promise<void> {
-    const failed = useMockControls.getState().consumeFailure('generation');
+  // 다시 작성하기: 재시도 불가 실패였던 기록을 새 기분·태그로 다시 그린다 (CONTRACT: B6).
+  async rewrite(
+    _id: string,
+    request: GenerationRequest,
+    tags: DiaryTag[],
+    _requestKey: string,
+  ): Promise<DiaryEntry> {
+    const failed = useMockControls.getState().consumeFailure('start');
+    await mockDelay(1000);
+    if (failed)
+      throw new Error('그림을 부탁하지 못했어요. 고른 태그는 그대로 있어요.');
+    return draftEntry(request, tags);
+  },
+  // GET /diaries/{id}/image 폴링 자리. 완성되면 끝나고, 실패하면 DiaryGenerationError를 던진다.
+  async generate(
+    context: string | { diaryId: string; companionId: CompanionId },
+  ): Promise<void> {
+    const id = typeof context === 'string' ? context : context.diaryId;
+    const controls = useMockControls.getState();
+    const blocked = controls.consumeFailure('generationBlocked');
+    const failed = controls.consumeFailure('generation');
     await mockDelay(6000);
-    if (failed) throw new Error('그림을 완성하지 못했어요');
+    const remainingRetries = retriesLeft.get(id) ?? RETRY_LIMIT;
+    if (blocked)
+      throw new DiaryGenerationError({
+        code: 'CONTENT_BLOCKED',
+        message: '이 내용으로는 그림을 그릴 수 없어요.',
+        retryable: false,
+        remainingRetries,
+        blockedTags: (requestedTags.get(id) ?? []).filter(
+          tag => tag.category === 'custom',
+        ),
+      });
+    if (failed)
+      throw new DiaryGenerationError({
+        code: 'GENERATION_TIMEOUT',
+        message: '그림을 완성하지 못했어요.',
+        retryable: true,
+        remainingRetries,
+        blockedTags: [],
+      });
+  },
+  // POST /diaries/{id}/image/retry — 같은 태그로 다시 그린다. 하루 횟수를 다 쓰면 거부한다.
+  async retry(id: string, _requestKey: string): Promise<void> {
+    const left = retriesLeft.get(id) ?? RETRY_LIMIT;
+    if (left <= 0)
+      throw new DiaryGenerationError({
+        code: 'RETRY_LIMIT_EXCEEDED',
+        message: '오늘은 그림을 더 그릴 수 없어요.',
+        retryable: true,
+        remainingRetries: 0,
+        blockedTags: [],
+      });
+    retriesLeft.set(id, left - 1);
+  },
+  // POST /diaries/{id}/complete — 한 줄(선택)과 함께 기록을 완료한다 (CONTRACT: B4).
+  async complete(
+    _id: string,
+    memo: string,
+    _requestKey: string,
+  ): Promise<{ memo: string }> {
+    const failed = useMockControls.getState().consumeFailure('complete');
+    await mockDelay(1000);
+    if (failed)
+      throw new Error('저장하지 못했어요. 적은 한 줄은 그대로 있어요.');
+    return { memo: memo.trim() };
+  },
+};
+
+// 계정별 내 태그 저장소 Mock (CONTRACT: B3 /members/me/tags). 같은 키면 새로 만들지 않고 기존 태그를 돌려준다.
+let tagServer: CustomTag[] = [];
+let tagSequence = 0;
+export const mockTagService = {
+  async list(): Promise<CustomTag[]> {
+    await mockDelay(300);
+    return tagServer.map(tag => ({ ...tag }));
+  },
+  async create(label: string): Promise<CustomTag> {
+    const failed = useMockControls.getState().consumeFailure('tag');
+    await mockDelay(400);
+    if (failed)
+      throw new Error('태그를 저장하지 못했어요. 다시 시도해 주세요.');
+    const key = tagKey(label);
+    const existing = tagServer.find(tag => tag.key === key);
+    if (existing) return { ...existing };
+    tagSequence += 1;
+    const tag = {
+      id: `custom-${tagSequence}`,
+      label,
+      key,
+      createdAt: new Date().toISOString(),
+    };
+    tagServer = [...tagServer, tag];
+    return { ...tag };
+  },
+  async remove(id: string): Promise<void> {
+    await mockDelay(300);
+    tagServer = tagServer.filter(tag => tag.id !== id);
+  },
+  // Mock 전용: 서버가 없으니 계정이 바뀌면 저장소를 비운다. 실제 서버는 회원별로 따로 보관한다.
+  reset() {
+    tagServer = [];
   },
 };
 
 // Local, deterministic keyword search. This deliberately does not pretend to call an AI.
+// 작성 중(저장 전) 기록은 검색하지 않는다.
 export function searchMockEntries(
   question: string,
-  entries: DiaryEntry[],
+  allEntries: DiaryEntry[],
 ): SearchResult {
+  const entries = allEntries.filter(entry => entry.status === 'completed');
   const query = question.trim();
   const synonyms: Record<Emotion, string[]> = {
     happy: ['행복', '기뻤', '기쁜', '즐거'],
@@ -69,7 +187,13 @@ export function searchMockEntries(
   const emotion = (Object.keys(synonyms) as Emotion[]).find(id =>
     synonyms[id].some(word => query.includes(word)),
   );
-  const activity = activities.find(tag => query.includes(tag));
+  // 긴 라벨부터 찾는다 ('산책'이 '산'보다 먼저).
+  const activity = [
+    ...new Set(entries.flatMap(entry => entry.tags.map(tag => tag.label))),
+  ]
+    .sort((a, b) => b.length - a.length)
+    .find(label => query.includes(label));
+  const labelsOf = (entry: DiaryEntry) => entry.tags.map(tag => tag.label);
   const currentMonth = todayKey().slice(0, 7);
   const monthMatch = query.match(/(\d{1,2})월/);
   const inPeriod = entries.filter(entry => {
@@ -82,12 +206,12 @@ export function searchMockEntries(
   const matches = inPeriod
     .filter(entry => {
       if (emotion) return entry.emotion === emotion;
-      if (activity) return entry.activities.includes(activity);
+      if (activity) return labelsOf(entry).includes(activity);
       if (summary) return true;
       return [
         entry.memo,
         entry.title,
-        ...entry.activities,
+        ...labelsOf(entry),
         emotions[entry.emotion].label,
       ].some(text => text.includes(query));
     })
@@ -108,10 +232,7 @@ export function searchMockEntries(
     : emotion
       ? `${emotions[emotion].label} 모찌를 고른 날이 ${matches.length}일 있었어요.`
       : `${activity ? `${activity}와 함께한` : '찾으시는'} 기록이 ${matches.length}개 있어요.`;
-  const tags = [...new Set(matches.flatMap(entry => entry.activities))].slice(
-    0,
-    2,
-  );
+  const tags = [...new Set(matches.flatMap(labelsOf))].slice(0, 2);
   return {
     answer: `${answer}\n${tags.join('과 ')} 기록이 함께였어요.`,
     entries: matches,

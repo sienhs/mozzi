@@ -7,6 +7,8 @@ import { googleAuth } from '@/services/googleAuth';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useAppStore } from '@/stores/useAppStore';
 import { useGachaStore } from '@/stores/useGachaStore';
+import { useTagStore } from '@/stores/useTagStore';
+import { createMockEntries } from '@/mocks/diaries';
 import { mockGachaService, mockDiaryService } from '@/mocks/services';
 import type { PullItem } from '@/types/gacha';
 import { normalizeApiUrl } from '@/services/authConfig';
@@ -314,6 +316,17 @@ test('signout resets account data and cannot restore old saved profile', async (
   await useAuthStore.getState().signIn();
   useAppStore.getState().selectEmotion('sad');
   useAppStore.getState().setMemo('private draft');
+  useTagStore.setState({
+    tags: [
+      {
+        id: 'custom-1',
+        label: '비밀 태그',
+        key: '비밀 태그',
+        createdAt: '2026-10-26T00:00:00Z',
+      },
+    ],
+    loadStatus: 'ready',
+  });
   await useAuthStore.getState().signOut();
   expect(authSession.current()).toBeNull();
   expect(useAuthStore.getState()).toMatchObject({
@@ -323,6 +336,11 @@ test('signout resets account data and cannot restore old saved profile', async (
     pending: false,
   });
   expect(useAppStore.getState().draft.memo).toBe('');
+  // 내 태그도 계정 데이터다. 다음 계정이 로그인하면 서버에서 다시 불러온다.
+  expect(useTagStore.getState()).toMatchObject({
+    tags: [],
+    loadStatus: 'idle',
+  });
   expect(googleAuth.clear).toHaveBeenCalled();
 });
 
@@ -389,16 +407,28 @@ test('an old image-generation failure cannot mutate the new account demo entry',
   const promise = new Promise<void>((_, rejectPromise) => {
     fail = rejectPromise;
   });
+  jest.spyOn(mockDiaryService, 'retry').mockResolvedValueOnce();
   const spy = jest
     .spyOn(mockDiaryService, 'generate')
     .mockReturnValueOnce(promise);
-  const id = useAppStore.getState().entries[0].id;
+  const id = 'diary-old-account';
+  useAppStore.setState(state => ({
+    entries: [
+      {
+        ...state.entries[0],
+        id,
+        date: '2026-10-30',
+        status: 'draft',
+        generation: 'failed',
+        failure: null,
+      },
+      ...state.entries,
+    ],
+  }));
   const old = useAppStore.getState().generateImage(id);
   useAppStore.getState().resetSession();
   fail(new Error('old generation failed'));
   await old;
-  expect(
-    useAppStore.getState().entries.find(entry => entry.id === id)?.generation,
-  ).toBe('ready');
+  expect(useAppStore.getState().entries).toEqual(createMockEntries());
   spy.mockRestore();
 });

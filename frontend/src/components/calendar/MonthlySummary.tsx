@@ -12,7 +12,11 @@ export function getMonthlySummary(
   const days = new Map(
     entries
       .filter(
-        entry => entry.date.startsWith(`${monthKey}-`) && entry.date <= today,
+        entry =>
+          // 저장을 마친 기록만 센다 (작성 중 기록 제외).
+          entry.status === 'completed' &&
+          entry.date.startsWith(`${monthKey}-`) &&
+          entry.date <= today,
       )
       .map(entry => [entry.date, entry]),
   );

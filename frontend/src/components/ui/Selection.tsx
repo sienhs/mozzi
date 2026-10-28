@@ -1,38 +1,57 @@
-import { Check } from 'lucide-react-native';
+import { Check, Star, X } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 import { colors } from '@/theme/tokens';
 import { AppText } from './Text';
 
-export function ActivityChip({
+// 태그 칩. 폭은 라벨에 맞춰 줄바꿈한다 (칩 수가 늘고 내 태그 라벨 길이가 제각각이라서).
+export function TagChip({
   label,
   selected,
   onPress,
   disabled,
+  single,
+  main,
+  removable,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   disabled?: boolean;
+  // 하나만 고르는 분류(어디서·날씨)는 radio로 읽힌다.
+  single?: boolean;
+  // 대표 활동 표시.
+  main?: boolean;
+  // 편집 상태의 내 태그. 누르면 삭제를 묻는다.
+  removable?: boolean;
 }) {
+  const state = single
+    ? { selected, disabled: !!disabled }
+    : { checked: selected, disabled: !!disabled };
   return (
     <Pressable
-      accessibilityRole="checkbox"
-      accessibilityLabel={label}
-      accessibilityState={{ checked: selected, disabled }}
+      accessibilityRole={removable ? 'button' : single ? 'radio' : 'checkbox'}
+      accessibilityLabel={removable ? `${label} 지우기` : label}
+      accessibilityHint={main ? '대표 활동' : undefined}
+      accessibilityState={removable ? { disabled: !!disabled } : state}
       disabled={disabled}
       onPress={onPress}
       style={{
-        width: '29.14%',
         minHeight: 44,
+        paddingHorizontal: 14,
         borderRadius: 16,
         backgroundColor: selected ? colors.sageSoft : colors.white,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 4,
+        opacity: disabled && !selected ? 0.4 : 1,
       }}
     >
+      {main && <Star size={14} color={colors.sage} fill={colors.sage} />}
       <AppText variant="small" style={{ color: colors.ink }}>
         {label}
       </AppText>
+      {removable && <X size={14} color={colors.muted} />}
     </Pressable>
   );
 }

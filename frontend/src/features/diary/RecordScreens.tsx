@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { View } from 'react-native';
 import { Button, TextButton } from '@/components/ui/Button';
@@ -10,15 +9,27 @@ import {
 } from '@/components/ui/Feedback';
 import { Screen, Heading } from '@/components/ui/Screen';
 import { MemoInput } from '@/components/ui/Input';
-import { ActivityChip } from '@/components/ui/Selection';
-import { DiaryCard } from '@/components/ui/DiaryCard';
+import { DiaryArtwork, DiaryCard } from '@/components/ui/DiaryCard';
+import { AppText } from '@/components/ui/Text';
 import { EmotionPicker } from '@/components/emotion/Emotion';
-import { activities } from '@/constants/emotions';
-import { useAppStore } from '@/stores/useAppStore';
+import { colors } from '@/theme/tokens';
+import type { DiaryTag } from '@/types/diary';
+import {
+  MEMO_MAX_LENGTH,
+  canRetry,
+  canRewrite,
+  entryPhase,
+  useAppStore,
+} from '@/stores/useAppStore';
+import { retryEntry, rewriteEntry } from './recordActions';
+import { tagSummary } from './tagRules';
+import { useRecordGuard } from './useRecordGuard';
 
 export function EmotionScreen() {
+  const locked = useRecordGuard();
   const emotion = useAppStore(state => state.draft.emotion);
   const selectEmotion = useAppStore(state => state.selectEmotion);
+  if (locked) return null;
   return (
     <Screen
       title="오늘의 기록"
@@ -27,12 +38,12 @@ export function EmotionScreen() {
         <Button
           label="다음"
           disabled={!emotion}
-          onPress={() => router.push('/record/memo')}
+          onPress={() => router.push('/record/tags')}
         />
       }
     >
       <Heading
-        eyebrow="1 / 2"
+        eyebrow="1 / 3"
         title="오늘 기분은 어땠나요?"
         description="가장 가까운 모찌를 하나 골라 주세요."
       />
@@ -40,93 +51,30 @@ export function EmotionScreen() {
     </Screen>
   );
 }
-export function MemoScreen() {
-  const draft = useAppStore(state => state.draft);
-  const status = useAppStore(state => state.saveStatus);
-  const error = useAppStore(state => state.saveError);
-  const busy = status === 'saving';
-  const disablePrevention = usePreventRemove(busy);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  async function save() {
-    const entry = await useAppStore.getState().saveDiary();
-    if (entry && mounted.current) {
-      disablePrevention();
-      router.replace({
-        pathname: '/record/generation',
-        params: { id: entry.id },
-      });
-    }
-  }
+
+function UsedTags({ tags, label }: { tags: DiaryTag[]; label: string }) {
+  if (!tags.length) return null;
   return (
-    <Screen
-      title="오늘의 기록"
-      back
-      onBack={() => {
-        if (!busy) router.back();
-      }}
-      footer={
-        <Button
-          label={
-            busy
-              ? '저장하고 있어요'
-              : status === 'error'
-                ? '다시 저장하기'
-                : '기록 저장하기'
-          }
-          loading={busy}
-          disabled={!draft.emotion}
-          onPress={() => void save()}
-        />
-      }
-    >
-      <View
-        style={{ gap: 28, opacity: busy ? 0.6 : 1 }}
-        pointerEvents={busy ? 'none' : 'auto'}
-      >
-        <Heading
-          eyebrow="2 / 2"
-          title="오늘 무엇을 했나요?"
-          description="여러 개 골라도 돼요."
-        />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {activities.map(activity => (
-            <ActivityChip
-              key={activity}
-              label={activity}
-              selected={draft.activities.includes(activity)}
-              disabled={busy}
-              onPress={() => useAppStore.getState().toggleActivity(activity)}
-            />
-          ))}
-        </View>
-        <MemoInput
-          value={draft.memo}
-          editable={!busy}
-          onChangeText={useAppStore.getState().setMemo}
-        />
-      </View>
-      {!draft.emotion && (
-        <StatePanel
-          compact
-          title="기분을 먼저 골라 주세요"
-          description="이전 화면에서 오늘의 모찌를 골라 주세요."
-        />
-      )}
-      {status === 'error' && <ErrorBanner message={error} />}
-    </Screen>
+    <View style={{ gap: 4 }}>
+      <AppText variant="caption">{label}</AppText>
+      <AppText variant="small" style={{ color: colors.ink }}>
+        {tagSummary(tags)}
+      </AppText>
+    </View>
   );
 }
+
+// G-01 그리는 중 · E-03 실패 · G-02 그림 확인 + 오늘의 한 줄 · 완료를 한 경로에서 상태로 나눈다.
 export function GenerationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const entry = useAppStore(state =>
     state.entries.find(item => item.id === id),
   );
+  const memo = useAppStore(state => state.draft.memo);
+  const saveStatus = useAppStore(state => state.saveStatus);
+  const saveError = useAppStore(state => state.saveError);
+  const saving = saveStatus === 'saving';
+  const disablePrevention = usePreventRemove(saving);
   if (!entry)
     return (
       <Screen back title="오늘의 기록">
@@ -136,60 +84,135 @@ export function GenerationScreen() {
         />
       </Screen>
     );
-  const status = entry.generation;
+  const phase = entryPhase(entry, saving);
   const home = () => router.dismissTo('/home');
-  const detail = () =>
+  const detail = () => {
+    disablePrevention();
     router.replace({ pathname: '/diary/[id]', params: { id: entry.id } });
+  };
+  const copy = (() => {
+    if (phase === 'generating')
+      return {
+        title: '오늘의 모찌를 그리고 있어요',
+        description: '화면을 나가도 계속 그려요.',
+      };
+    if (phase === 'failed') {
+      if (canRewrite(entry))
+        return {
+          title: '이 내용으로는 그림을 그릴 수 없어요',
+          description: '기분과 태그를 고쳐서 다시 써 주세요.',
+        };
+      if (canRetry(entry))
+        return {
+          title: '그림을 완성하지 못했어요',
+          description: '고른 태그로 한 번 더 그려 볼게요.',
+        };
+      return {
+        title: '오늘은 그림을 더 그릴 수 없어요',
+        description: '그리기 횟수를 모두 썼어요.',
+      };
+    }
+    if (phase === 'completed')
+      return {
+        title: '오늘도 한 장 남겼어요',
+        description: '모찌가 오늘의 장면을 완성했어요.',
+      };
+    return { title: '그림이 완성됐어요', description: undefined };
+  })();
+  const footer = (() => {
+    if (phase === 'generating')
+      return (
+        <Button label="홈에서 기다리기" variant="secondary" onPress={home} />
+      );
+    if (phase === 'failed')
+      return (
+        <>
+          {canRewrite(entry) ? (
+            <Button
+              label="다시 작성하기"
+              onPress={() => rewriteEntry(entry, 'generation')}
+            />
+          ) : canRetry(entry) ? (
+            <Button label="다시 그리기" onPress={() => retryEntry(entry)} />
+          ) : null}
+          <TextButton label="홈으로" onPress={home} />
+        </>
+      );
+    if (phase === 'completed')
+      return (
+        <>
+          <Button label="기록 자세히 보기" onPress={detail} />
+          <TextButton label="홈으로" onPress={home} />
+        </>
+      );
+    return (
+      <>
+        <Button
+          label={
+            saving
+              ? '저장하고 있어요'
+              : saveStatus === 'error'
+                ? '다시 저장하기'
+                : '기록 저장하기'
+          }
+          loading={saving}
+          onPress={() => void useAppStore.getState().completeDiary(entry.id)}
+        />
+        {!saving && <TextButton label="홈으로" onPress={home} />}
+      </>
+    );
+  })();
+  const blocked = entry.failure?.blockedTags ?? [];
   return (
     <Screen
       action={{ icon: 'close', label: '홈으로', onPress: home }}
-      footer={
-        status === 'generating' ? (
-          <Button label="홈에서 기다리기" variant="secondary" onPress={home} />
-        ) : (
-          <>
-            <Button
-              label={status === 'failed' ? '다시 그리기' : '기록 자세히 보기'}
-              onPress={
-                status === 'failed'
-                  ? () => {
-                      void useAppStore.getState().generateImage(entry.id);
-                    }
-                  : detail
-              }
-            />
-            <TextButton label="홈으로" onPress={home} />
-          </>
-        )
-      }
+      footer={footer}
     >
       <Heading
-        title={
-          status === 'generating'
-            ? '오늘의 모찌를 그리고 있어요'
-            : status === 'failed'
-              ? '그림을 완성하지 못했어요'
-              : '오늘도 한 장 남겼어요'
+        eyebrow={
+          phase === 'reviewing' || phase === 'saving' ? '3 / 3' : undefined
         }
-        description={
-          status === 'generating'
-            ? '기록은 저장됐어요.\n화면을 나가도 계속 그려요.'
-            : status === 'failed'
-              ? '기록은 저장돼 있어요.\n그림만 한 번 더 그려 볼게요.'
-              : '모찌가 오늘의 장면을 완성했어요.'
-        }
+        title={copy.title}
+        description={copy.description}
       />
-      {status === 'ready' ? (
+      {phase === 'completed' ? (
         <DiaryCard entry={entry} />
+      ) : phase === 'reviewing' || phase === 'saving' ? (
+        <DiaryArtwork />
       ) : (
         <PictureState
           emotion={entry.emotion}
           companionId={entry.companionId}
-          generating={status === 'generating'}
+          generating={phase === 'generating'}
           tone="sage"
         />
       )}
-      {status === 'generating' && <GenerationProgress />}
+      {phase === 'generating' && <GenerationProgress />}
+      {(phase === 'reviewing' || phase === 'saving') && (
+        <MemoInput
+          label="오늘의 한 줄 (선택)"
+          placeholder="그림을 보고 떠오른 한 줄을 남겨 보세요"
+          maxLength={MEMO_MAX_LENGTH}
+          value={memo}
+          editable={!saving}
+          onChangeText={useAppStore.getState().setMemo}
+        />
+      )}
+      {phase !== 'completed' && (
+        <UsedTags
+          tags={blocked.length ? blocked : entry.tags}
+          label={
+            blocked.length
+              ? '다시 볼 태그'
+              : phase === 'generating'
+                ? '이 태그로 그리고 있어요'
+                : '이 태그로 그렸어요'
+          }
+        />
+      )}
+      {saveStatus === 'error' && phase === 'reviewing' && (
+        <ErrorBanner message={saveError} />
+      )}
     </Screen>
   );
 }

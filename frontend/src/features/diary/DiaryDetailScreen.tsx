@@ -9,7 +9,13 @@ import { PictureState, StatePanel } from '@/components/ui/Feedback';
 import { Sheet } from '@/components/ui/Sheet';
 import { formatDate, formatTime } from '@/constants/date';
 import { colors } from '@/theme/tokens';
-import { useAppStore } from '@/stores/useAppStore';
+import {
+  canRetry,
+  canRewrite,
+  entryPhase,
+  useAppStore,
+} from '@/stores/useAppStore';
+import { retryEntry, rewriteEntry } from './recordActions';
 
 export function DiaryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,6 +33,9 @@ export function DiaryDetailScreen() {
         <Button label="캘린더로" onPress={() => router.replace('/calendar')} />
       </Screen>
     );
+  const phase = entryPhase(entry, false);
+  const openGeneration = () =>
+    router.push({ pathname: '/record/generation', params: { id: entry.id } });
   return (
     <Screen
       title={formatDate(entry.date)}
@@ -54,17 +63,25 @@ export function DiaryDetailScreen() {
         />
       )}
       <DiaryMeta entry={entry} />
-      <AppText>{entry.memo || entry.title}</AppText>
-      {entry.generation === 'failed' && (
+      {entry.status === 'completed' && (
+        <AppText>{entry.memo || entry.title}</AppText>
+      )}
+      {phase === 'reviewing' && (
+        <Button label="한 줄 남기고 저장하기" onPress={openGeneration} />
+      )}
+      {phase === 'failed' && canRetry(entry) && (
         <Button
           label="다시 그리기"
           onPress={() => {
-            void useAppStore.getState().generateImage(entry.id);
-            router.push({
-              pathname: '/record/generation',
-              params: { id: entry.id },
-            });
+            retryEntry(entry);
+            openGeneration();
           }}
+        />
+      )}
+      {phase === 'failed' && canRewrite(entry) && (
+        <Button
+          label="다시 작성하기"
+          onPress={() => rewriteEntry(entry, 'list')}
         />
       )}
       <View style={{ height: 1, backgroundColor: colors.line }} />

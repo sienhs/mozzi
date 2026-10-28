@@ -73,7 +73,7 @@ export default function RootLayout() {
               <Stack.Protected guard={status === 'authenticated'}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="record/emotion" />
-                <Stack.Screen name="record/memo" />
+                <Stack.Screen name="record/tags" />
                 <Stack.Screen name="record/generation" />
                 <Stack.Screen name="diary/[id]" />
                 <Stack.Screen name="settings" />

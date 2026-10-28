@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { Screen } from '@/components/ui/Screen';
@@ -70,7 +70,12 @@ export function CalendarDay({
 }
 export function CalendarScreen() {
   const today = todayKey();
-  const entries = useAppStore(state => state.entries);
+  const allEntries = useAppStore(state => state.entries);
+  // 캘린더에는 저장을 마친 기록만 보인다. 오늘 작성 중인 기록은 홈에서 이어 쓴다.
+  const entries = useMemo(
+    () => allEntries.filter(entry => entry.status === 'completed'),
+    [allEntries],
+  );
   const [month, setMonth] = useState(
     () => new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, 1),
   );

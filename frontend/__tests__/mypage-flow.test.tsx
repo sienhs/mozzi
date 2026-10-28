@@ -148,11 +148,13 @@ test('picker uses the current companion while legacy calendar cells keep the def
         id: 'legacy',
         date: '2026-10-01',
         emotion: 'happy',
-        activities: [],
+        tags: [],
         memo: '',
         title: '기록',
         createdAt: '',
         generation: 'ready',
+        status: 'completed',
+        failure: null,
       }}
     />,
   );
