@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import type { MochiId, PullItem, Tier } from '@/types/gacha';
 import { mochis, tiers } from '@/constants/gacha';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
 
 // Figma "Gacha V2 / Tier badge": 66 × 26, radius 12.
@@ -159,9 +159,9 @@ export function MochiCard({
             position: 'absolute',
             left: 5,
             top: 4,
-            fontSize: 10,
-            lineHeight: 14,
-            fontFamily: 'NotoSansKR_500Medium',
+            fontSize: 12,
+            lineHeight: 18,
+            fontFamily: fonts.medium,
             color: colors.gachaRose,
           }}
         >

@@ -166,9 +166,9 @@ export function GenerationScreen() {
       <Heading
         title={
           status === 'generating'
-            ? '오늘의 모찌를\n그리고 있어요'
+            ? '오늘의 모찌를 그리고 있어요'
             : status === 'failed'
-              ? '그림을 완성하지\n못했어요'
+              ? '그림을 완성하지 못했어요'
               : '오늘도 한 장 남겼어요'
         }
         description={

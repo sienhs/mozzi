@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { checkServerHealth } from '../../shared/api/health';
+import { fonts } from '@/theme/tokens';
 
 type ConnectionState = 'idle' | 'checking' | 'connected' | 'error';
 
@@ -66,11 +67,21 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#faf8f4' },
   content: { flex: 1, justifyContent: 'center', padding: 28, gap: 12 },
-  title: { fontSize: 36, fontWeight: '700', color: '#2c3932' },
-  subtitle: { fontSize: 16, color: '#626c65', marginBottom: 24 },
+  title: { fontFamily: fonts.bold, fontSize: 38, color: '#2c3932' },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: 18,
+    color: '#626c65',
+    marginBottom: 24,
+  },
   card: { padding: 24, borderRadius: 20, backgroundColor: '#ffffff', gap: 16 },
-  cardTitle: { fontSize: 18, fontWeight: '600', color: '#2c3932' },
-  message: { fontSize: 15, lineHeight: 23, color: '#626c65' },
+  cardTitle: { fontFamily: fonts.medium, fontSize: 20, color: '#2c3932' },
+  message: {
+    fontFamily: fonts.regular,
+    fontSize: 17,
+    lineHeight: 27,
+    color: '#626c65',
+  },
   button: {
     minHeight: 48,
     padding: 14,
@@ -80,5 +91,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#3d6b55',
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#ffffff', fontSize: 16, fontWeight: '600' },
+  buttonText: { fontFamily: fonts.medium, color: '#ffffff', fontSize: 18 },
 });

@@ -104,7 +104,7 @@ export function SearchScreen() {
       {!question ? (
         <>
           <Heading
-            title={'지난 마음을\n물어보세요'}
+            title={'지난 마음을 물어보세요'}
             description="남긴 기록에서 모찌가 찾아 드려요."
           />
           <View style={{ gap: 8 }}>

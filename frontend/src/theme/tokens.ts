@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-// Figma 00 · 디자인 시스템 (Noto Sans KR / 390 × 844).
+// Figma 00 · 디자인 시스템 (온글잎 박다현체 / 390 × 844).
 export const colors = {
   bg: '#FAF7F2',
   primary: '#A65E46',
@@ -36,11 +36,11 @@ export const colors = {
   gachaSageInk: '#52644A',
 } as const;
 export const fonts = {
-  regular: 'NotoSansKR_400Regular',
-  medium: 'NotoSansKR_500Medium',
-  bold: 'NotoSansKR_700Bold',
-  // Figma 06 splash title (Nanum Pen).
-  pen: 'NanumPenScript_400Regular',
+  // The supplied font has one weight; every text variant uses that same face.
+  regular: 'OwnglyphParkDahyun',
+  medium: 'OwnglyphParkDahyun',
+  bold: 'OwnglyphParkDahyun',
+  pen: 'OwnglyphParkDahyun',
 } as const;
 export const spacing = {
   xs: 4,
@@ -62,44 +62,44 @@ export const radii = {
 export const typography = StyleSheet.create({
   display: {
     fontFamily: fonts.bold,
-    fontSize: 30,
-    lineHeight: 40,
+    fontSize: 32,
+    lineHeight: 44,
     color: colors.ink,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 24,
-    lineHeight: 32,
+    fontSize: 26,
+    lineHeight: 36,
     color: colors.ink,
   },
   heading: {
     fontFamily: fonts.bold,
-    fontSize: 20,
-    lineHeight: 28,
+    fontSize: 22,
+    lineHeight: 32,
     color: colors.ink,
   },
   body: {
     fontFamily: fonts.regular,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 28,
     color: colors.ink,
   },
   label: {
     fontFamily: fonts.medium,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 28,
     color: colors.ink,
   },
   small: {
     fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 24,
     color: colors.muted,
   },
   caption: {
     fontFamily: fonts.medium,
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 22,
     color: colors.muted,
   },
 });

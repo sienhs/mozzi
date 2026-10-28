@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  View,
+  type StyleProp,
+  type TextStyle,
+} from 'react-native';
 import type { Emotion } from '@/types/diary';
 import { colors } from '@/theme/tokens';
 import { EmotionImage } from '@/components/emotion/Emotion';
@@ -105,11 +111,13 @@ export function PictureState({
   generating,
   tone = 'white',
   caption,
+  captionStyle,
 }: {
   emotion?: Emotion;
   generating?: boolean;
   tone?: 'white' | 'sage';
   caption?: string;
+  captionStyle?: StyleProp<TextStyle>;
 }) {
   return (
     <View
@@ -125,7 +133,11 @@ export function PictureState({
     >
       <EmotionImage emotion={emotion} size={generating ? 80 : 72} />
       {generating && <Icon name="pencil" color={colors.sage} />}
-      {caption && <AppText variant="small">{caption}</AppText>}
+      {caption && (
+        <AppText variant="small" style={captionStyle}>
+          {caption}
+        </AppText>
+      )}
     </View>
   );
 }
