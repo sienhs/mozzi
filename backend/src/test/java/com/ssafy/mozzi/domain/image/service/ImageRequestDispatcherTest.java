@@ -7,7 +7,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +21,8 @@ import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
 import com.ssafy.mozzi.domain.image.entity.DiaryImage;
 import com.ssafy.mozzi.domain.image.entity.TimeOfDay;
+import com.ssafy.mozzi.domain.image.entity.Weather;
+import com.ssafy.mozzi.domain.image.exception.InappropriatePromptException;
 import com.ssafy.mozzi.domain.image.repository.DiaryImageRepository;
 
 class ImageRequestDispatcherTest {
@@ -47,41 +48,42 @@ class ImageRequestDispatcherTest {
 
     @Test
     void sendsEverythingTheAiServerNeedsInEnglish() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, TimeOfDay.EVENING, "우리집", "엄마", "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, TimeOfDay.EVENING, Weather.RAINY, "우리집", "엄마", "요리")));
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
-        assertThat(translated).containsExactly(new PromptTranslator.Source("우리집", "엄마", "요리", "동그란 모찌"));
+        assertThat(translated).containsExactly(new PromptTranslator.Source("우리집", "엄마", "요리"));
         assertThat(sent).containsExactly(new ImageRequestPublisher.Message(
-                10L, 12L, "2026-10-28", "CALM", "https://cdn.test/mozzi.webp", "EN(동그란 모찌)",
-                "in the evening", "EN(우리집)", "EN(엄마)", "EN(요리)"));
+                10L, 12L, "2026-10-28", "CALM", "https://cdn.test/mozzi.webp", "a round mochi",
+                "in the evening", "on a rainy day", "EN(우리집)", "EN(엄마)", "EN(요리)"));
     }
 
     @Test
-    void optionalPicksStayNull() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, "요리")));
+    void optionalPicksGoOutEmpty() {
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
-        assertThat(sent.get(0).timeOfDay()).isNull();
-        assertThat(sent.get(0).where()).isNull();
-        assertThat(sent.get(0).who()).isNull();
+        assertThat(sent.get(0).timeOfDay()).isEmpty();
+        assertThat(sent.get(0).weather()).isEmpty();
+        assertThat(sent.get(0).where()).isEmpty();
+        assertThat(sent.get(0).who()).isEmpty();
     }
 
     /** The character image is not set up yet; the request still goes out. */
     @Test
-    void anUnsetCharacterImageGoesOutAsNull() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, "요리")));
+    void anUnsetCharacterImageGoesOutAsDefault() {
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
         dispatcher = dispatcherWith(sent::add, "");
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
-        assertThat(sent.get(0).characterImageUrl()).isNull();
+        assertThat(sent.get(0).characterImageUrl()).isEqualTo("DEFAULT");
     }
 
     @Test
     void aRequestNoLongerPendingIsNotSent() {
-        DiaryImage image = DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, "요리"));
+        DiaryImage image = DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리"));
         image.succeed("https://cdn.test/done.webp");
         stored(image);
 
@@ -93,7 +95,7 @@ class ImageRequestDispatcherTest {
 
     @Test
     void aFailedHandOverIsGivenUpWithoutCountingAgainstTheMember() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
         dispatcher = dispatcherWith(message -> {
             throw new IllegalStateException("queue down");
         }, "https://cdn.test/mozzi.webp");
@@ -104,6 +106,26 @@ class ImageRequestDispatcherTest {
         verify(resultService, never()).fail(any());
     }
 
+    /** The picks never reach the AI server, and the try is used up. */
+    @Test
+    void blockedPicksAreRejectedAndNotSent() {
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
+        dispatcher = new ImageRequestDispatcher(
+                diaryRepository, imageRepository,
+                source -> {
+                    throw new InappropriatePromptException();
+                },
+                sent::add, resultService,
+                new ImageProperties("", "a round mochi", true),
+                mock(PlatformTransactionManager.class));
+
+        dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
+
+        assertThat(sent).isEmpty();
+        verify(resultService).reject(10L);
+        verify(resultService, never()).abandon(any());
+    }
+
     private void stored(DiaryImage image) {
         when(imageRepository.findByDiaryId(10L)).thenReturn(Optional.of(image));
     }
@@ -111,12 +133,11 @@ class ImageRequestDispatcherTest {
     private ImageRequestDispatcher dispatcherWith(ImageRequestPublisher publisher, String characterImageUrl) {
         PromptTranslator translator = source -> {
             translated.add(source);
-            return new PromptTranslator.Translation(
-                    en(source.where()), en(source.who()), en(source.what()), en(source.character()));
+            return new PromptTranslator.Translation(en(source.where()), en(source.who()), en(source.what()));
         };
         return new ImageRequestDispatcher(
                 diaryRepository, imageRepository, translator, publisher, resultService,
-                new ImageProperties(Duration.ofMinutes(15), characterImageUrl, "동그란 모찌", true),
+                new ImageProperties(characterImageUrl, "a round mochi", true),
                 mock(PlatformTransactionManager.class));
     }
 

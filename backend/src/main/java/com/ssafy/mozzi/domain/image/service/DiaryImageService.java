@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
@@ -26,8 +25,8 @@ import com.ssafy.mozzi.global.exception.BusinessException;
 import com.ssafy.mozzi.global.exception.CommonErrorCode;
 
 /**
- * Requesting a diary's picture and listening for it. The picture is made asynchronously after
- * the request commits; the result is pushed over SSE.
+ * Requesting a diary's picture. The picture is made asynchronously after the request
+ * commits, and the member hears of the result by push ({@link ImagePushListener}).
  */
 @Service
 public class DiaryImageService {
@@ -37,19 +36,16 @@ public class DiaryImageService {
     private final DiaryRepository diaryRepository;
     private final DiaryImageRepository diaryImageRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final ImageEventEmitters emitters;
     private final Clock clock;
 
     public DiaryImageService(
             DiaryRepository diaryRepository,
             DiaryImageRepository diaryImageRepository,
             ApplicationEventPublisher eventPublisher,
-            ImageEventEmitters emitters,
             Clock clock) {
         this.diaryRepository = diaryRepository;
         this.diaryImageRepository = diaryImageRepository;
         this.eventPublisher = eventPublisher;
-        this.emitters = emitters;
         this.clock = clock;
     }
 
@@ -88,18 +84,6 @@ public class DiaryImageService {
         return new DiaryImageCreateResponseDto(diaryId, image.getStatus());
     }
 
-    /**
-     * Opens the SSE connection the result is pushed on. The app subscribes first and then
-     * sends {@link #request}, so the result cannot arrive before it listens.
-     */
-    @Transactional(readOnly = true)
-    public SseEmitter subscribe(Long memberId, Long diaryId) {
-        diaryRepository.findByIdAndMemberIdAndDeletedAtIsNull(diaryId, memberId)
-                .orElseThrow(() -> new BusinessException(
-                        CommonErrorCode.NOT_FOUND, "diary not found: diaryId=" + diaryId));
-        return emitters.subscribe(diaryId);
-    }
-
     private static void checkCanRetry(DiaryImage image) {
         if (image.canRetry()) {
             return;
@@ -120,6 +104,7 @@ public class DiaryImageService {
         return new DiaryImage.Selection(
                 request.characterId(),
                 request.timeOfDay(),
+                request.weather(),
                 nameOf(diaryIcons, request.whereMyIconId(), IconCategory.WHERE),
                 nameOf(diaryIcons, request.whoMyIconId(), IconCategory.WHO),
                 nameOf(diaryIcons, request.whatMyIconId(), IconCategory.WHAT));

@@ -25,7 +25,6 @@ import com.ssafy.mozzi.domain.icon.dto.MyIconCreateRequestDto;
 import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.icon.entity.MyIcon;
 import com.ssafy.mozzi.domain.icon.exception.MyIconErrorCode;
-import com.ssafy.mozzi.domain.icon.repository.IconRepository;
 import com.ssafy.mozzi.domain.icon.repository.MyIconRepository;
 import com.ssafy.mozzi.domain.icon.service.MyIconService;
 import com.ssafy.mozzi.domain.image.dto.DiaryImageCreateRequestDto;
@@ -73,8 +72,6 @@ class DiaryConcurrencyTest {
     @Autowired
     private MyIconRepository myIconRepository;
 
-    @Autowired
-    private IconRepository iconRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -87,7 +84,6 @@ class DiaryConcurrencyTest {
 
     private DiaryFixtures fixtures;
     private Long memberId;
-    private Long iconId;
     private Long cooking;
     private Long diaryId;
 
@@ -97,8 +93,7 @@ class DiaryConcurrencyTest {
         fixtures.reset();
         memberId = memberRepository.saveAndFlush(
                 Member.signUp("me@gmail.com", AuthProvider.GOOGLE, "me", "me")).getId();
-        iconId = fixtures.icon();
-        cooking = fixtures.myIcon(memberId, iconId, "요리", IconCategory.WHAT);
+        cooking = fixtures.myIcon(memberId, "요리", IconCategory.WHAT);
         diaryId = fixtures.diary(memberId, LocalDate.now(clock), fixtures.emoticon(Emotion.CALM), Emotion.CALM);
         fixtures.attach(diaryId, cooking);
     }
@@ -109,11 +104,11 @@ class DiaryConcurrencyTest {
                 () -> {
                     Diary diary = diaryRepository.findForUpdate(diaryId, memberId).orElseThrow();
                     DiaryImage image = diaryImageRepository.save(DiaryImage.request(
-                            diaryId, new DiaryImage.Selection(1L, null, null, null, "요리")));
+                            diaryId, new DiaryImage.Selection(1L, null, null, null, null, "요리")));
                     diary.showImageStatus(image.getStatus());
                 },
                 () -> diaryImageService.request(memberId, diaryId,
-                        new DiaryImageCreateRequestDto(1L, null, null, null, cooking)));
+                        new DiaryImageCreateRequestDto(1L, null, null, null, null, cooking)));
 
         assertRejectedWith(second, ImageErrorCode.IMAGE_ALREADY_REQUESTED);
         assertThat(jdbcTemplate.queryForObject(
@@ -123,16 +118,15 @@ class DiaryConcurrencyTest {
     @Test
     void twoIconsAtEightDoNotMakeTen() throws Exception {
         for (int i = 0; i < MyIcon.MAX_PER_CATEGORY - 1; i++) {
-            fixtures.myIcon(memberId, iconId, "장소" + i, IconCategory.WHERE);
+            fixtures.myIcon(memberId, "장소" + i, IconCategory.WHERE);
         }
 
         CompletableFuture<Void> second = whileHeld(
                 () -> {
                     memberRepository.findActiveByIdForUpdate(memberId).orElseThrow();
-                    myIconRepository.save(MyIcon.create(
-                            memberId, iconRepository.findById(iconId).orElseThrow(), "아홉째", IconCategory.WHERE));
+                    myIconRepository.save(MyIcon.create(memberId, "아홉째", IconCategory.WHERE));
                 },
-                () -> myIconService.create(memberId, new MyIconCreateRequestDto(iconId, "열째", IconCategory.WHERE)));
+                () -> myIconService.create(memberId, new MyIconCreateRequestDto("열째", IconCategory.WHERE)));
 
         assertRejectedWith(second, MyIconErrorCode.MY_ICON_LIMIT_EXCEEDED);
         assertThat(myIconRepository.countByMemberIdAndCategoryAndDeletedAtIsNull(memberId, IconCategory.WHERE))

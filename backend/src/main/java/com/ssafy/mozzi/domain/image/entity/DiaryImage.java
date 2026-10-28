@@ -56,6 +56,10 @@ public class DiaryImage extends BaseTimeEntity {
     @Column(name = "time_of_day", length = 10)
     private TimeOfDay timeOfDay;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private Weather weather;
+
     /** Icon names are copied so a deleted icon does not erase what the picture was drawn from. */
     @Column(name = "where_name", length = 10)
     private String whereName;
@@ -146,6 +150,7 @@ public class DiaryImage extends BaseTimeEntity {
         this.status = ImageStatus.PENDING;
         this.characterId = selection.characterId();
         this.timeOfDay = selection.timeOfDay();
+        this.weather = selection.weather() == null ? Weather.NONE : selection.weather();
         this.whereName = selection.whereName();
         this.whoName = selection.whoName();
         this.whatName = selection.whatName();
@@ -176,6 +181,10 @@ public class DiaryImage extends BaseTimeEntity {
         return timeOfDay;
     }
 
+    public Weather getWeather() {
+        return weather;
+    }
+
     public String getWhereName() {
         return whereName;
     }
@@ -196,11 +205,17 @@ public class DiaryImage extends BaseTimeEntity {
      * What the member picked for one request.
      *
      * @param timeOfDay optional
+     * @param weather   optional; {@code null} is stored as {@link Weather#NONE}
      * @param whereName optional
      * @param whoName   optional
      */
     public record Selection(
-            Long characterId, TimeOfDay timeOfDay, String whereName, String whoName, String whatName) {
+            Long characterId,
+            TimeOfDay timeOfDay,
+            Weather weather,
+            String whereName,
+            String whoName,
+            String whatName) {
     }
 
 }

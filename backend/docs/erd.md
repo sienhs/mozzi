@@ -26,11 +26,10 @@
 | | `signup_ticket` | 닉네임 입력 전 임시 가입 티켓 | V5 |
 | 공통 | `idempotency_record` | `Idempotency-Key` 처리 기록 | V2 |
 | 일기 | `emoticon` | 감정 이모티콘 (감정당 1개, 미리 등록) | V7 |
-| | `icon` | 아이콘 기본 이미지 (미리 등록) | V7 |
-| | `my_icon` | 회원이 만든 아이콘 | V7 |
+| | `my_icon` | 회원이 만든 아이콘 (글자만) | V7, V9 |
 | | `diary` | 하루 기록 | V3, V7 |
 | | `diary_icon` | 일기-내 아이콘 연결 | V7 |
-| | `diary_image` | 일기 그림 (일기당 1개) | V3, V7 |
+| | `diary_image` | 일기 그림 (일기당 1개) | V3, V7, V8 |
 | 감정 검색 | `emotion_search` | 질문·답변 | V6 |
 | | `emotion_search_result` | 답변 근거 기록 | V6 |
 | | `diary_embedding` | 일기 의미 검색용 임베딩 (1:1, 한 줄 일기가 있는 일기만) | V6 |
@@ -59,7 +58,6 @@ erDiagram
 
     member ||--o{ diary : ""
     member ||--o{ my_icon : ""
-    icon ||--o{ my_icon : ""
     emoticon ||--o{ diary : ""
     diary ||--o{ diary_icon : ""
     my_icon ||--o{ diary_icon : ""
@@ -108,13 +106,9 @@ erDiagram
     emoticon {
         bigint emoticon_id PK
     }
-    icon {
-        bigint icon_id PK
-    }
     my_icon {
         bigint my_icon_id PK
         bigint member_id FK
-        bigint icon_id FK
     }
     diary {
         bigint diary_id PK
@@ -192,7 +186,7 @@ erDiagram
 | role | varchar(20) | | | `USER`, `ADMIN` |
 | status | varchar(20) | | | `ACTIVE` → `WITHDRAWN` |
 | created_at | timestamptz | | | |
-| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
+| updated_at | timestamptz | | | |
 | deleted_at | timestamptz | | O | 탈퇴 시각 |
 
 - `uq_member_active_provider_subject (provider, provider_subject) where deleted_at is null` — 탈퇴 후 같은 Google 계정으로 재가입 가능
@@ -206,7 +200,7 @@ erDiagram
 | reminder_enabled | boolean | | | 기본 `true` |
 | reminder_time | time | | | 기본 `21:00` |
 | timezone | varchar(40) | | | 기본 `Asia/Seoul` |
-| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
+| updated_at | timestamptz | | | |
 
 ### terms_agreement
 
@@ -229,10 +223,11 @@ erDiagram
 | device_id | varchar(64) | | | 앱이 만든 UUID |
 | platform | varchar(10) | | | `IOS`, `ANDROID` |
 | token | varchar(512) | | | FCM 토큰 |
-| is_active | boolean | | | 로그아웃하면 `false` |
-| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
+| is_active | boolean | | | 로그아웃하면 `false`. 다른 기기에서 등록하거나 다른 회원이 같은 토큰을 등록해도 `false` |
+| updated_at | timestamptz | | | 마지막으로 등록·비활성화된 시각 |
 
 - `uq_push_device_member_device (member_id, device_id)` — 같은 기기는 덮어쓴다
+- 회원 탈퇴 시 행을 지운다
 
 ### member_session
 
@@ -243,7 +238,7 @@ erDiagram
 | refresh_token_hash | varchar(64) | | | Refresh 토큰의 SHA-256. 원문은 저장하지 않는다 |
 | refresh_expires_at | timestamptz | | | 재발급마다 +30일 |
 | created_at | timestamptz | | | |
-| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
+| updated_at | timestamptz | | | |
 
 - `uq_member_session_session_id (session_id)`
 - `ix_member_session_refresh_expires_at (refresh_expires_at)` — 만료 정리 배치
@@ -259,7 +254,7 @@ erDiagram
 | email | varchar(255) | | | |
 | expires_at | timestamptz | | | 발급 후 10분 |
 | created_at | timestamptz | | | |
-| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
+| updated_at | timestamptz | | | |
 
 - `uq_signup_ticket_token_hash (token_hash)`, `ix_signup_ticket_expires_at (expires_at)`
 - 가입이 끝나면 `member` 생성과 같은 트랜잭션에서 지운다. 만료분은 배치가 지운다
@@ -303,26 +298,14 @@ erDiagram
 
 - `uq_emoticon_emotion (emotion)`
 
-### icon
-
-아이콘을 만들 때 고르는 기본 이미지 (약 20개). 서버가 미리 등록한다.
-
-| 컬럼 | 타입 | 키 | NULL | 설명 |
-|---|---|---|---|---|
-| icon_id | bigint | PK | | |
-| image_url | varchar(255) | | | S3 공개 URL |
-| created_at | timestamptz | | | |
-| updated_at | timestamptz | | | |
-
 ### my_icon
 
-회원이 기본 이미지에 이름을 붙여 만든 아이콘.
+회원이 장소·누구와·무엇을 탭에서 만든 아이콘. 이미지 없이 이름만 있다.
 
 | 컬럼 | 타입 | 키 | NULL | 설명 |
 |---|---|---|---|---|
 | my_icon_id | bigint | PK | | |
 | member_id | bigint | FK | | |
-| icon_id | bigint | FK | | 고른 기본 이미지. 같은 이미지로 여러 개 만들 수 있다 |
 | name | varchar(10) | | | 중복 허용 |
 | category | varchar(10) | | | `WHERE`, `WHO`, `WHAT` |
 | created_at | timestamptz | | | 목록 정렬 기준 |
@@ -330,6 +313,7 @@ erDiagram
 | deleted_at | timestamptz | | O | 소프트 삭제 |
 
 - `ix_my_icon_member_category (member_id, category, created_at) where deleted_at is null` — 카테고리별 목록, 9개 제한 개수 세기
+- V9 변경: `icon_id` 삭제, `icon` 테이블 삭제 (아이콘이 글자만 쓰는 방식으로 바뀜)
 - 카테고리당 9개 제한은 애플리케이션이 센다. 동시에 두 개를 만들어 10개가 되지 않도록 `member` 행을 잠그고(`select … for update`) 센다
 
 ### diary
@@ -370,9 +354,10 @@ erDiagram
 | diary_image_id | bigint | PK | | |
 | diary_id | bigint | FK | | |
 | status | varchar(12) | | | `PENDING`, `SUCCEEDED`, `FAILED` |
-| failure_count | integer | | | AI 서버가 보낸 실패만 센다 (큐 전송 실패는 제외). 기본 0. 3이 되면 더 요청할 수 없다 |
+| failure_count | integer | | | AI 서버가 보낸 실패와 유해성 판정으로 막힌 요청을 센다 (번역·큐 전송 실패는 제외). 기본 0. 3이 되면 더 요청할 수 없다 |
 | character_id | bigint | | | 고른 모찌. FK는 캐릭터 테이블이 생기면 건다 |
 | time_of_day | varchar(10) | | O | `MORNING`, `LUNCH`, `EVENING` |
+| weather | varchar(10) | | | `NONE`(입력되지 않음), `SUNNY`, `CLOUDY`, `RAINY`, `SNOWY`. 기본 `NONE` |
 | where_name | varchar(10) | | O | 고른 `WHERE` 아이콘 이름 |
 | who_name | varchar(10) | | O | 고른 `WHO` 아이콘 이름 |
 | what_name | varchar(10) | | | 고른 `WHAT` 아이콘 이름 |
@@ -386,6 +371,8 @@ erDiagram
 - 요청 처리: `diary` 행을 잠그고(`select … for update`) `diary_image_status`를 확인한 뒤 저장한다. 같은 일기에 동시에 온 두 번째 요청은 첫 요청이 커밋될 때까지 기다렸다가 `PENDING`을 보고 거절된다
 - `diary_image`와 `diary.diary_image_status`는 같은 트랜잭션에서 함께 바꾼다
 - V7 변경: `attempt_no`, `stage`, `trigger_type`, `prompt`, `model`, `failure_code`, `requested_at`, `started_at`, `completed_at` 삭제, `image_key` → `image_url`
+- V8 변경: `weather` 추가 (기본 `NONE`)
+- 유해성 판정으로 막힌 이유는 저장하지 않는다. 앱에는 결과 푸시의 `code`로만 알린다
 
 ---
 
@@ -437,9 +424,10 @@ erDiagram
 
 - 임베딩 텍스트는 날짜·감정·아이콘 이름·한 줄 일기를 합친 한 줄이다 (`2026-10-12 평온 / 공원, 엄마, 산책 / {content}`)
 - 한 줄 일기(`content`)가 있는 일기만 만든다. 기간·감정은 SQL이 거르므로 글이 없는 일기는 의미 검색으로 찾을 게 없다
-- 일기 작성·수정·삭제가 커밋된 뒤 비동기로 갱신한다(`DiaryContentChangedEvent`). 실패해도 일기 저장은 성공이다
-- 5분마다 스윕이 놓친 행(갱신 실패, 기존 일기, 다른 모델, 그림 워커의 제목 갱신)을 100건씩 채운다
-- 저장은 `on conflict` upsert이고 `updated_at`이 더 새로운 쪽만 이긴다. 수정이 연달아 와도 마지막 내용이 남는다
+- 일기 작성이 커밋된 뒤 비동기로 만든다(`DiaryContentChangedEvent`). 실패해도 일기 저장은 성공이다. 일기 수정·삭제 API는 없다
+- 5분마다 스윕이 놓친 행(갱신 실패, 기존 일기, 다른 모델, 그림 결과로 바뀐 일기)을 100건씩 채운다
+- 그림 결과가 저장되면 `diary.diary_image_status`가 바뀌어 `diary.updated_at`이 올라가지만 이벤트는 없다. 스윕이 다시 집지만 텍스트가 같아 GMS는 부르지 않는다
+- 저장은 `on conflict` upsert이고 `updated_at`이 더 새로운 쪽만 이긴다. 갱신이 연달아 와도 마지막 내용이 남는다
 - 저장 직전에 원본 일기를 `for share`로 잠그고 삭제·버전을 다시 확인한다. GMS 응답을 기다리는 사이 지워진 일기의 벡터가 되살아나지 않는다
 - 텍스트가 같으면(`content_hash`) GMS를 부르지 않고 `updated_at`만 올린다
 - 일기를 삭제하면 같이 지운다. 탈퇴 파기 대상이다
@@ -530,7 +518,7 @@ erDiagram
 | member_id | bigint | PK, FK | | |
 | ticket_balance | integer | | | `check (ticket_balance >= 0)` |
 | shard_balance | integer | | | `check (shard_balance >= 0)` |
-| updated_at | timestamptz | | | **쓴 시각이 아니라** 이 벡터를 만든 `diary.updated_at`. `diary.updated_at`보다 작으면 낡은 행이다 |
+| updated_at | timestamptz | | | |
 
 - 잔액을 바꿀 때는 이 행을 잠그고(`select … for update`) 같은 트랜잭션에서 `wallet_ledger`를 쓴다
 

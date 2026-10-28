@@ -35,14 +35,17 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final TermsAgreementRepository termsAgreementRepository;
     private final MemberSessionService sessionService;
+    private final PushDeviceService pushDeviceService;
     private final TermsProperties termsProperties;
     private final Clock clock;
 
     public MemberService(MemberRepository memberRepository, TermsAgreementRepository termsAgreementRepository,
-            MemberSessionService sessionService, TermsProperties termsProperties, Clock clock) {
+            MemberSessionService sessionService, PushDeviceService pushDeviceService, TermsProperties termsProperties,
+            Clock clock) {
         this.memberRepository = memberRepository;
         this.termsAgreementRepository = termsAgreementRepository;
         this.sessionService = sessionService;
+        this.pushDeviceService = pushDeviceService;
         this.termsProperties = termsProperties;
         this.clock = clock;
     }
@@ -97,6 +100,7 @@ public class MemberService {
         Member member = memberRepository.findActiveByIdForUpdate(memberId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "member " + memberId));
         sessionService.endAll(memberId);
+        pushDeviceService.deleteAll(memberId);
         member.withdraw(clock);
     }
 

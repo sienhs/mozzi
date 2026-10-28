@@ -105,7 +105,7 @@ class EmotionSearchTimeBudgetTest {
         token = transactionTemplate.execute(status -> sessionService.start(me)).accessToken();
         Long diaryId = fixtures.diary(
                 me, LocalDate.now(clock).minusDays(1), fixtures.emoticon(Emotion.HAPPY), Emotion.HAPPY, "칭찬받음");
-        fixtures.attach(diaryId, fixtures.myIcon(me, fixtures.icon(), "업무", IconCategory.WHAT));
+        fixtures.attach(diaryId, fixtures.myIcon(me, "업무", IconCategory.WHAT));
     }
 
     /** The interpretation alone used the budget up, so the answer is not even asked for. */

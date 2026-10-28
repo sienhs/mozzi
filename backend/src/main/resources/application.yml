@@ -106,13 +106,11 @@ mozzi:
     min-supported-version: ${MOZZI_APP_MIN_SUPPORTED_VERSION:1.0.0}
     latest-version: ${MOZZI_APP_LATEST_VERSION:1.0.0}
   image:
-    # How long the SSE connection waits for the picture. A result after that is still saved;
-    # the app reads it from the daily view.
-    event-stream-timeout: 15m
     # Until the character table exists every picture uses this character. Optional: without
-    # an image URL, requests carry characterImageUrl null and the server still starts.
+    # an image URL, requests carry characterImageUrl "DEFAULT" and the server still starts.
     default-character-image-url: ${MOZZI_DEFAULT_CHARACTER_IMAGE_URL:}
-    default-character-prompt: ${MOZZI_DEFAULT_CHARACTER_PROMPT:하얗고 동그란 찹쌀떡 모찌, 볼이 분홍색이고 짧은 팔다리가 있다}
+    # In English and sent as is; it is the same for every picture, so it is not translated.
+    default-character-prompt: ${MOZZI_DEFAULT_CHARACTER_PROMPT:a white round mochi rice cake with pink cheeks and short arms and legs}
     # Translate picture inputs with GMS (mozzi.gms.translation-model). Off locally and in
     # tests, where there is no real key: inputs then go out in Korean.
     translate: true
@@ -121,6 +119,10 @@ mozzi:
     request-url: ${SQS_AI_REQUEST_QUEUE_URL:}
     response-url: ${SQS_AI_RESPONSE_QUEUE_URL:}
     region: ${AWS_REGION:ap-northeast-2}
+  fcm:
+    # The Firebase service account key's JSON content. Blank: pushes are only logged, and the
+    # app finds picture results when it opens the diary.
+    service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
 
 springdoc:
   # Only our API. Actuator is left out; its endpoints are not part of the spec.

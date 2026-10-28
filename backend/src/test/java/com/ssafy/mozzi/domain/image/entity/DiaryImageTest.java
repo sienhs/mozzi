@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
  */
 class DiaryImageTest {
 
-    private static final DiaryImage.Selection PICK = new DiaryImage.Selection(1L, null, null, null, "요리");
+    private static final DiaryImage.Selection PICK = new DiaryImage.Selection(1L, null, null, null, null, "요리");
 
     @Test
     void aNewRequestIsPending() {
@@ -30,7 +30,7 @@ class DiaryImageTest {
         assertThat(image.getFailureCount()).isEqualTo(1);
         assertThat(image.canRetry()).isTrue();
 
-        image.retry(new DiaryImage.Selection(2L, TimeOfDay.LUNCH, "우리집", null, "독서"));
+        image.retry(new DiaryImage.Selection(2L, TimeOfDay.LUNCH, null, "우리집", null, "독서"));
         assertThat(image.getStatus()).isEqualTo(ImageStatus.PENDING);
         assertThat(image.getWhatName()).isEqualTo("독서");
     }

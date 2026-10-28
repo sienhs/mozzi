@@ -25,7 +25,7 @@ public final class DiaryFixtures {
 
     /** Empties every table the diary tests write to. */
     public void reset() {
-        jdbcTemplate.execute("truncate table member, emoticon, icon cascade");
+        jdbcTemplate.execute("truncate table member, emoticon cascade");
     }
 
     public Long emoticon(Emotion emotion) {
@@ -35,20 +35,11 @@ public final class DiaryFixtures {
                 """, Long.class, emotion.name(), "https://cdn.test/emoticons/" + emotion.name().toLowerCase() + ".webp");
     }
 
-    public Long icon() {
-        Long id = jdbcTemplate.queryForObject("""
-                insert into icon (image_url, created_at, updated_at)
-                values ('pending', now(), now()) returning icon_id
-                """, Long.class);
-        jdbcTemplate.update("update icon set image_url = ? where icon_id = ?", "https://cdn.test/icons/" + id + ".webp", id);
-        return id;
-    }
-
-    public Long myIcon(Long memberId, Long iconId, String name, IconCategory category) {
+    public Long myIcon(Long memberId, String name, IconCategory category) {
         return jdbcTemplate.queryForObject("""
-                insert into my_icon (member_id, icon_id, name, category, created_at, updated_at)
-                values (?, ?, ?, ?, clock_timestamp(), clock_timestamp()) returning my_icon_id
-                """, Long.class, memberId, iconId, name, category.name());
+                insert into my_icon (member_id, name, category, created_at, updated_at)
+                values (?, ?, ?, clock_timestamp(), clock_timestamp()) returning my_icon_id
+                """, Long.class, memberId, name, category.name());
     }
 
     public Long diary(Long memberId, LocalDate recordDate, Long emoticonId, Emotion emotion) {

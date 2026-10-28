@@ -9,8 +9,9 @@ import com.ssafy.mozzi.integration.gms.GmsUnavailableException;
 
 /**
  * Catches up on embeddings the change events did not leave current: refreshes that failed,
- * diaries written before this existed, rows of a previous model, and the picture worker's
- * writes, which publish no event.
+ * diaries written before this existed, rows of a previous model, and diaries a picture
+ * result touched: it changes the image status, which moves {@code diary.updated_at} without
+ * an event. The text is the same then, so those cost no GMS call.
  *
  * <p>Each pod runs it. Two pods sweeping at once embed the same diaries twice, which costs a
  * few tokens and writes the same rows; the version check keeps the result correct.

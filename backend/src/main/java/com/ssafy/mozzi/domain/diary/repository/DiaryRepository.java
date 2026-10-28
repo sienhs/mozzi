@@ -88,11 +88,11 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             Pageable pageable);
 
     /**
-     * A diary's icons that are still live, with their base images, oldest first. Deleted
-     * icons are left out, so a diary can come back with none.
+     * A diary's icons that are still live, oldest first. Deleted icons are left out, so a
+     * diary can come back with none.
      */
     @Query("""
-            select mi from Diary d join d.myIcons mi join fetch mi.icon
+            select mi from Diary d join d.myIcons mi
             where d.id = :diaryId
               and mi.deletedAt is null
             order by mi.createdAt, mi.id

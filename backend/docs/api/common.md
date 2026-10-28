@@ -98,6 +98,10 @@
 
 `MORNING` 아침 · `LUNCH` 점심 · `EVENING` 저녁
 
+### Weather — 그림 날씨
+
+`NONE` 입력되지 않음 · `SUNNY` 맑음 · `CLOUDY` 흐림 · `RAINY` 비 · `SNOWY` 눈
+
 ### ImageStatus — 그림 생성 상태
 
 | 값 | 의미 |

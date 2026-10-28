@@ -93,7 +93,6 @@ class EmotionSearchApiTest {
     private final Map<Long, String> accessTokens = new HashMap<>();
 
     private DiaryFixtures fixtures;
-    private Long baseIcon;
     private final Map<Emotion, Long> emoticons = new HashMap<>();
     private final Map<String, Long> myIcons = new HashMap<>();
     private Long me;
@@ -107,7 +106,6 @@ class EmotionSearchApiTest {
         fixtures.reset();
         emoticons.clear();
         myIcons.clear();
-        baseIcon = fixtures.icon();
         me = newMember("me");
         someoneElse = newMember("someoneElse");
         accessTokens.clear();
@@ -489,7 +487,7 @@ class EmotionSearchApiTest {
         Long diaryId = fixtures.diary(memberId, recordDate, emoticonId, emotion, content);
         for (String name : iconNames) {
             Long myIconId = myIcons.computeIfAbsent(memberId + "/" + name,
-                    key -> fixtures.myIcon(memberId, baseIcon, name, IconCategory.WHAT));
+                    key -> fixtures.myIcon(memberId, name, IconCategory.WHAT));
             fixtures.attach(diaryId, myIconId);
         }
         return new Diary(diaryId);

@@ -5,11 +5,11 @@
 ## 흐름
 
 ```
-아이콘 만들기 (기본 이미지 + 이름 + 카테고리)
+아이콘 만들기 (이름 + 카테고리, 글자만)
         │
 일기 쓰기: 이모티콘 1개 + 한 줄 일기 + 내 아이콘들 (무엇을 1개 이상)
         │
-그림 만들기: 캐릭터 + 시간대 + 카테고리별 아이콘 1개씩 → 비동기 생성
+그림 만들기: 캐릭터 + 시간대 + 날씨 + 카테고리별 아이콘 1개씩 → 비동기 생성
         │
 캘린더(한 달 감정) · 하루 일기 · 일기 목록으로 조회
 ```
@@ -21,8 +21,6 @@
 ```json
 {
   "myIconId": 15,
-  "iconId": 3,
-  "imageUrl": "https://mozzi-diary.s3.ap-northeast-2.amazonaws.com/icons/03.webp",
   "name": "도서관",
   "category": "WHERE",
   "createdAt": "2026-10-28T21:12:00+09:00"
@@ -31,8 +29,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `iconId` | 고른 기본 이미지 |
-| `imageUrl` | 기본 이미지의 공개 URL |
+| `name` | 아이콘 이름. 이미지는 없고 글자만 있다 |
 | `category` | [`IconCategory`](common.md#iconcategory--아이콘-카테고리) |
 
 ### DiaryImage
@@ -67,21 +64,6 @@ Response `200`
 }
 ```
 
-### `GET /icons` — 기본 이미지 목록
-
-아이콘을 만들 때 고르는 이미지. 서버가 미리 등록해 둔다 (약 20개). 페이지를 나누지 않는다.
-
-Response `200`
-
-```json
-{
-  "items": [
-    { "iconId": 1, "imageUrl": "https://.../icons/01.webp" },
-    { "iconId": 2, "imageUrl": "https://.../icons/02.webp" }
-  ]
-}
-```
-
 ---
 
 ## 내 아이콘
@@ -91,16 +73,14 @@ Response `200`
 Request
 
 ```json
-{ "iconId": 3, "name": "도서관", "category": "WHERE" }
+{ "name": "도서관", "category": "WHERE" }
 ```
 
 | 필드 | 필수 | 규칙 |
 |---|---|---|
-| `iconId` | O | 기본 이미지 ID |
 | `name` | O | 최대 10자. 앞뒤 공백 제거. 중복 허용 |
 | `category` | O | `WHERE`, `WHO`, `WHAT` |
 
-- 같은 기본 이미지로 여러 아이콘을 만들 수 있다.
 - 카테고리마다 최대 9개. 삭제한 아이콘은 세지 않는다.
 
 Response `201` — `MyIcon`
@@ -108,7 +88,6 @@ Response `201` — `MyIcon`
 | HTTP | code | 처리 |
 |---|---|---|
 | 400 | `INVALID_INPUT` | 이름이 비었거나 10자 초과, 잘못된 카테고리 |
-| 404 | `NOT_FOUND` | 없는 기본 이미지 |
 | 409 | `MY_ICON_LIMIT_EXCEEDED` | 그 카테고리에 이미 9개 |
 
 ### `GET /my-icons` — 내 아이콘 목록
@@ -301,39 +280,22 @@ Response `200`
 그림은 일기 저장과 분리된 비동기 작업이다. 일기 하나에 그림은 하나이고, 실패하면 같은 그림을 다시 요청한다.
 
 ```
-앱: GET /diaries/{id}/image/events (SSE 연결) → POST /diaries/{id}/image
-                                                    │
+앱: POST /diaries/{id}/image
+                │
 서버: diary_image(PENDING) 저장 → 202 → 커밋 후 비동기로
-      GMS 번역(어디서·누구와·무엇을·캐릭터) → SQS(ai-request)
-                                                    │
+      GMS 번역 + 유해성 판정(어디서·누구와·무엇을) → SQS(ai-request)
+                │
 AI 서버: 이미지 생성 → S3 업로드 → SQS(ai-response)
-                                                    │
-서버: diary_image(SUCCEEDED / FAILED) 갱신 → SSE image 이벤트 → 연결 종료
+                │
+서버: SQS 롱 폴링으로 결과 수신 → diary_image(SUCCEEDED / FAILED, image_url) 갱신 → FCM 푸시
+                │
+앱: 푸시를 받으면 GET /diaries/daily?date= 로 그림 확인
 ```
 
 - 타임아웃은 없다. AI 서버가 결과를 보낼 때까지 `PENDING`이고, 그동안은 다시 요청할 수 없다. 그래서 결과에 일기 ID만 있어도 어느 요청의 결과인지 헷갈리지 않는다.
 - 번역이나 큐 적재에 실패하면 바로 `FAILED`가 되고, 실패 횟수에 세지 않는다.
-
-### `GET /diaries/{diaryId}/image/events` — 그림 결과 구독 (SSE)
-
-`POST /diaries/{diaryId}/image`보다 **먼저** 연결한다. `Accept: text/event-stream`.
-
-```
-event:connected
-data:ok
-
-event:image
-data:{"diaryId":102,"status":"SUCCEEDED","imageUrl":"https://..."}
-```
-
-- `connected`는 연결 직후 한 번 온다.
-- `image`는 그림이 끝나면(`SUCCEEDED` 또는 `FAILED`) 한 번 오고, 서버가 연결을 닫는다. `FAILED`면 `imageUrl`은 `null`이다.
-- 같은 일기로 다시 연결하면 이전 연결은 닫힌다. 연결이 끊긴 사이에 결과가 나왔다면 `GET /diaries/daily`의 `image`로 확인한다.
-- 연결은 최대 15분 유지된다. 그 뒤에 결과가 나와도 저장은 되므로 `GET /diaries/daily`로 확인한다.
-
-| HTTP | code | 처리 |
-|---|---|---|
-| 404 | `NOT_FOUND` | 없거나 다른 회원의 일기 |
+- 결과는 [푸시](#그림-결과-푸시-fcm)로 알린다. 앱이 꺼져 있어도 받는다. 푸시를 놓쳐도 `GET /diaries/daily`의 `image`로 확인할 수 있다.
+- 번역하는 같은 GMS 호출에서 고른 값(아이콘 이름 등)이 그림으로 그릴 수 없는 내용인지 함께 판정한다. 욕설(변형 표기 포함), 성적인 내용, 잔인한 폭력, 자해, 마약, 혐오 표현이면 AI 서버로 보내지 않고 `FAILED`가 되며, **실패 횟수에 센다**. 같은 값으로 다시 요청하면 같은 판정이 나오기 때문이다. 음주(치맥 등)나 일상적인 슬픔·화남은 막지 않는다.
 
 ### `POST /diaries/{diaryId}/image` — 그림 만들기
 
@@ -345,6 +307,7 @@ Request
 {
   "characterId": 7,
   "timeOfDay": "EVENING",
+  "weather": "RAINY",
   "whereMyIconId": 15,
   "whoMyIconId": 21,
   "whatMyIconId": 30
@@ -355,6 +318,7 @@ Request
 |---|---|---|
 | `characterId` | O | 그림에 들어갈 모찌 |
 | `timeOfDay` | | `MORNING` 아침 · `LUNCH` 점심 · `EVENING` 저녁 |
+| `weather` | | `NONE` 입력되지 않음 · `SUNNY` 맑음 · `CLOUDY` 흐림 · `RAINY` 비 · `SNOWY` 눈. 보내지 않으면 `NONE` |
 | `whereMyIconId` | | 이 일기에 붙인 `WHERE` 아이콘 중 하나 |
 | `whoMyIconId` | | 이 일기에 붙인 `WHO` 아이콘 중 하나 |
 | `whatMyIconId` | O | 이 일기에 붙인 `WHAT` 아이콘 중 하나 |
@@ -387,6 +351,44 @@ Response `202`
 
 > 예정: 캐릭터 테이블과 보유 확인 (뽑기로 얻은 캐릭터만 가능, 기본 캐릭터 1개 지급). 그 전까지 `characterId`는 저장만 하고, AI 서버에는 설정값의 기본 캐릭터 이미지·프롬프트를 보낸다.
 
+### 그림 결과 푸시 (FCM)
+
+그림이 끝나면(`SUCCEEDED` 또는 `FAILED`) 일기 주인의 기기로 푸시를 한 번 보낸다. 기기는 [`PUT /members/me/push-tokens`](auth.md#put-membersmepush-tokens--푸시-토큰-등록)로 등록한 것 중 활성인 것(마지막에 로그인한 기기)이다.
+
+| 경우 | 제목 | 본문 |
+|---|---|---|
+| 성공 | 그림일기가 완성됐어요 | 오늘의 그림을 확인해 보세요. |
+| 유해성 판정으로 막힘 | 그림을 그리지 못했어요 | 그림으로 그릴 수 없는 내용이 있어요. 아이콘을 바꿔서 다시 그려 주세요. |
+| 그 밖의 실패 | 그림을 그리지 못했어요 | 다시 그려 볼 수 있어요. |
+| 실패 3번째 (더 요청할 수 없음) | 그림을 그리지 못했어요 | 이 일기의 그림은 더 그릴 수 없어요. |
+
+`data` (값은 모두 문자열):
+
+```json
+{
+  "type": "DIARY_IMAGE",
+  "diaryId": "102",
+  "recordDate": "2026-10-28",
+  "status": "SUCCEEDED",
+  "imageUrl": "https://.../diary/....webp"
+}
+```
+
+| 키 | 설명 |
+|---|---|
+| `type` | 푸시 종류. 그림 결과는 `DIARY_IMAGE` |
+| `diaryId`, `recordDate` | 알림을 누르면 `GET /diaries/daily?date={recordDate}`로 이동 |
+| `status` | `SUCCEEDED`, `FAILED` |
+| `imageUrl` | `SUCCEEDED`일 때만 |
+| `code` | `FAILED`이고 사용자가 고칠 수 있는 이유일 때만. 지금은 `INAPPROPRIATE_CONTENT`(유해한 내용) 하나 |
+
+- 앱이 백그라운드면 OS가 제목·본문을 알림으로 띄운다. 포그라운드면 OS는 띄우지 않으므로 앱이 `data`를 보고 처리한다.
+- 같은 결과가 SQS로 두 번 와도 푸시는 한 번만 간다.
+- 보내기에 실패해도 다시 보내지 않는다. 그림 결과는 저장되어 있으므로 앱은 일기에서 확인한다.
+- FCM이 앱이 지워진 토큰이라고 답하면 그 기기는 비활성화한다.
+- 실패 이유(`code`)는 저장하지 않는다. `GET /diaries/daily`에서는 `FAILED`만 보인다.
+- 서버에 Firebase 키(`FIREBASE_SERVICE_ACCOUNT_JSON`)가 없으면 푸시는 로그로만 남는다.
+
 ### AI 서버와 주고받는 메시지
 
 AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담는다.
@@ -400,8 +402,9 @@ AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담�
   "date": "2026-10-28",
   "emotion": "CALM",
   "characterImageUrl": "https://.../characters/mozzi.webp",
-  "characterPrompt": "a white round mochi with pink cheeks and short limbs",
+  "characterPrompt": "a white round mochi rice cake with pink cheeks and short arms and legs",
   "timeOfDay": "in the evening",
+  "weather": "on a rainy day",
   "where": "at home",
   "who": "with mom",
   "what": "cooking"
@@ -411,9 +414,11 @@ AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담�
 - `userId`는 일기 주인의 회원 ID다.
 - `date`는 오늘 날짜(`YYYY-MM-DD`)다. 그림은 그날 일기에만 요청할 수 있어서 일기 날짜와 같다.
 - `emotion`은 일기의 감정 코드다 (`HAPPY`, `CALM`, `NEUTRAL`, `SAD`, `ANGRY`).
-- `characterImageUrl`은 캐릭터 이미지가 아직 없어서 `null`일 수 있다.
-- `timeOfDay`, `where`, `who`는 고르지 않았으면 `null`.
-- 번역은 GMS `gpt-4.1-mini`로 한 번에 한다. `timeOfDay`는 고정값이라 번역하지 않는다.
+- `what`만 항상 값이 있다. 나머지 선택 값은 없으면 `null`이 아니라 `""`로 보낸다.
+- `characterImageUrl`은 캐릭터 이미지가 없으면 `"DEFAULT"`다. AI 서버는 기본 캐릭터로 그린다.
+- `timeOfDay`, `where`, `who`는 고르지 않았으면 `""`. `weather`가 `NONE`(입력되지 않음)이어도 `""`.
+- 번역은 GMS `gpt-4.1-mini`로 한 번에 한다. 자주 쓰는 태그(집, 가족, 요리 등)는 프롬프트의 용어집대로 같은 영어로 옮긴다.
+- `timeOfDay`, `weather`, `characterPrompt`는 고정값이라 번역하지 않는다. `characterPrompt`는 설정값(`MOZZI_DEFAULT_CHARACTER_PROMPT`)을 영어로 적어 두고 그대로 보낸다.
 
 `ai-response` (AI → 서버)
 
@@ -422,6 +427,7 @@ AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담�
 { "diaryId": 102, "status": "FAILED" }
 ```
 
+- 서버는 `ai-response`를 롱 폴링(20초)으로 계속 받는다. 처리한 메시지만 지운다.
 - 결과는 그 일기의 **현재 요청**에 반영한다. SQS가 같은 결과를 두 번 보내도 한 번만 반영된다.
-- `FAILED`만 실패 횟수에 센다.
+- `FAILED`만 실패 횟수에 센다. AI 서버로 가기 전 유해성 판정으로 막힌 요청도 실패 횟수에 센다.
 - 형식이 맞지 않는 메시지는 버린다. 서버가 처리하다 오류가 나면 메시지를 지우지 않아 다시 전달된다.

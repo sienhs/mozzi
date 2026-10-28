@@ -16,7 +16,7 @@ class UntranslatedPromptTranslator implements PromptTranslator {
     @Override
     public Translation translate(Source source) {
         log.warn("image translation is off; picture inputs are sent untranslated");
-        return new Translation(source.where(), source.who(), source.what(), source.character());
+        return new Translation(source.where(), source.who(), source.what());
     }
 
 }

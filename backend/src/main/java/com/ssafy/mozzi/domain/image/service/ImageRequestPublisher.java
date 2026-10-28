@@ -18,9 +18,11 @@ public interface ImageRequestPublisher {
      * @param date      the diary's day, {@code YYYY-MM-DD}; always today, since pictures can
      *                  only be requested on the day
      * @param emotion   the diary's emotion code, such as {@code CALM}
-     * @param timeOfDay English, or {@code null}
-     * @param where     English, or {@code null}
-     * @param who       English, or {@code null}
+     * @param characterImageUrl {@code "DEFAULT"} until the character image is set up
+     * @param timeOfDay English, or {@code ""}
+     * @param weather   English, or {@code ""} for {@code NONE}
+     * @param where     English, or {@code ""}
+     * @param who       English, or {@code ""}
      * @param what      English
      */
     record Message(
@@ -31,6 +33,7 @@ public interface ImageRequestPublisher {
             String characterImageUrl,
             String characterPrompt,
             String timeOfDay,
+            String weather,
             String where,
             String who,
             String what) {

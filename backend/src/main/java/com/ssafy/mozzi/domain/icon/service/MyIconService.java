@@ -8,11 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ssafy.mozzi.domain.icon.dto.MyIconCreateRequestDto;
 import com.ssafy.mozzi.domain.icon.dto.MyIconListResponseDto;
 import com.ssafy.mozzi.domain.icon.dto.MyIconResponseDto;
-import com.ssafy.mozzi.domain.icon.entity.Icon;
 import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.icon.entity.MyIcon;
 import com.ssafy.mozzi.domain.icon.exception.MyIconErrorCode;
-import com.ssafy.mozzi.domain.icon.repository.IconRepository;
 import com.ssafy.mozzi.domain.icon.repository.MyIconRepository;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.global.exception.BusinessException;
@@ -26,17 +24,14 @@ import com.ssafy.mozzi.global.exception.CommonErrorCode;
 public class MyIconService {
 
     private final MyIconRepository myIconRepository;
-    private final IconRepository iconRepository;
     private final MemberRepository memberRepository;
     private final Clock clock;
 
     public MyIconService(
             MyIconRepository myIconRepository,
-            IconRepository iconRepository,
             MemberRepository memberRepository,
             Clock clock) {
         this.myIconRepository = myIconRepository;
-        this.iconRepository = iconRepository;
         this.memberRepository = memberRepository;
         this.clock = clock;
     }
@@ -52,15 +47,12 @@ public class MyIconService {
     public MyIconResponseDto create(Long memberId, MyIconCreateRequestDto request) {
         memberRepository.findActiveByIdForUpdate(memberId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "member not found: " + memberId));
-        Icon icon = iconRepository.findById(request.iconId())
-                .orElseThrow(() -> new BusinessException(
-                        CommonErrorCode.NOT_FOUND, "icon not found: iconId=" + request.iconId()));
         if (myIconRepository.countByMemberIdAndCategoryAndDeletedAtIsNull(memberId, request.category())
                 >= MyIcon.MAX_PER_CATEGORY) {
             throw new BusinessException(
                     MyIconErrorCode.MY_ICON_LIMIT_EXCEEDED, "my icon limit: category=" + request.category());
         }
-        MyIcon saved = myIconRepository.save(MyIcon.create(memberId, icon, request.name(), request.category()));
+        MyIcon saved = myIconRepository.save(MyIcon.create(memberId, request.name(), request.category()));
         return MyIconResponseDto.of(saved);
     }
 

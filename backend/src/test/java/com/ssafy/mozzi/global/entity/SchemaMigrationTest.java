@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
     }
 
     @Test
@@ -40,12 +40,14 @@ class SchemaMigrationTest {
         assertThat(tables).contains(
                 "member", "member_setting", "terms_agreement", "push_device",
                 "idempotency_record", "member_session", "signup_ticket",
-                "emoticon", "icon", "my_icon", "diary", "diary_icon", "diary_image",
+                "emoticon", "my_icon", "diary", "diary_icon", "diary_image",
                 "emotion_search", "emotion_search_result", "diary_embedding");
         // Replaced by member_session in V5; two refresh schemes must not coexist.
         assertThat(tables).doesNotContain("refresh_token");
         // Replaced by member-made icons in V7.
         assertThat(tables).doesNotContain("activity", "diary_activity");
+        // Icons became text only in V9.
+        assertThat(tables).doesNotContain("icon");
     }
 
     /** Columns are snake_case in the database and camelCase in Java (convention 1.1). */
