@@ -100,6 +100,11 @@ mozzi:
     current-versions:
       TERMS: "1.0"
       PRIVACY: "1.0"
+  app:
+    # GET /meta. Below the minimum the app blocks itself and sends the member to the store;
+    # below the latest it only offers the update.
+    min-supported-version: ${MOZZI_APP_MIN_SUPPORTED_VERSION:1.0.0}
+    latest-version: ${MOZZI_APP_LATEST_VERSION:1.0.0}
   image:
     # How long the SSE connection waits for the picture. A result after that is still saved;
     # the app reads it from the daily view.

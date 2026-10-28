@@ -24,6 +24,8 @@ public final class PublicEndpoints {
             "POST " + WebConfig.API_PREFIX + "/auth/google",
             "POST " + WebConfig.API_PREFIX + "/auth/signup",
             "POST " + WebConfig.API_PREFIX + "/auth/refresh",
+            // Read at start-up, before sign-up: terms versions and the update check.
+            "GET " + WebConfig.API_PREFIX + "/meta",
             // Kubernetes probes (deployment.yaml) and the bare health check.
             "GET /actuator/health",
             "GET /actuator/health/liveness",

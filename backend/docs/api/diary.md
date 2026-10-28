@@ -230,7 +230,7 @@ Response `200`
 | 400 | `INVALID_INPUT` | `date` 없음, 형식 오류 |
 | 404 | `NOT_FOUND` | 그 날짜에 일기가 없음 |
 
-홈에서 "오늘 일기를 썼는지"도 이 API로 확인한다.
+홈은 [`GET /home`](home.md)을 쓴다.
 
 ### `GET /diaries/monthly` — 한 달 감정 (캘린더)
 
