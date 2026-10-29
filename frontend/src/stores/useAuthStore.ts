@@ -20,6 +20,7 @@ import type {
 import { validNickname } from '@/types/auth';
 import { useAppStore } from './useAppStore';
 import { useGachaStore } from './useGachaStore';
+import { useMetaStore } from './useMetaStore';
 import { useTagStore } from './useTagStore';
 
 type AuthStatus =
@@ -182,6 +183,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       ) {
         get().cancelSignup();
       } else if (authSession.current()) set({ status: 'restorationError' });
+      if (errorCode(error) === 'TERMS_AGREEMENT_REQUIRED') {
+        // 가입 중에 약관 버전이 바뀌었다. 새 버전을 받아 오면 이전 동의는 화면에서 풀린다.
+        void useMetaStore.getState().load();
+        set({
+          error: '약관이 바뀌었어요. 내용을 확인하고 다시 동의해 주세요.',
+        });
+        return;
+      }
       set({ error: authErrorMessage(error) });
     } finally {
       if (version === authSession.version()) set({ pending: false });

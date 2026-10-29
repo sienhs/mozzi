@@ -10,7 +10,6 @@ import type {
   CustomTagCategory,
   DiaryDraft,
   DiaryTag,
-  GenerationRequest,
   SelectableTag,
   TagCategory,
   TagSelection,
@@ -90,10 +89,12 @@ export type CustomTagCheck =
   | { kind: 'reuse'; id: string }
   | { kind: 'preset'; tag: (typeof presetTags)[number] }
   | { kind: 'error'; message: string };
+// used: 서버에 이미 있는 그 카테고리의 아이콘 수 (기본 태그용 아이콘 포함).
 export function checkCustomTag(
   raw: string,
   library: CustomTag[],
   category: CustomTagCategory = 'activity',
+  used = library.filter(tag => tag.category === category).length,
 ): CustomTagCheck {
   const label = normalizeTagLabel(raw);
   if (!label) return { kind: 'error', message: '태그를 입력해 주세요.' };
@@ -111,10 +112,10 @@ export function checkCustomTag(
       kind: 'error',
       message: `${customTagLimits.maxLength}자까지 쓸 수 있어요.`,
     };
-  if (library.length >= customTagLimits.maxSaved)
+  if (used >= customTagLimits.maxPerCategory)
     return {
       kind: 'error',
-      message: `추가한 태그는 ${customTagLimits.maxSaved}개까지 보관할 수 있어요.`,
+      message: `태그는 카테고리마다 ${customTagLimits.maxPerCategory}개까지 만들 수 있어요. 자주 고른 기본 태그도 함께 세요.`,
     };
   return { kind: 'create', label, key };
 }
@@ -152,73 +153,21 @@ export function chosenActivity(draft: DiaryDraft, library: CustomTag[]) {
   );
 }
 // 기록에 남길 태그와 그림의 장면을 분리한다. 활동은 사용자가 명시적으로 고른 하나만 남긴다.
+// 서버 그림 요청은 장소·동행을 하나씩만 받으므로 동행은 처음 고른 한 명만 그림에 들어간다.
 export function toImageTags(
   draft: DiaryDraft,
   library: CustomTag[],
 ): DiaryTag[] {
   const activity = chosenActivity(draft, library);
   if (!activity) return [];
+  const companion = draft.tags.companions[0] ?? null;
   return [
     snapshotTag(activity),
-    ...toDiaryTags(draft.tags, library).filter(
-      tag => tag.category !== 'activity',
-    ),
+    ...toDiaryTags(
+      { ...draft.tags, companions: companion ? [companion] : [] },
+      library,
+    ).filter(tag => tag.category !== 'activity'),
   ];
-}
-export function toGenerationRequest(
-  draft: DiaryDraft,
-  library: CustomTag[],
-  fallbackDate: string,
-): GenerationRequest | null {
-  const activity = chosenActivity(draft, library);
-  if (!draft.emotion || !activity) return null;
-  const imageTags = toImageTags(draft, library);
-  const code = (id: string | null) => {
-    const tag = resolveTag(id, library);
-    return tag && 'code' in tag ? tag.code : null;
-  };
-  return {
-    recordDate: draft.recordDate ?? fallbackDate,
-    emotion: draft.emotion,
-    activities: 'code' in activity ? [activity.code] : [],
-    place: code(draft.tags.place),
-    companions: draft.tags.companions
-      .map(code)
-      .filter((value): value is string => !!value),
-    weather: code(draft.tags.weather),
-    customTagIds: imageTags.flatMap(tag =>
-      tag.customTagId ? [tag.customTagId] : [],
-    ),
-  };
-}
-// 과거의 별도 내 태그 스냅샷은 같은 이름의 현재 카테고리 태그로 복원한다.
-export function selectionFromTags(
-  tags: DiaryTag[],
-  library: CustomTag[],
-): TagSelection {
-  let selection = emptySelection();
-  for (const snapshot of tags) {
-    if (snapshot.category === 'legacy') continue;
-    const custom =
-      snapshot.code === null
-        ? library.find(
-            tag =>
-              (snapshot.category === 'custom' ||
-                tag.category === snapshot.category) &&
-              (snapshot.customTagId
-                ? tag.id === snapshot.customTagId
-                : tag.key === tagKey(snapshot.label)),
-          )
-        : undefined;
-    const tag =
-      custom ??
-      presetTags.find(
-        tag => tag.category === snapshot.category && tag.code === snapshot.code,
-      );
-    if (tag && !isTagSelected(selection, tag))
-      selection = toggleTag(selection, tag);
-  }
-  return selection;
 }
 export const tagSummary = (tags: DiaryTag[]) =>
   tags.map(tag => tag.label).join(' · ');

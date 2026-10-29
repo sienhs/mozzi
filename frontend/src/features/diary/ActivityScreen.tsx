@@ -8,6 +8,7 @@ import { TagChip } from '@/components/ui/Selection';
 import { AppText } from '@/components/ui/Text';
 import { useAppStore } from '@/stores/useAppStore';
 import { useTagStore } from '@/stores/useTagStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { activityChoices, chosenActivity, resolveTag } from './tagRules';
 import { useRecordGuard } from './useRecordGuard';
 
@@ -35,11 +36,16 @@ export function ActivityScreen() {
     .filter(Boolean);
   const weather = resolveTag(draft.tags.weather, library);
   async function draw() {
-    const entry = await useAppStore.getState().startGeneration();
-    if (entry && mounted.current) {
+    const memberId = useAuthStore.getState().member?.memberId;
+    if (memberId === undefined) return;
+    const result = await useAppStore.getState().startGeneration(memberId);
+    if (result && mounted.current) {
       allowRemove();
       router.dismissTo('/home');
-      router.push({ pathname: '/record/generation', params: { id: entry.id } });
+      router.push({
+        pathname: '/record/generation',
+        params: { id: String(result.diaryId) },
+      });
     }
   }
   return (
@@ -84,8 +90,14 @@ export function ActivityScreen() {
             어디서 · {place?.label ?? '선택 안 함'}
           </AppText>
           <AppText variant="small">
-            누구와 · {companions.join(' · ') || '선택 안 함'}
+            누구와 · {companions[0] ?? '선택 안 함'}
           </AppText>
+          {companions.length > 1 && (
+            <AppText variant="caption">
+              그림에는 처음 고른 동행 한 명이 함께 담겨요. 고른 동행은 모두
+              기록에 남아요.
+            </AppText>
+          )}
           {!!weather && (
             <AppText variant="small">날씨 · {weather.label}</AppText>
           )}

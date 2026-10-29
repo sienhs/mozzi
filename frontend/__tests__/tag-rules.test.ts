@@ -3,11 +3,10 @@ import {
   activityChoices,
   canSelectTag,
   checkCustomTag,
+  chosenActivity,
   emptySelection,
   removeSelectedTag,
-  selectionFromTags,
   toDiaryTags,
-  toGenerationRequest,
   toImageTags,
   toggleTag,
 } from '@/features/diary/tagRules';
@@ -92,10 +91,11 @@ test('normalization and duplicate matching operate within the selected category'
   expect(checkCustomTag('열한글자가넘는긴태그예요', library).kind).toBe(
     'error',
   );
-  const full = Array.from({ length: 20 }, (_, i) =>
-    custom('c' + i, '태그' + i),
-  );
+  // 서버 한도: 카테고리마다 9개. 기본 태그용으로 만든(목록에 안 보이는) 아이콘도 센다.
+  const full = Array.from({ length: 9 }, (_, i) => custom('c' + i, '태그' + i));
   expect(checkCustomTag('새 태그', full).kind).toBe('error');
+  expect(checkCustomTag('새 태그', full, 'place').kind).toBe('create');
+  expect(checkCustomTag('새 태그', [], 'activity', 9).kind).toBe('error');
 });
 test('generation requires an explicit activity from the selected list even if only one was picked', () => {
   const draft = {
@@ -103,29 +103,23 @@ test('generation requires an explicit activity from the selected list even if on
     emotion: 'calm' as const,
     tags: pick('activity.walk'),
   };
-  expect(toGenerationRequest(draft, [], '2026-10-28')).toBeNull();
+  expect(chosenActivity(draft, [])).toBeUndefined();
+  expect(toImageTags(draft, [])).toEqual([]);
   expect(
-    toGenerationRequest(
-      { ...draft, mainActivityId: 'activity.work' },
-      [],
-      '2026-10-28',
-    ),
-  ).toBeNull();
+    chosenActivity({ ...draft, mainActivityId: 'activity.work' }, []),
+  ).toBeUndefined();
   expect(
-    toGenerationRequest(
-      { ...draft, mainActivityId: 'activity.walk' },
-      [],
-      '2026-10-28',
-    ),
-  ).toMatchObject({ activities: ['WALK'], weather: null });
+    toImageTags({ ...draft, mainActivityId: 'activity.walk' }, []),
+  ).toEqual([{ category: 'activity', code: 'WALK', label: '산책' }]);
 });
-test('only one chosen activity is sent; all record tags and the fixed place and companions remain separate', () => {
+test('only one chosen activity and the first companion form the picture; all record tags remain separate', () => {
   const tags = pick(
     'activity.studying',
     'activity.walk',
     'activity.eating',
     'place.park',
     'companion.friend',
+    'companion.family',
   );
   const draft = {
     ...emptyDraft(),
@@ -134,15 +128,7 @@ test('only one chosen activity is sent; all record tags and the fixed place and 
     mainActivityId: 'activity.walk',
     memo: '보내지 않는 한 줄',
   };
-  expect(toGenerationRequest(draft, [], '2026-10-28')).toEqual({
-    recordDate: '2026-10-28',
-    emotion: 'calm',
-    activities: ['WALK'],
-    place: 'PARK',
-    companions: ['FRIEND'],
-    weather: null,
-    customTagIds: [],
-  });
+  // 서버 그림 요청은 동행을 하나만 받는다.
   expect(toImageTags(draft, []).map(tag => tag.label)).toEqual([
     '산책',
     '공원',
@@ -154,9 +140,10 @@ test('only one chosen activity is sent; all record tags and the fixed place and 
     '식사',
     '공원',
     '친구',
+    '가족',
   ]);
 });
-test('a chosen custom activity is the sole image activity; other custom activities are excluded from the request', () => {
+test('a chosen custom activity is the sole image activity; other custom activities stay out of the picture', () => {
   const a = custom('a', '악기 연습'),
     b = custom('b', '독서 모임');
   const p = custom('p', '연습실', 'place'),
@@ -177,27 +164,18 @@ test('a chosen custom activity is the sole image activity; other custom activiti
     'a',
     'b',
   ]);
-  expect(toGenerationRequest(draft, library, '2026-10-28')).toMatchObject({
-    activities: [],
-    place: null,
-    companions: ['FRIEND'],
-    customTagIds: ['a', 'p', 'c'],
-  });
-  expect(toImageTags(draft, library).map(tag => tag.label)).toEqual([
-    '악기 연습',
-    '연습실',
-    '친구',
-    '동아리 친구',
+  expect(toImageTags(draft, library)).toEqual([
+    { category: 'activity', code: null, label: '악기 연습', customTagId: 'a' },
+    { category: 'place', code: null, label: '연습실', customTagId: 'p' },
+    { category: 'companion', code: 'FRIEND', label: '친구' },
   ]);
   expect(
-    toGenerationRequest(
-      { ...draft, mainActivityId: 'activity.walk' },
-      library,
-      '2026-10-28',
-    )?.customTagIds,
-  ).toEqual(['p', 'c']);
+    toImageTags({ ...draft, mainActivityId: 'activity.walk' }, library).map(
+      tag => tag.label,
+    ),
+  ).toEqual(['산책', '연습실', '친구']);
 });
-test('custom snapshots retain category and identity; deleted tags do not come back when rewriting', () => {
+test('custom snapshots retain category and identity; removing a tag clears its selection', () => {
   const library = [
     custom('a', '악기 연습'),
     custom('p', '연습실', 'place'),
@@ -213,7 +191,5 @@ test('custom snapshots retain category and identity; deleted tags do not come ba
       customTagId: tag.id,
     })),
   );
-  expect(selectionFromTags(snapshot, library)).toEqual(selected);
-  expect(selectionFromTags(snapshot, [])).toEqual(emptySelection());
   expect(removeSelectedTag(selected, 'p').place).toBeNull();
 });

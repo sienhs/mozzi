@@ -15,6 +15,10 @@ import { authSession } from '@/services/authSession';
 import { googleAuth } from '@/services/googleAuth';
 import { getMember } from '@/services/memberApi';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useMetaStore } from '@/stores/useMetaStore';
+import { fetchMeta } from '@/services/metaApi';
+import { api } from '@/services/api';
+import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 jest.mock('@/services/googleAuth', () => ({
   googleAuth: { signIn: jest.fn(), clear: jest.fn(async () => undefined) },
@@ -25,13 +29,13 @@ jest.mock('@/services/authTransport', () => ({
 jest.mock('@/services/memberApi', () => ({ getMember: jest.fn() }));
 jest.mock('@/services/authConfig', () => ({
   getApiBaseUrl: () => 'https://api.example.test/api/v1',
-  authConfig: {
-    terms: {
-      TERMS: { url: 'https://example.test/terms', version: '1.0' },
-      PRIVACY: { url: 'https://example.test/privacy', version: '1.0' },
-    },
-  },
+  authConfig: { webClientId: '' },
 }));
+const meta = (TERMS = '1.0', PRIVACY = '1.0') => ({
+  termsVersions: { TERMS, PRIVACY },
+  minSupportedVersion: '1.0.0',
+  latestVersion: '1.0.0',
+});
 const routes = {
   _layout: RootLayout,
   index: Welcome,
@@ -56,6 +60,22 @@ beforeEach(async () => {
     error: '',
   });
   jest.mocked(googleAuth.signIn).mockResolvedValue('google-id-token');
+  useMetaStore.setState({ meta: null, status: 'idle', error: '' });
+  jest.mocked(fetchMeta).mockResolvedValue(meta());
+  // 가입 뒤 홈은 오늘 기록이 없는 상태로 연다.
+  api.defaults.adapter = async config => ({
+    data: {
+      today: '2026-10-28',
+      todayStatus: 'NOT_RECORDED',
+      todayDiary: null,
+      canRequestImage: false,
+      recentDiary: null,
+    },
+    config,
+    status: 200,
+    statusText: '200',
+    headers: {},
+  });
   jest.mocked(getMember).mockResolvedValue({
     memberId: 7,
     nickname: '회원',
@@ -123,4 +143,70 @@ test('restored session entering the root route reaches home', async () => {
   await waitFor(() => expect(app.getPathname()).toBe('/home'));
   expect(getMember).toHaveBeenCalled();
   expect(authTransport.google).not.toHaveBeenCalled();
+});
+
+async function openOnboarding() {
+  jest.mocked(authTransport.google).mockResolvedValue({
+    status: 'SIGNUP_REQUIRED',
+    signupToken: 'ticket',
+    signupExpiresAt: new Date(Date.now() + 600000).toISOString(),
+  });
+  const app = await renderRouter(routes, { initialUrl: '/' });
+  await fireEvent.press(
+    await screen.findByRole('button', { name: 'Google로 시작하기' }),
+  );
+  await waitFor(() => expect(app.getPathname()).toBe('/onboarding'));
+  await fireEvent.changeText(screen.getByLabelText('닉네임'), '새회원');
+  return app;
+}
+
+test('a server terms version that differs from the bundled text blocks consent instead of sending another version', async () => {
+  jest.mocked(fetchMeta).mockResolvedValue(meta('2.0'));
+  await openOnboarding();
+  expect(
+    screen.getByText(
+      '약관이 새로 바뀌었어요. 앱을 최신 버전으로 업데이트한 뒤 가입해 주세요.',
+    ),
+  ).toBeOnTheScreen();
+  expect(
+    screen.queryByRole('checkbox', { name: '이용약관 동의 (필수)' }),
+  ).toBeNull();
+  expect(screen.getByRole('button', { name: '시작하기' })).toBeDisabled();
+  expect(authTransport.signup).not.toHaveBeenCalled();
+});
+
+test('a terms change during signup reloads meta and clears the earlier agreement', async () => {
+  await openOnboarding();
+  await fireEvent.press(
+    screen.getByRole('checkbox', { name: '이용약관 동의 (필수)' }),
+  );
+  await fireEvent.press(
+    screen.getByRole('checkbox', { name: '개인정보 처리방침 동의 (필수)' }),
+  );
+  const config = { headers: {} } as InternalAxiosRequestConfig;
+  jest.mocked(authTransport.signup).mockRejectedValueOnce(
+    new AxiosError('rejected', 'ERR_BAD_REQUEST', config, undefined, {
+      data: { code: 'TERMS_AGREEMENT_REQUIRED', message: '약관 동의 필요' },
+      status: 400,
+      statusText: '400',
+      headers: {},
+      config,
+    }),
+  );
+  jest.mocked(fetchMeta).mockResolvedValue(meta('1.0', '1.1'));
+  const calls = jest.mocked(fetchMeta).mock.calls.length;
+  await fireEvent.press(screen.getByRole('button', { name: '시작하기' }));
+  expect(
+    await screen.findByText(
+      '약관이 바뀌었어요. 내용을 확인하고 다시 동의해 주세요.',
+    ),
+  ).toBeOnTheScreen();
+  expect(jest.mocked(fetchMeta).mock.calls.length).toBe(calls + 1);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: '시작하기' })).toBeDisabled(),
+  );
+  expect(
+    screen.queryByRole('checkbox', { name: '개인정보 처리방침 동의 (필수)' }),
+  ).toBeNull();
+  expect(authTransport.signup).toHaveBeenCalledTimes(1);
 });

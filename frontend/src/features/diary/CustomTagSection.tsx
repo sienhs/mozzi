@@ -196,7 +196,7 @@ export function CustomTagSection({
       <ConfirmModal
         visible={!!pendingDelete}
         title={`‘${pendingDelete?.label ?? ''}’ 태그를 지울까요?`}
-        description="지난 기록에 남은 태그는 그대로 있어요."
+        description="이 태그를 붙였던 지난 기록에서도 더 이상 보이지 않아요. 이미 그린 그림은 그대로예요."
         confirmLabel="지우기"
         onConfirm={() => void confirmDelete()}
         onClose={() => setPendingDelete(null)}

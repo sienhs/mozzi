@@ -22,12 +22,7 @@ export function getApiBaseUrl() {
     throw new Error('서버 연결을 준비하고 있어요. 잠시 후 다시 시도해 주세요.');
   return normalizeApiUrl(value);
 }
+// 약관 버전은 여기 두지 않는다: 동의 버전은 앱에 들어 있는 본문(constants/legal)과 GET /meta를 맞춰 정한다.
 export const authConfig = {
   webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() ?? '',
-  terms: {
-    TERMS: { version: process.env.EXPO_PUBLIC_TERMS_VERSION?.trim() || '1.0' },
-    PRIVACY: {
-      version: process.env.EXPO_PUBLIC_PRIVACY_VERSION?.trim() || '1.0',
-    },
-  },
 };

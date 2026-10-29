@@ -1,4 +1,3 @@
-import { mockDiaryService } from '@/mocks/services';
 import { setAuthPreview } from '@/mocks/authPreview';
 import {
   act,
@@ -24,10 +23,22 @@ import Search from '@/app/(tabs)/search';
 import Gacha from '@/app/(tabs)/gacha';
 import Settings from '@/app/settings';
 import Dev from '@/app/dev';
+import { api } from '@/services/api';
+import { diaryApi } from '@/services/diaryApi';
 import { useAppStore } from '@/stores/useAppStore';
 import { useTagStore } from '@/stores/useTagStore';
 import { useMockControls } from '@/mocks/controls';
 import { queryClient } from '@/services/queryClient';
+import {
+  createFakeServer,
+  fail,
+  type FakeServer,
+} from '../test-utils/fakeServer';
+
+jest.mock('@/services/authConfig', () => ({
+  ...jest.requireActual('@/services/authConfig'),
+  getApiBaseUrl: () => 'https://api.example.test/api/v1',
+}));
 
 const routes = {
   _layout: RootLayout,
@@ -46,6 +57,8 @@ const routes = {
   settings: Settings,
   dev: Dev,
 };
+const TODAY = '2026-10-26';
+let server: FakeServer;
 beforeEach(() => {
   jest.useFakeTimers();
   jest.setSystemTime(new Date('2026-10-26T12:00:00Z'));
@@ -53,7 +66,10 @@ beforeEach(() => {
   useAppStore.getState().resetSession();
   useTagStore.getState().resetSession();
   useMockControls.getState().reset();
+  diaryApi.forgetEmoticons();
   queryClient.clear();
+  server = createFakeServer(TODAY);
+  api.defaults.adapter = server.adapter;
 });
 afterEach(async () => {
   await cleanup();
@@ -68,7 +84,45 @@ const advance = async (ms: number) =>
 async function renderApp(initialUrl: string) {
   const app = await renderRouter(routes, { initialUrl });
   jest.setSystemTime(new Date('2026-10-26T12:00:00Z'));
+  await advance(0);
   return app;
+}
+// 오늘 일기를 서버에 바로 넣는다 (홈 상태별 화면 확인용).
+function seedToday(
+  image: 'PENDING' | 'SUCCEEDED' | 'FAILED' | null,
+  options: { withWhat?: boolean } = {},
+) {
+  const what = server.icon('요리', 'WHAT');
+  const place = server.icon('집', 'WHERE');
+  server.state.diaries.push({
+    diaryId: 700,
+    recordDate: TODAY,
+    emotion: 'CALM',
+    content: null,
+    iconIds:
+      options.withWhat === false
+        ? [place.myIconId]
+        : [what.myIconId, place.myIconId],
+  });
+  if (image)
+    server.state.images.set(700, {
+      status: image,
+      failures: image === 'FAILED' ? 1 : 0,
+      body: {
+        characterId: 1,
+        weather: 'NONE',
+        whereMyIconId: place.myIconId,
+        whoMyIconId: null,
+        whatMyIconId: what.myIconId,
+      },
+    });
+  return what;
+}
+// 홈을 다시 그린다 (서버 상태를 바꾼 뒤 새로 연 것처럼).
+async function reopenHome() {
+  await cleanup();
+  queryClient.clear();
+  await renderApp('/home');
 }
 
 async function chooseDay() {
@@ -86,20 +140,20 @@ async function drawPicture(app: Awaited<ReturnType<typeof renderApp>>) {
   expect(screen.getByRole('button', { name: '그림 그리기' })).toBeDisabled();
   await fireEvent.press(screen.getByRole('radio', { name: '요리' }));
   await fireEvent.press(screen.getByRole('button', { name: '그림 그리기' }));
-  expect(
-    screen.getByRole('button', { name: '그림을 부탁하고 있어요' }),
-  ).toBeDisabled();
-  await advance(1000);
-  expect(app.getPathname()).toBe('/record/generation');
+  await advance(0);
+  await waitFor(() => expect(app.getPathname()).toBe('/record/generation'));
 }
 
-test('tags draw the picture first, then the one-line diary is written and saved', async () => {
+test('tags create the diary, the picture is polled until done, and the one-line step shows the server image without faking a save', async () => {
   setAuthPreview();
+  server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
+    ['요리', 'WHAT'],
+  ]);
   const app = await renderApp('/home');
+  expect(await screen.findByText('지난 기록')).toBeOnTheScreen();
+  expect(screen.getByText('10월 26일 월요일')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
-  expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
   await chooseDay();
-  expect(screen.queryByLabelText(/한 줄/)).toBeNull();
   await fireEvent.press(
     screen.getByRole('button', { name: '무엇을 태그 추가' }),
   );
@@ -108,45 +162,57 @@ test('tags draw the picture first, then the one-line diary is written and saved'
     '  오므라이스 ',
   );
   await fireEvent.press(screen.getByRole('button', { name: '태그 만들기' }));
-  await advance(400);
+  await advance(0);
   expect(screen.getByRole('checkbox', { name: '오므라이스' })).toBeChecked();
   await drawPicture(app);
+  const [created] = server.callsTo('POST', '/diaries');
+  expect(created.body.content).toBeNull();
+  expect(server.callsTo('POST', '/diaries/501/image')).toHaveLength(1);
+  expect(
+    await screen.findByText('오늘의 모찌를 그리고 있어요'),
+  ).toBeOnTheScreen();
   expect(screen.getByText('요리 · 집 · 가족')).toBeOnTheScreen();
   await fireEvent.press(
     screen.getByRole('button', { name: '홈에서 기다리기' }),
   );
   expect(app.getPathname()).toBe('/home');
-  await advance(6000);
-  expect(screen.getByText('그림이 완성됐어요')).toBeOnTheScreen();
+  const before = server.callsTo('GET', '/home').length;
+  server.finish(501, 'SUCCEEDED');
+  await advance(4000);
+  expect(server.callsTo('GET', '/home').length).toBeGreaterThan(before);
+  expect(await screen.findByText('그림이 완성됐어요')).toBeOnTheScreen();
+  // 그림이 끝나면 더 묻지 않는다.
+  const settled = server.callsTo('GET', '/home').length;
+  await advance(30000);
+  expect(server.callsTo('GET', '/home').length).toBe(settled);
   await fireEvent.press(
     screen.getByRole('button', { name: '한 줄 남기고 저장하기' }),
   );
   expect(app.getPathname()).toBe('/record/generation');
-  await fireEvent.changeText(
-    screen.getByLabelText('오늘의 한 줄 (선택)'),
-    '비 오는 날 오므라이스',
-  );
-  await fireEvent.press(screen.getByRole('button', { name: '기록 저장하기' }));
-  await advance(1000);
-  expect(screen.getByText('오늘도 한 장 남겼어요')).toBeOnTheScreen();
-  await fireEvent.press(
-    screen.getByRole('button', { name: '기록 자세히 보기' }),
-  );
-  expect(app.getPathname()).toBe('/diary/diary-2026-10-26');
-  expect(screen.getByText('비 오는 날 오므라이스')).toBeOnTheScreen();
-  expect(screen.getByText('요리 · 오므라이스 · 집 · 가족')).toBeOnTheScreen();
+  expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
+    uri: 'https://cdn.example.test/diary/501.webp',
+  });
+  expect(
+    screen.getByText(
+      '한 줄 저장은 서버에서 준비 중이에요. 그림은 이미 저장됐어요.',
+    ),
+  ).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '기록 저장하기' })).toBeDisabled();
 }, 30000);
 
-test('after the picture is requested, back goes home and the tag screens cannot be reopened', async () => {
+test('after the diary is created, back goes home and the tag screens cannot be reopened', async () => {
   setAuthPreview();
   const app = await renderApp('/home');
-  await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
+  await fireEvent.press(
+    await screen.findByRole('button', { name: '오늘 기록하기' }),
+  );
   await chooseDay();
   await drawPicture(app);
   await act(async () => {
     router.back();
   });
   expect(app.getPathname()).toBe('/home');
+  await advance(0);
   expect(screen.queryByRole('button', { name: '오늘 기록하기' })).toBeNull();
   await act(async () => {
     router.push('/record/tags');
@@ -158,30 +224,156 @@ test('after the picture is requested, back goes home and the tag screens cannot 
   expect(app.getPathname()).toBe('/record/generation');
 }, 30000);
 
-test('a blocked picture lets the day be rewritten with the earlier choices filled in', async () => {
+test('home shows each server status: pending, completed with and without a line, failed with and without retries', async () => {
   setAuthPreview();
-  useMockControls.getState().failNext('generationBlocked');
-  const app = await renderApp('/home');
-  await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
-  await chooseDay();
-  await drawPicture(app);
-  await advance(6000);
+  seedToday('PENDING');
+  await renderApp('/home');
   expect(
-    screen.getByText('이 내용으로는 그림을 그릴 수 없어요'),
+    await screen.findByText('오늘의 모찌를 그리고 있어요'),
+  ).toBeOnTheScreen();
+  expect(screen.getByLabelText('그림 생성 진행률')).toBeOnTheScreen();
+
+  server.finish(700, 'SUCCEEDED');
+  await reopenHome();
+  // 서버 COMPLETED여도 한 줄이 없으면 작성 완료가 아니다.
+  expect(await screen.findByText('그림이 완성됐어요')).toBeOnTheScreen();
+  expect(
+    screen.getByRole('button', { name: '한 줄 남기고 저장하기' }),
+  ).toBeOnTheScreen();
+
+  server.state.diaries[0].content = '비 오는 날 오므라이스';
+  await reopenHome();
+  expect(await screen.findByText('오늘도 한 장 남겼어요')).toBeOnTheScreen();
+  expect(screen.getByText('비 오는 날 오므라이스')).toBeOnTheScreen();
+
+  server.state.diaries[0].content = null;
+  server.state.images.get(700)!.status = 'FAILED';
+  await reopenHome();
+  expect(
+    await screen.findByText('이번 그림은 완성하지 못했어요'),
+  ).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다시 그리기' })).toBeOnTheScreen();
+
+  server.state.images.get(700)!.failures = 3;
+  await reopenHome();
+  expect(
+    await screen.findByText('오늘은 그림을 더 그릴 수 없어요'),
   ).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '다시 그리기' })).toBeNull();
-  await fireEvent.press(screen.getByRole('button', { name: '다시 작성하기' }));
-  expect(app.getPathname()).toBe('/record/emotion');
-  expect(screen.getByRole('radio', { name: '평온' })).toBeSelected();
-  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-  expect(screen.getByRole('checkbox', { name: '요리' })).toBeChecked();
-  expect(screen.getByRole('radio', { name: '집' })).toBeSelected();
-  await fireEvent.press(screen.getByRole('radio', { name: '눈' }));
-  await drawPicture(app);
-  await advance(6000);
-  expect(screen.getByText('그림이 완성됐어요')).toBeOnTheScreen();
-  expect(screen.getByText('요리 · 집 · 가족 · 눈')).toBeOnTheScreen();
 }, 30000);
+
+test('a lost picture request is recovered with 다시 보내기; without a saved scene the activity is chosen again even with one candidate', async () => {
+  setAuthPreview();
+  const what = seedToday(null);
+  await renderApp('/home');
+  expect(
+    await screen.findByText('그림 요청이 전달되지 않았어요'),
+  ).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '다시 보내기' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('radio', { name: '요리' }));
+  await fireEvent.press(screen.getByRole('button', { name: '다시 보내기' }));
+  await advance(0);
+  const [sent] = server.callsTo('POST', '/diaries/700/image');
+  expect(sent.body.whatMyIconId).toBe(what.myIconId);
+  expect(
+    await screen.findByText('오늘의 모찌를 그리고 있어요'),
+  ).toBeOnTheScreen();
+});
+
+test('a diary that lost its activity icon cannot request a picture', async () => {
+  setAuthPreview();
+  seedToday(null, { withWhat: false });
+  await renderApp('/home');
+  expect(
+    await screen.findByText('지금은 그림을 요청할 수 없어요'),
+  ).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '다시 보내기' })).toBeNull();
+});
+
+test('IMAGE_ALREADY_REQUESTED from another device refreshes home instead of failing', async () => {
+  setAuthPreview();
+  seedToday('FAILED');
+  await renderApp('/home');
+  await screen.findByText('이번 그림은 완성하지 못했어요');
+  await fireEvent.press(screen.getByRole('radio', { name: '요리' }));
+  server.next('POST /diaries/700/image', (_call, config) => {
+    server.state.images.get(700)!.status = 'PENDING';
+    return fail(config, 409, 'IMAGE_ALREADY_REQUESTED');
+  });
+  await fireEvent.press(screen.getByRole('button', { name: '다시 그리기' }));
+  await advance(0);
+  expect(
+    await screen.findByText('오늘의 모찌를 그리고 있어요'),
+  ).toBeOnTheScreen();
+  expect(screen.queryByText(/IMAGE_ALREADY_REQUESTED/)).toBeNull();
+});
+
+test('first load shows progress, a failed home load offers a retry, and the date change reloads home', async () => {
+  setAuthPreview();
+  let release!: () => void;
+  server.next(
+    'GET /home',
+    (call, config) =>
+      new Promise(resolve => {
+        release = () => resolve(server.process(call, config));
+      }),
+  );
+  await renderApp('/home');
+  expect(screen.getByText('오늘의 기록을 불러오고 있어요')).toBeOnTheScreen();
+  await act(async () => release());
+  expect(
+    await screen.findByRole('button', { name: '오늘 기록하기' }),
+  ).toBeOnTheScreen();
+
+  await cleanup();
+  queryClient.clear();
+  server.next('GET /home', (_call, config) =>
+    fail(config, 500, 'INTERNAL_ERROR'),
+  );
+  await renderApp('/home');
+  expect(
+    await screen.findByText('오늘의 기록을 불러오지 못했어요'),
+  ).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
+  expect(
+    await screen.findByRole('button', { name: '오늘 기록하기' }),
+  ).toBeOnTheScreen();
+  // 서울 자정이 지나면 다시 읽는다 (지금은 서울 21시).
+  const before = server.callsTo('GET', '/home').length;
+  await advance(3 * 3_600_000 + 2_000);
+  expect(server.callsTo('GET', '/home').length).toBeGreaterThan(before);
+}, 20000);
+
+test('detail reads the server diary by date with its image, tags and line, and handles a missing day', async () => {
+  setAuthPreview();
+  server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
+    ['요리', 'WHAT'],
+    ['집', 'WHERE'],
+    ['동생', 'WHO'],
+  ]);
+  const app = await renderApp('/home');
+  await fireEvent.press(
+    await screen.findByRole('button', {
+      name: '10월 22일 목요일 오므라이스를 만들었어',
+    }),
+  );
+  expect(app.getPathname()).toBe('/diary/500');
+  expect(await screen.findByText('오므라이스를 만들었어')).toBeOnTheScreen();
+  expect(screen.getByText('요리 · 집 · 동생')).toBeOnTheScreen();
+  expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
+    uri: 'https://cdn.example.test/diary/500.webp',
+  });
+  // 그림 주소를 불러오지 못하면 다시 불러오기를 보여 준다.
+  await fireEvent(screen.getByLabelText('오늘의 그림일기'), 'error');
+  expect(screen.getByText('그림을 불러오지 못했어요')).toBeOnTheScreen();
+  await act(async () => {
+    router.push({
+      pathname: '/diary/[id]',
+      params: { id: '999', date: '2026-10-01' },
+    });
+  });
+  expect(await screen.findByText('기록을 찾지 못했어요')).toBeOnTheScreen();
+}, 20000);
 
 test('calendar empty-day sheet closes and logout removes protected screen access', async () => {
   setAuthPreview();
@@ -233,51 +425,6 @@ test('search supports suggestions, a failed answer retry, and empty results', as
   expect(await screen.findByText('찾는 기록이 아직 없어요')).toBeOnTheScreen();
 }, 20000);
 
-test('three selected activities become candidates, but the image request contains only the explicitly chosen one', async () => {
-  setAuthPreview();
-  useAppStore.getState().selectEmotion('calm');
-  const start = jest.spyOn(mockDiaryService, 'start');
-  const app = await renderApp('/record/tags');
-  await advance(300);
-  expect(screen.queryByRole('header', { name: '내 태그' })).toBeNull();
-  for (const name of ['공부', '산책', '식사'])
-    await fireEvent.press(screen.getByRole('checkbox', { name }));
-  await fireEvent.press(screen.getByRole('radio', { name: '공원' }));
-  await fireEvent.press(screen.getByRole('checkbox', { name: '친구' }));
-  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
-  expect(app.getPathname()).toBe('/record/activity');
-  expect(screen.getByText('어디서 · 공원')).toBeOnTheScreen();
-  expect(screen.getByText('누구와 · 친구')).toBeOnTheScreen();
-  expect(screen.getAllByRole('radio')).toHaveLength(3);
-  expect(screen.getByRole('button', { name: '그림 그리기' })).toBeDisabled();
-  expect(start).not.toHaveBeenCalled();
-  await fireEvent.press(screen.getByRole('radio', { name: '산책' }));
-  await fireEvent.press(screen.getByRole('button', { name: '그림 그리기' }));
-  expect(start.mock.calls[0][0]).toMatchObject({
-    activities: ['WALK'],
-    place: 'PARK',
-    companions: ['FRIEND'],
-    weather: null,
-  });
-  expect(start.mock.calls[0][1].map(tag => tag.label)).toEqual([
-    '공부',
-    '산책',
-    '식사',
-    '공원',
-    '친구',
-  ]);
-  expect(start.mock.calls[0][3]?.map(tag => tag.label)).toEqual([
-    '산책',
-    '공원',
-    '친구',
-  ]);
-  await advance(1000);
-  expect(app.getPathname()).toBe('/record/generation');
-  expect(screen.getByText('산책 · 공원 · 친구')).toBeOnTheScreen();
-  expect(screen.queryByText('공부 · 산책 · 식사 · 공원 · 친구')).toBeNull();
-  start.mockRestore();
-});
-
 test('going back keeps context, but removing the chosen activity requires an explicit new choice even for one candidate', async () => {
   setAuthPreview();
   useAppStore.getState().selectEmotion('calm');
@@ -298,11 +445,10 @@ test('going back keeps context, but removing the chosen activity requires an exp
   expect(screen.getByText('어디서 · 집')).toBeOnTheScreen();
 });
 
-test('each category creates and selects its own custom tags within shared limits, and a custom activity can be the image scene', async () => {
+test('custom tags are saved as server icons per category, and a custom activity can be the image scene', async () => {
   setAuthPreview();
   useAppStore.getState().selectEmotion('happy');
   const app = await renderApp('/record/tags');
-  await advance(300);
   async function add(category: string, name: string) {
     await fireEvent.press(
       screen.getByRole('button', { name: `${category} 태그 추가` }),
@@ -312,48 +458,50 @@ test('each category creates and selects its own custom tags within shared limits
       name,
     );
     await fireEvent.press(screen.getByRole('button', { name: '태그 만들기' }));
-    await advance(400);
+    await advance(0);
   }
   await add('무엇을', '악기 연습');
   await fireEvent.press(screen.getByRole('checkbox', { name: '공부' }));
   await fireEvent.press(screen.getByRole('checkbox', { name: '산책' }));
   expect(screen.getByRole('checkbox', { name: '요리' })).toBeDisabled();
-  await add('무엇을', '독서 모임');
-  expect(screen.getByRole('checkbox', { name: '독서 모임' })).toBeDisabled();
   await fireEvent.press(screen.getByRole('radio', { name: '집' }));
   await add('어디서', '연습실');
   expect(screen.getByRole('radio', { name: '연습실' })).toBeSelected();
-  expect(screen.getByRole('radio', { name: '집' })).not.toBeSelected();
   await fireEvent.press(screen.getByRole('checkbox', { name: '친구' }));
   await add('누구와', '동아리 친구');
-  expect(screen.getByRole('checkbox', { name: '가족' })).toBeDisabled();
-  const library = useTagStore.getState().tags;
-  const selectedActivity = library.find(tag => tag.label === '악기 연습')!;
-  expect(selectedActivity.category).toBe('activity');
-  const selectedPlace = library.find(tag => tag.label === '연습실')!;
-  expect(selectedPlace.category).toBe('place');
-  const selectedCompanion = library.find(tag => tag.label === '동아리 친구')!;
-  expect(selectedCompanion.category).toBe('companion');
+  expect(server.state.icons.map(icon => [icon.name, icon.category])).toEqual([
+    ['악기 연습', 'WHAT'],
+    ['연습실', 'WHERE'],
+    ['동아리 친구', 'WHO'],
+  ]);
   await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   expect(app.getPathname()).toBe('/record/activity');
-  expect(screen.queryByRole('radio', { name: '독서 모임' })).toBeNull();
   expect(screen.getByText('어디서 · 연습실')).toBeOnTheScreen();
-  expect(screen.getByText('누구와 · 친구 · 동아리 친구')).toBeOnTheScreen();
+  // 그림에는 처음 고른 동행 한 명만 들어간다.
+  expect(screen.getByText('누구와 · 친구')).toBeOnTheScreen();
+  expect(
+    screen.getByText(/그림에는 처음 고른 동행 한 명이 함께 담겨요/),
+  ).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('radio', { name: '악기 연습' }));
-  const start = jest.spyOn(mockDiaryService, 'start');
   await fireEvent.press(screen.getByRole('button', { name: '그림 그리기' }));
-  expect(start.mock.calls[0][0]).toMatchObject({
-    activities: [],
-    customTagIds: [selectedActivity.id, selectedPlace.id, selectedCompanion.id],
-    weather: null,
-  });
-  expect(start.mock.calls[0][3]?.map(tag => tag.label)).toEqual([
-    '악기 연습',
-    '연습실',
-    '친구',
-    '동아리 친구',
+  await advance(0);
+  await waitFor(() => expect(app.getPathname()).toBe('/record/generation'));
+  const icon = (name: string) =>
+    server.state.icons.find(item => item.name === name)!.myIconId;
+  // 고른 순서대로 붙인다 (만든 태그는 만들 때 바로 골라진다).
+  expect(server.callsTo('POST', '/diaries')[0].body.myIconIds).toEqual([
+    icon('악기 연습'),
+    icon('공부'),
+    icon('산책'),
+    icon('연습실'),
+    icon('친구'),
+    icon('동아리 친구'),
   ]);
-  await advance(1000);
-  expect(app.getPathname()).toBe('/record/generation');
-  start.mockRestore();
+  const [image] = server.callsTo('POST', '/diaries/500/image');
+  expect(image.body).toMatchObject({
+    whatMyIconId: icon('악기 연습'),
+    whereMyIconId: icon('연습실'),
+    whoMyIconId: icon('친구'),
+    weather: 'NONE',
+  });
 }, 30000);

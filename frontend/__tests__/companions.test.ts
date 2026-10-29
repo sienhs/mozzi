@@ -1,15 +1,11 @@
 import { companions, companionEmotionSource } from '@/constants/companions';
-import { presetTag } from '@/constants/tags';
 import {
   filterOwnedCompanions,
   ownedCompanionIds,
 } from '@/features/mypage/ownedCompanions';
 import { useMockControls } from '@/mocks/controls';
-import {
-  mockDiaryService,
-  mockEquipmentService,
-  mockGachaService,
-} from '@/mocks/services';
+import { mockEquipmentService, mockGachaService } from '@/mocks/services';
+import { diaryApi } from '@/services/diaryApi';
 import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
 import { emptyDraft, useAppStore } from '@/stores/useAppStore';
 import { setAuthPreview } from '@/mocks/authPreview';
@@ -92,57 +88,9 @@ test('new draws and exchanges record real acquisition times without automaticall
   expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
 });
 
-test('generation snapshots the emotion companion before the request; retries preserve it and legacy records', async () => {
-  const oldRecords = useAppStore.getState().entries;
-  const oldRecord = oldRecords.find(item => item.date !== '2026-10-28')!;
-  const original = { ...oldRecord };
-  const generate = jest.spyOn(mockDiaryService, 'generate');
-  useGachaStore.setState({
-    equippedByEmotion: {
-      ...initialGachaState().equippedByEmotion,
-      happy: 'grape',
-    },
-  });
-  useAppStore.getState().selectEmotion('happy');
-  useAppStore.getState().toggleTag(presetTag('activity.walk')!);
-  useAppStore
-    .getState()
-    .selectMainActivity(useAppStore.getState().draft.tags.activities[0]);
-  useMockControls.getState().failNext('generation');
-  const save = useAppStore.getState().startGeneration();
-  useGachaStore.setState({
-    equippedByEmotion: {
-      ...initialGachaState().equippedByEmotion,
-      happy: 'cherry',
-    },
-  });
-  await jest.advanceTimersByTimeAsync(1000);
-  const saved = (await save)!;
-  expect(saved.companionId).toBe('grape');
-  expect(generate).toHaveBeenCalledWith({
-    diaryId: saved.id,
-    companionId: 'grape',
-  });
-  expect(
-    useAppStore.getState().entries.find(item => item.id === oldRecord.id),
-  ).toEqual(original);
-  await jest.advanceTimersByTimeAsync(6000);
-  expect(
-    useAppStore.getState().entries.find(entry => entry.id === saved.id)
-      ?.generation,
-  ).toBe('failed');
-  const retry = useAppStore.getState().generateImage(saved.id);
-  await jest.advanceTimersByTimeAsync(6000);
-  await retry;
-  expect(generate).toHaveBeenLastCalledWith({
-    diaryId: saved.id,
-    companionId: 'grape',
-  });
-  expect(generate).toHaveBeenCalledTimes(2);
-});
-
 test('equipping alone never starts image generation and logout ignores pending equip responses', async () => {
-  const generate = jest.spyOn(mockDiaryService, 'generate');
+  // 그림 요청 때 감정별 장착 모찌를 스냅샷으로 고정하는 것은 record-session.test.ts에서 확인한다.
+  const generate = jest.spyOn(diaryApi, 'requestImage');
   const equip = useGachaStore.getState().equip('happy', 'grape');
   await useAuthStore.getState().signOut();
   await jest.advanceTimersByTimeAsync(450);
@@ -218,14 +166,6 @@ test('each emotion has an independent slot and the same companion can fill multi
     angry: 'default',
   });
   expect(request).toHaveBeenLastCalledWith('calm', 'grape');
-  useAppStore.getState().selectEmotion('sad');
-  useAppStore.getState().toggleTag(presetTag('activity.walk')!);
-  useAppStore
-    .getState()
-    .selectMainActivity(useAppStore.getState().draft.tags.activities[0]);
-  const save = useAppStore.getState().startGeneration();
-  await jest.advanceTimersByTimeAsync(1000);
-  expect((await save)?.companionId).toBe('cherry');
   useGachaStore.getState().resetEquipment();
   expect(Object.values(useGachaStore.getState().equippedByEmotion)).toEqual(
     Array(5).fill('default'),

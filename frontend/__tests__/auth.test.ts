@@ -8,8 +8,9 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useAppStore } from '@/stores/useAppStore';
 import { useGachaStore } from '@/stores/useGachaStore';
 import { useTagStore } from '@/stores/useTagStore';
-import { createMockEntries } from '@/mocks/diaries';
-import { mockGachaService, mockDiaryService } from '@/mocks/services';
+import { mockGachaService } from '@/mocks/services';
+import { diaryApi, diaryKeys } from '@/services/diaryApi';
+import { queryClient } from '@/services/queryClient';
 import type { PullItem } from '@/types/gacha';
 import { normalizeApiUrl } from '@/services/authConfig';
 import { validNickname, type AuthTokens } from '@/types/auth';
@@ -403,33 +404,79 @@ test('account switch discards an older gacha response without changing the new b
   spy.mockRestore();
 });
 
-test('an old image-generation failure cannot mutate the new account demo entry', async () => {
-  let fail!: (error: Error) => void;
-  const promise = new Promise<void>((_, rejectPromise) => {
-    fail = rejectPromise;
+test('a late home or picture response from the previous account never reaches the next account', async () => {
+  await useAuthStore.getState().signIn();
+  expect(useAuthStore.getState().status).toBe('authenticated');
+  const release = deferred<void>();
+  api.defaults.adapter = async config => {
+    await release.promise;
+    if (config.url === '/home')
+      return response(config, {
+        today: '2026-10-28',
+        todayStatus: 'NOT_RECORDED',
+        todayDiary: null,
+        canRequestImage: false,
+        recentDiary: null,
+      });
+    return response(config, { diaryId: 1, imageStatus: 'PENDING' }, 202);
+  };
+  const home = queryClient.fetchQuery({
+    queryKey: diaryKeys.home(7),
+    queryFn: diaryApi.home,
   });
-  jest.spyOn(mockDiaryService, 'retry').mockResolvedValueOnce();
-  const spy = jest
-    .spyOn(mockDiaryService, 'generate')
-    .mockReturnValueOnce(promise);
-  const id = 'diary-old-account';
-  useAppStore.setState(state => ({
-    entries: [
-      {
-        ...state.entries[0],
-        id,
-        date: '2026-10-30',
-        status: 'draft',
-        generation: 'failed',
-        failure: null,
+  useAppStore.setState({
+    requests: {
+      1: {
+        diaryId: 1,
+        recordDate: '2026-10-28',
+        body: {
+          characterId: 1,
+          weather: 'NONE',
+          whereMyIconId: null,
+          whoMyIconId: null,
+          whatMyIconId: 3,
+        },
+        companionId: 'default',
+        imageTags: [],
       },
-      ...state.entries,
-    ],
-  }));
-  const old = useAppStore.getState().generateImage(id);
-  useAppStore.getState().resetSession();
-  fail(new Error('old generation failed'));
-  await old;
-  expect(useAppStore.getState().entries).toEqual(createMockEntries());
-  spy.mockRestore();
+    },
+  });
+  const picture = useAppStore.getState().sendImage(7, 1);
+  await flush();
+  expect(useAppStore.getState().image.status).toBe('sending');
+  await useAuthStore.getState().signOut();
+  release.resolve();
+  // 로그아웃이 조회를 취소하고, 취소되지 않은 응답도 세션 검사에서 버려진다.
+  await expect(home).rejects.toBeTruthy();
+  await picture;
+  expect(queryClient.getQueryData(diaryKeys.home(7))).toBeUndefined();
+  expect(useAppStore.getState().image).toMatchObject({
+    diaryId: null,
+    status: 'idle',
+  });
+  expect(useAppStore.getState().requests).toEqual({});
+});
+
+test('an expired token on GET /home refreshes once and retries; a rejected session signs out', async () => {
+  await useAuthStore.getState().signIn();
+  const sent: (string | undefined)[] = [];
+  api.defaults.adapter = async config => {
+    sent.push(String(config.headers.Authorization));
+    if (sent.length === 1) reject(config, 'ACCESS_TOKEN_EXPIRED');
+    return response(config, {
+      today: '2026-10-28',
+      todayStatus: 'NOT_RECORDED',
+      todayDiary: null,
+      canRequestImage: false,
+      recentDiary: null,
+    });
+  };
+  authHttp.defaults.adapter = async config => response(config, pair('two'));
+  expect((await diaryApi.home()).todayStatus).toBe('NOT_RECORDED');
+  expect(sent).toEqual(['Bearer access-one', 'Bearer access-two']);
+
+  api.defaults.adapter = async config => reject(config, 'SESSION_REVOKED');
+  await expect(diaryApi.home()).rejects.toBeTruthy();
+  await flush();
+  expect(useAuthStore.getState().status).toBe('signedOut');
 });
