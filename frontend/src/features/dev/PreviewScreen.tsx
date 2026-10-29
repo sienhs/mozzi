@@ -12,7 +12,6 @@ import { todayKey } from '@/constants/date';
 import { setAuthPreview } from '@/mocks/authPreview';
 import { useAppStore } from '@/stores/useAppStore';
 import { useMockControls } from '@/mocks/controls';
-import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
 import type { Emotion } from '@/types/diary';
 
 // Development-only catalogue. It is protected in the root Stack and has no production entry point.
@@ -197,18 +196,6 @@ export function PreviewScreen() {
         }
       />
       <Button
-        label="E-05 검색 · 실패"
-        variant="secondary"
-        onPress={() => {
-          prepare();
-          useMockControls.getState().failNext('search');
-          router.push({
-            pathname: '/search',
-            params: { question: '마음이 편했던 날을 보여 줘' },
-          });
-        }}
-      />
-      <Button
         label="Google 로그인 · 실제 서버 연결"
         variant="secondary"
         onPress={() => {
@@ -217,39 +204,16 @@ export function PreviewScreen() {
         }}
       />
       <AppText variant="heading">05 · 모찌 뽑기</AppText>
-      {(
-        [
-          ['P-01 뽑기 홈 · 23장', 23],
-          ['P-01B 뽑기 홈 · 3장', 3],
-          ['P-01C 뽑기 홈 · 0장', 0],
-        ] as const
-      ).map(([label, tickets]) => (
-        <Button
-          key={label}
-          label={label}
-          variant="secondary"
-          onPress={() => {
-            useGachaStore.setState({ ...initialGachaState(), tickets });
-            open('/gacha');
-          }}
-        />
-      ))}
+      {/* 뽑기권·도감은 서버 값이라 여기서 바꾸지 않는다. */}
+      <Button
+        label="P-01 뽑기 홈"
+        variant="secondary"
+        onPress={() => open('/gacha')}
+      />
       <Button
         label="P-06 모찌 도감"
         variant="secondary"
-        onPress={() => {
-          useGachaStore.setState(initialGachaState());
-          open('/gacha/collection');
-        }}
-      />
-      <Button
-        label="P-11 요청 실패 (1장 뽑기로 실행)"
-        variant="secondary"
-        onPress={() => {
-          useGachaStore.setState(initialGachaState());
-          open('/gacha');
-          useMockControls.getState().failNext('gacha');
-        }}
+        onPress={() => open('/gacha/collection')}
       />
     </Screen>
   );

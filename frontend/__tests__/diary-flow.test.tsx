@@ -1,4 +1,5 @@
 import { setAuthPreview } from '@/mocks/authPreview';
+import { useRewardStore } from '@/stores/useRewardStore';
 import {
   act,
   cleanup,
@@ -65,6 +66,7 @@ beforeEach(() => {
   setAuthPreview('signedOut');
   useAppStore.getState().resetSession();
   useTagStore.getState().resetSession();
+  useRewardStore.getState().resetSession();
   useMockControls.getState().reset();
   diaryApi.forgetEmoticons();
   queryClient.clear();
@@ -403,6 +405,42 @@ test('detail reads the server diary by date with its image, tags and line, and h
   expect(await screen.findByText('기록을 찾지 못했어요')).toBeOnTheScreen();
 }, 20000);
 
+test('signing in shows the daily visit tickets once and the sheet closes', async () => {
+  setAuthPreview();
+  server.state.rewardsOn = true;
+  await renderApp('/home');
+  expect(screen.getByText('뽑기권 10장을 받았어요')).toBeOnTheScreen();
+  expect(screen.getByText('지금 뽑기권 30장')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+  expect(screen.queryByText('뽑기권 10장을 받았어요')).toBeNull();
+}, 20000);
+
+test('withdrawal asks first, keeps the session when the server fails, and signs out after it succeeds', async () => {
+  setAuthPreview();
+  server.next('DELETE /members/me', (_call, config) =>
+    fail(config, 500, 'INTERNAL_ERROR', {
+      message: '잠시 후 다시 시도해 주세요.',
+    }),
+  );
+  const app = await renderApp('/settings');
+  await fireEvent.press(screen.getByRole('button', { name: '회원 탈퇴' }));
+  expect(screen.getByText('탈퇴할까요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '취소' }));
+  expect(server.callsTo('DELETE', '/members/me')).toHaveLength(0);
+  await fireEvent.press(screen.getByRole('button', { name: '회원 탈퇴' }));
+  await fireEvent.press(screen.getByRole('button', { name: '탈퇴하기' }));
+  await advance(0);
+  expect(screen.getByText('잠시 후 다시 시도해 주세요.')).toBeOnTheScreen();
+  expect(app.getPathname()).toBe('/settings');
+  await fireEvent.press(screen.getByRole('button', { name: '탈퇴하기' }));
+  await advance(0);
+  expect(server.state.withdrawn).toBe(true);
+  await waitFor(() => expect(app.getPathname()).toBe('/'));
+  expect(
+    screen.getByRole('button', { name: 'Google로 시작하기' }),
+  ).toBeOnTheScreen();
+}, 20000);
+
 test('calendar draws the server month, opens a day by date, and retries a failed month', async () => {
   setAuthPreview();
   server.addDiary('2026-10-21', 'SAD', '조금 늦었던 퇴근', [['요리', 'WHAT']]);
@@ -479,29 +517,67 @@ test('calendar empty-day sheet closes and logout removes protected screen access
   expect(app.getPathname()).toBe('/');
 }, 20000);
 
-test('search supports suggestions, a failed answer retry, and empty results', async () => {
+test('search asks the server: suggestions, a failed answer retry, found records, stats and empty results', async () => {
   setAuthPreview();
-  useMockControls.getState().failNext('search');
-  await renderApp('/search');
-  await fireEvent.press(
-    screen.getByRole('button', { name: '마음이 편했던 날을 보여 줘' }),
+  server.addDiary('2026-10-21', 'CALM', '공원에서 천천히 걸었어', [
+    ['산책', 'WHAT'],
+  ]);
+  server.addDiary('2026-10-15', 'CALM', null, [['독서', 'WHAT']]);
+  server.addDiary('2026-10-10', 'SAD', '조금 늦었던 퇴근', [['요리', 'WHAT']]);
+  server.next('POST /emotion-search', (_call, config) =>
+    fail(config, 503, 'SEARCH_UNAVAILABLE', {
+      message: '지금은 답을 찾지 못했어요. 잠시 후 다시 물어봐 주세요.',
+    }),
   );
-  await advance(700);
+  const app = await renderApp('/search');
+  await fireEvent.press(
+    await screen.findByRole('button', { name: '마음이 편했던 날을 보여 줘' }),
+  );
+  await advance(0);
+  expect(screen.getByText('지금은 답을 찾지 못했어요')).toBeOnTheScreen();
   expect(
-    await screen.findByText('지금은 답을 찾지 못했어요'),
+    screen.getByText('지금은 답을 찾지 못했어요. 잠시 후 다시 물어봐 주세요.'),
   ).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '다시 물어보기' }));
-  await advance(700);
+  await advance(0);
   expect(
-    await screen.findByText(/평온 모찌를 고른 날이 5일/),
+    screen.getByText('평온 모찌를 고른 날이 2일 있었어요.'),
   ).toBeOnTheScreen();
+  expect(
+    server.callsTo('POST', '/emotion-search').map(call => call.body),
+  ).toEqual([
+    { question: '마음이 편했던 날을 보여 줘' },
+    { question: '마음이 편했던 날을 보여 줘' },
+  ]);
+  // 큰 카드 아래 행에는 큰 카드의 기록을 다시 넣지 않는다. 한 줄이 없으면 감정 기본 제목이다.
+  expect(screen.getAllByRole('button', { name: /10월 21일/ })).toHaveLength(1);
+  await fireEvent.press(
+    screen.getByRole('button', {
+      name: '10월 15일 목요일 평온 모찌와 남긴 하루',
+    }),
+  );
+  await advance(0);
+  expect(app.getPathname()).toBe('/diary/501');
+  await act(async () => {
+    router.back();
+  });
+  await fireEvent.changeText(
+    screen.getByLabelText('궁금한 날을 물어보세요'),
+    '이번 달엔 어떤 기분이 많았어?',
+  );
+  await fireEvent.press(screen.getByRole('button', { name: '질문 보내기' }));
+  await advance(0);
+  expect(
+    screen.getByText('평온 모찌를 고른 날이 가장 많았어요.'),
+  ).toBeOnTheScreen();
+  expect(screen.getByText('2일')).toBeOnTheScreen();
   await fireEvent.changeText(
     screen.getByLabelText('궁금한 날을 물어보세요'),
     '눈 오는 날 기록 보여 줘',
   );
   await fireEvent.press(screen.getByRole('button', { name: '질문 보내기' }));
-  await advance(700);
-  expect(await screen.findByText('찾는 기록이 아직 없어요')).toBeOnTheScreen();
+  await advance(0);
+  expect(screen.getByText('찾는 기록이 아직 없어요')).toBeOnTheScreen();
 }, 20000);
 
 test('going back keeps context, but removing the chosen activity requires an explicit new choice even for one candidate', async () => {

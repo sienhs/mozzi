@@ -213,7 +213,7 @@ export function GenerationScreen() {
       ) : (
         <PictureState
           emotion={entry.emotion}
-          companionId={entry.companionId}
+          companion={entry.companion}
           generating={phase === 'generating'}
           tone="sage"
         />

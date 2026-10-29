@@ -23,7 +23,7 @@ export function CalendarDay({
   onPress,
 }: {
   date: string;
-  entry?: Pick<DiaryEntry, 'emotion' | 'companionId'>;
+  entry?: Pick<DiaryEntry, 'emotion' | 'companion'>;
   selected: boolean;
   onPress: () => void;
 }) {

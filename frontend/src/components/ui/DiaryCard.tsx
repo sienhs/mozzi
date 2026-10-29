@@ -133,7 +133,7 @@ export function DiaryCard({
       ) : (
         <PictureState
           emotion={entry.emotion}
-          companionId={entry.companionId}
+          companion={entry.companion}
           generating={entry.generation === 'generating'}
         />
       )}
@@ -201,7 +201,7 @@ export function DiaryRow({
       <EmotionImage
         emotion={entry.emotion}
         size={28}
-        companionId={entry.companionId}
+        companion={entry.companion}
       />
       <View style={{ flex: 1 }}>
         <AppText variant="label" numberOfLines={1}>

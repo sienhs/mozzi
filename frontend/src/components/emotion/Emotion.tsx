@@ -4,34 +4,29 @@ import { emotionOrder, emotions } from '@/constants/emotions';
 import type { Emotion } from '@/types/diary';
 import { colors } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
-import { companionEmotionSource, companions } from '@/constants/companions';
-import { companionArtworkStyle } from '@/constants/companionArtwork';
+import { companionEmotionSource } from '@/constants/companions';
 import { MotionReveal, useReducedMotion } from '@/components/ui/Motion';
-import type { CompanionId } from '@/types/companion';
-import { useGachaStore } from '@/stores/useGachaStore';
+import type { Companion } from '@/types/companion';
+import { useMozziPicks } from '@/features/gacha/useGachaQueries';
 
 export function EmotionImage({
   emotion,
   size = 64,
-  companionId = 'default',
+  companion,
 }: {
   emotion: Emotion;
   size?: number;
-  companionId?: CompanionId;
+  // 그 감정에 고른 모찌. 없으면 기본 모찌.
+  companion?: Companion | null;
 }) {
-  const source = companionEmotionSource(companionId, emotion, size <= 32);
-  const normalize =
-    companionId !== 'default' && source === companions[companionId].source;
+  const source = companionEmotionSource(companion, emotion, size <= 32);
   return (
     <View style={{ width: size, height: size, overflow: 'hidden' }}>
       <Image
         accessibilityLabel={`${emotions[emotion].label} 모찌`}
         source={source}
         resizeMode="contain"
-        style={[
-          { width: size, height: size },
-          normalize && companionArtworkStyle(companionId),
-        ]}
+        style={{ width: size, height: size }}
       />
     </View>
   );
@@ -43,7 +38,7 @@ export function EmotionPicker({
   value: Emotion | null;
   onChange: (value: Emotion) => void;
 }) {
-  const equippedByEmotion = useGachaStore(state => state.equippedByEmotion);
+  const { picks } = useMozziPicks();
   return (
     <View style={styles.grid}>
       {[emotionOrder.slice(0, 3), emotionOrder.slice(3)].map(
@@ -62,7 +57,7 @@ export function EmotionPicker({
                     <EmotionImage
                       emotion={emotion}
                       size={64}
-                      companionId={equippedByEmotion[emotion]}
+                      companion={picks[emotion]}
                     />
                   </MotionReveal>
                   <AppText variant="label" style={{ color: colors.ink }}>

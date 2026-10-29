@@ -1,4 +1,4 @@
-import type { CompanionId } from './companion';
+import type { Companion } from './companion';
 
 export type Emotion = 'happy' | 'calm' | 'neutral' | 'sad' | 'angry';
 // notRequested: 서버에 일기는 있는데 그림 요청이 없다 (요청 유실·앱 종료). 다시 보내기로 복구한다.
@@ -71,8 +71,8 @@ export type RecordPhase =
 export interface DiaryEntry {
   // 생성 장면에 사용한 태그. 활동 한 가지와 선택한 장소·동행·날씨만 포함한다.
   imageTags?: DiaryTag[];
-  // Absent on legacy records; those retain the default character.
-  companionId?: CompanionId;
+  // 그림을 요청할 때 그 감정에 고른 모찌. 없으면(고르지 않았거나 다른 기기의 기록) 기본 모찌.
+  companion?: Companion | null;
   // 서버 일기 ID. 로컬 샘플 기록에는 없다.
   serverId?: number;
   // 완성된 그림의 주소. 없으면(샘플 기록) 앱에 든 샘플 그림을 보여 준다.
@@ -90,8 +90,4 @@ export interface DiaryEntry {
   // 그림이 완성돼도 사용자가 저장하기 전에는 draft다.
   status: 'draft' | 'completed';
   failure: GenerationFailure | null;
-}
-export interface SearchResult {
-  answer: string;
-  entries: DiaryEntry[];
 }

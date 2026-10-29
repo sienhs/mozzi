@@ -7,7 +7,7 @@ import {
   type TextStyle,
 } from 'react-native';
 import type { Emotion } from '@/types/diary';
-import type { CompanionId } from '@/types/companion';
+import type { Companion } from '@/types/companion';
 import { colors } from '@/theme/tokens';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { AppText } from './Text';
@@ -111,7 +111,7 @@ export function StatePanel({
 }
 export function PictureState({
   emotion = 'happy',
-  companionId,
+  companion,
   generating,
   tone = 'white',
   caption,
@@ -119,7 +119,7 @@ export function PictureState({
   ratio = 1,
 }: {
   emotion?: Emotion;
-  companionId?: CompanionId;
+  companion?: Companion | null;
   generating?: boolean;
   tone?: 'white' | 'sage';
   caption?: string;
@@ -142,7 +142,7 @@ export function PictureState({
       <EmotionImage
         emotion={emotion}
         size={generating ? 80 : 72}
-        companionId={companionId}
+        companion={companion}
       />
       {generating && <Icon name="pencil" color={colors.sage} />}
       {caption && (

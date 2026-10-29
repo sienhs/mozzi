@@ -137,7 +137,7 @@ export function DiaryHomeScreen() {
                     >
                       <PictureState
                         emotion={entry.emotion}
-                        companionId={entry.companionId}
+                        companion={entry.companion}
                         generating
                         tone="sage"
                       />
@@ -149,7 +149,7 @@ export function DiaryHomeScreen() {
                   <>
                     <PictureState
                       emotion={entry.emotion}
-                      companionId={entry.companionId}
+                      companion={entry.companion}
                     />
                     <ScenePicker request={request} whatIcons={whatIcons} />
                     <ImageRequestStatus request={request} />

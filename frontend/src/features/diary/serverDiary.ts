@@ -10,6 +10,7 @@ import type {
 } from '@/types/diary';
 import type {
   DiaryDetail,
+  DiarySummary,
   IconCategory,
   ImageStatus,
   MyIcon,
@@ -24,7 +25,7 @@ import { tagKey } from './tagRules';
 //   diaryId → id(문자열)·serverId · recordDate → date · emotion(HAPPY) → emotion(happy)
 //   content → memo·title(없으면 감정 기본 제목) · myIcons WHAT/WHERE/WHO → tags activity/place/companion
 //   image null → notRequested · PENDING → generating · SUCCEEDED → ready(imageUrl) · FAILED → failed
-//   imageTags·companionId → 서버에 없다. 그림 요청 때 앱이 보관한 스냅샷에서 온다.
+//   imageTags·companion → 서버에 없다. 그림 요청 때 앱이 보관한 스냅샷에서 온다.
 export const toAppEmotion = (emotion: ServerEmotion) =>
   emotion.toLowerCase() as Emotion;
 export const toServerEmotion = (emotion: Emotion) =>
@@ -83,7 +84,7 @@ export function toDiaryEntry(
     emotion,
     tags: iconOrder.flatMap(category => detail.myIcons[category].map(iconTag)),
     imageTags: snapshot?.imageTags,
-    companionId: snapshot?.companionId,
+    companion: snapshot?.companion ?? null,
     memo: detail.content ?? '',
     title: detail.content ?? fallbackTitle(emotion),
     createdAt: detail.createdAt,
@@ -103,5 +104,32 @@ export function toDiaryEntry(
             blockedTags: [],
           }
         : null,
+  };
+}
+
+// 목록·검색 결과의 일기(DiarySummary)는 아이콘과 작성 시각이 없다. 카드·행에 필요한 것만 채우고,
+// 자세한 내용은 상세 화면이 날짜로 다시 불러온다.
+export function toSummaryEntry(
+  summary: DiarySummary,
+  today: string,
+): DiaryEntry {
+  const emotion = toAppEmotion(summary.emotion);
+  return {
+    id: String(summary.diaryId),
+    serverId: summary.diaryId,
+    date: summary.recordDate,
+    emotion,
+    tags: [],
+    memo: summary.content ?? '',
+    title: summary.content ?? fallbackTitle(emotion),
+    createdAt: '',
+    generation: generationOf(summary.image?.status),
+    imageUrl: summary.image?.imageUrl ?? null,
+    canRequestImage: false,
+    status:
+      summary.recordDate === today && summary.content === null
+        ? 'draft'
+        : 'completed',
+    failure: null,
   };
 }

@@ -44,8 +44,11 @@ import {
   toServerWeather,
 } from '@/features/diary/serverDiary';
 import { createRequestKey } from '@/utils/requestKey';
+import { useRewardStore } from './useRewardStore';
 import { useTagStore } from './useTagStore';
-import { useGachaStore } from './useGachaStore';
+import { mozziKeys } from '@/services/mozziApi';
+import type { EmotionPicks } from '@/types/companion';
+import type { Reward } from '@/services/rewardApi';
 
 export const MEMO_MAX_LENGTH = 100;
 export const MEMO_MAX_LINES = 3;
@@ -146,6 +149,11 @@ const initialRecordState = () => ({
   saveKey: null,
   tagNotice: '',
 });
+// 감정별로 고른 모찌 (마이페이지에서 받은 값). 아직 받지 않았으면 기본 모찌.
+const pickedCompanion = (memberId: number, emotion: Emotion) =>
+  queryClient.getQueryData<EmotionPicks>(mozziKeys.picks(memberId))?.[
+    emotion
+  ] ?? null;
 const refreshDiaries = (memberId: number) =>
   queryClient.invalidateQueries({ queryKey: diaryKeys.all(memberId) });
 // 응답을 받지 못했을 때 서버에 오늘 일기가 생겼는지 직접 확인한다.
@@ -272,7 +280,11 @@ export const useAppStore = create<AppState>((set, get) => {
       selected.push(...companions);
       const weather = resolveTag(draft.tags.weather, library);
       let body: ImageRequestBody;
-      let created: { diaryId: number; recordDate: string } | null = null;
+      let created: {
+        diaryId: number;
+        recordDate: string;
+        reward?: Reward | null;
+      } | null = null;
       try {
         const ids = new Map<string, number>();
         for (const tag of selected)
@@ -324,13 +336,15 @@ export const useAppStore = create<AppState>((set, get) => {
         return fail(error);
       }
       if (get().session !== session) return null;
+      // 그날 첫 일기면 서버가 뽑기권을 지급했다.
+      if (created.reward) useRewardStore.getState().show(created.reward);
       const imageTags = toImageTags(draft, library);
       await remember(memberId, {
         diaryId: created.diaryId,
         recordDate: created.recordDate,
         body,
-        // 그림 속 모찌는 고른 기분에 장착한 모찌로 고정한다.
-        companionId: useGachaStore.getState().equippedByEmotion[draft.emotion],
+        // 서버는 그 감정에 고른 모찌를 그린다. 생성 중 화면에도 같은 모찌를 보여 준다.
+        companion: pickedCompanion(memberId, draft.emotion),
         imageTags,
       });
       if (get().session !== session) return null;
@@ -371,10 +385,7 @@ export const useAppStore = create<AppState>((set, get) => {
               whoMyIconId: who?.myIconId ?? null,
               whatMyIconId: what.myIconId,
             },
-            companionId:
-              useGachaStore.getState().equippedByEmotion[
-                toAppEmotion(diary.emotion)
-              ],
+            companion: pickedCompanion(memberId, toAppEmotion(diary.emotion)),
             imageTags: [what, where, who]
               .filter(icon => !!icon)
               .map(icon => iconTag(icon!)),

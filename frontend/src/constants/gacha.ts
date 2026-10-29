@@ -1,118 +1,17 @@
 import type { ImageSourcePropType } from 'react-native';
-import type { MochiId, Tier } from '@/types/gacha';
+import type { Tier } from '@/types/gacha';
 
-// Figma 05 · P-05 "등급별 획득 확률" (시즌 2 · 과일 / 1회 뽑기 기준).
+// 등급 표시(이름·색). 확률·별조각·교환가는 서버 값(GET /gacha/rates, 카드의 exchangeCost)을 쓴다.
 export const tierOrder: Tier[] = ['common', 'rare', 'epic', 'legend', 'myth'];
 export const tiers: Record<
   Tier,
-  {
-    label: string;
-    odds: number;
-    duplicateShards: number;
-    // Mock assumption: Figma only shows 영웅 = 50. The rest scale from it.
-    exchangeCost: number;
-    color: string;
-    badge: string;
-  }
+  { label: string; color: string; badge: string }
 > = {
-  common: {
-    label: '일반',
-    odds: 45,
-    duplicateShards: 1,
-    exchangeCost: 10,
-    color: '#596273',
-    badge: '#EDF0F4',
-  },
-  rare: {
-    label: '희귀',
-    odds: 30,
-    duplicateShards: 2,
-    exchangeCost: 20,
-    color: '#1764D1',
-    badge: '#E8F1FF',
-  },
-  epic: {
-    label: '영웅',
-    odds: 17,
-    duplicateShards: 5,
-    exchangeCost: 50,
-    color: '#8535CD',
-    badge: '#F3E8FF',
-  },
-  legend: {
-    label: '전설',
-    odds: 6.5,
-    duplicateShards: 15,
-    exchangeCost: 150,
-    color: '#B95600',
-    badge: '#FFF0D6',
-  },
-  myth: {
-    label: '신화',
-    odds: 1.5,
-    duplicateShards: 40,
-    exchangeCost: 400,
-    color: '#D22364',
-    badge: '#FFE5EF',
-  },
-};
-export const season = '시즌 2 · 과일';
-// Collection order follows Figma P-06.
-export const mochiOrder: MochiId[] = [
-  'strawberry-crown',
-  'peach',
-  'watermelon',
-  'grape',
-  'cherry',
-  'blueberry',
-  'apple',
-  'mango',
-];
-// Keep these static require calls: Metro must discover every PNG at build time.
-export const mochis: Record<
-  MochiId,
-  { name: string; tier: Tier; source: ImageSourcePropType }
-> = {
-  'strawberry-crown': {
-    name: '딸기 왕관',
-    tier: 'myth',
-    source: require('../../assets/gacha/mochi-strawberry-crown.png'),
-  },
-  peach: {
-    name: '천도복숭아',
-    tier: 'legend',
-    source: require('../../assets/gacha/mochi-peach.png'),
-  },
-  watermelon: {
-    name: '수박',
-    tier: 'epic',
-    source: require('../../assets/gacha/mochi-watermelon.png'),
-  },
-  grape: {
-    name: '포도',
-    tier: 'epic',
-    source: require('../../assets/gacha/mochi-grape.png'),
-  },
-  cherry: {
-    name: '체리',
-    tier: 'rare',
-    source: require('../../assets/gacha/mochi-cherry.png'),
-  },
-  blueberry: {
-    name: '블루베리',
-    tier: 'rare',
-    source: require('../../assets/gacha/mochi-blueberry.png'),
-  },
-  apple: {
-    name: '사과',
-    tier: 'common',
-    source: require('../../assets/gacha/mochi-apple.png'),
-  },
-  mango: {
-    name: '망고',
-    tier: 'common',
-    source: require('../../assets/gacha/mochi-mango.png'),
-  },
+  common: { label: '일반', color: '#596273', badge: '#EDF0F4' },
+  rare: { label: '희귀', color: '#1764D1', badge: '#E8F1FF' },
+  epic: { label: '영웅', color: '#8535CD', badge: '#F3E8FF' },
+  legend: { label: '전설', color: '#B95600', badge: '#FFF0D6' },
+  myth: { label: '신화', color: '#D22364', badge: '#FFE5EF' },
 };
 export const gachaArt = {
   room: require('../../assets/gacha/jar-night-room.png'),
@@ -125,7 +24,6 @@ export const gachaArt = {
   frame: require('../../assets/gacha/reward-card-frame.png'),
   star: require('../../assets/gacha/reward-star.png'),
 };
-export const mochiName = (id: MochiId) => `${mochis[id].name} 모찌`;
 
 export interface OpeningClip {
   source: number;
@@ -193,11 +91,9 @@ export function getOpeningClip(tier: Tier): OpeningClip {
   };
 }
 
-export const highestTier = (ids: MochiId[]): Tier =>
-  ids.reduce<Tier>(
-    (best, id) =>
-      tierOrder.indexOf(mochis[id].tier) > tierOrder.indexOf(best)
-        ? mochis[id].tier
-        : best,
+export const highestTier = (list: Tier[]): Tier =>
+  list.reduce<Tier>(
+    (best, tier) =>
+      tierOrder.indexOf(tier) > tierOrder.indexOf(best) ? tier : best,
     'common',
   );

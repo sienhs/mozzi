@@ -1,20 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useMutation } from '@tanstack/react-query';
 import { Smile, Sparkles, FileText, Leaf } from 'lucide-react-native';
 import { Screen } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
-import { ErrorBanner, StatePanel } from '@/components/ui/Feedback';
+import { ErrorBanner, Loading, StatePanel } from '@/components/ui/Feedback';
 import { TierBadge } from '@/components/gacha/GachaUI';
 import { MyPageTitle } from '@/components/mypage/CompanionUI';
-import { EmotionSlotPicker } from '@/components/mypage/EmotionSlotPicker';
 import { EmotionImage } from '@/components/emotion/Emotion';
-import { emotions, isEmotion } from '@/constants/emotions';
-import type { Emotion } from '@/types/diary';
-import { companions, isCompanionId } from '@/constants/companions';
+import { emotions } from '@/constants/emotions';
 import { colors } from '@/theme/tokens';
-import { useGachaStore } from '@/stores/useGachaStore';
+import { apiErrorMessage } from '@/services/authErrors';
+import { mozziApi, mozziKeys } from '@/services/mozziApi';
+import { queryClient } from '@/services/queryClient';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useOwnedMozzis } from '@/features/gacha/useGachaQueries';
 
 const benefits = [
   {
@@ -25,7 +27,7 @@ const benefits = [
   {
     icon: Sparkles,
     title: '새 AI 그림에 반영',
-    description: '앞으로 만드는 그림에 함께할 모찌예요.',
+    description: '이 감정으로 새로 그리는 그림에 함께해요.',
   },
   {
     icon: FileText,
@@ -33,27 +35,51 @@ const benefits = [
     description: '이미 작성한 일기와 그림은 그대로 유지돼요.',
   },
 ];
+// 모찌 장착 (PUT /members/me/mozzis/{emotion}). 카드마다 감정이 하나라 그 감정에만 장착한다.
 export function EquipCompanionScreen() {
-  const { id, emotion: routeEmotion } = useLocalSearchParams<{
-    id: string;
-    emotion?: string;
-  }>();
-  const [emotion, setEmotion] = useState<Emotion>(
-    isEmotion(routeEmotion) ? routeEmotion : 'happy',
-  );
-  const owned = useGachaStore(state => state.owned);
-  const equippedId = useGachaStore(state => state.equippedByEmotion[emotion]);
-  const equipping = useGachaStore(state => state.equipping);
-  const error = useGachaStore(state => state.equipmentError);
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    useGachaStore.setState({ equipmentError: '' });
-    return () => {
-      mounted.current = false;
-    };
-  }, [id]);
-  if (!id || !isCompanionId(id) || (id !== 'default' && !owned.includes(id)))
+  const { id } = useLocalSearchParams<{ id: string; emotion?: string }>();
+  const cardId = Number(id);
+  const memberId = useAuthStore(state => state.member?.memberId);
+  const owned = useOwnedMozzis({});
+  const mozzi = owned.data?.find(item => item.cardId === cardId);
+  const [error, setError] = useState('');
+  const equip = useMutation({
+    mutationFn: () => mozziApi.choose(mozzi!.emotion, mozzi!.cardId),
+    onSuccess: async () => {
+      if (memberId !== undefined)
+        await queryClient.invalidateQueries({
+          queryKey: mozziKeys.all(memberId),
+        });
+      router.dismissTo({
+        pathname: '/mypage',
+        params: { equipped: String(Date.now()), emotion: mozzi!.emotion },
+      });
+    },
+    onError: failure =>
+      setError(
+        apiErrorMessage(
+          failure,
+          '모찌를 장착하지 못했어요. 다시 시도해 주세요.',
+        ),
+      ),
+  });
+  if (!owned.data)
+    return (
+      <Screen back title="모찌 장착하기">
+        {owned.isError ? (
+          <StatePanel
+            compact
+            title="보유 모찌를 불러오지 못했어요"
+            description="연결 상태를 확인하고 다시 시도해 주세요."
+            retry={() => void owned.refetch()}
+            retryLabel="다시 불러오기"
+          />
+        ) : (
+          <Loading label="보유 모찌를 불러오고 있어요" />
+        )}
+      </Screen>
+    );
+  if (!mozzi)
     return (
       <Screen back title="모찌 장착하기">
         <StatePanel
@@ -66,46 +92,34 @@ export function EquipCompanionScreen() {
         />
       </Screen>
     );
-  const companion = companions[id];
-  const alreadyEquipped = id === equippedId;
-  async function equip() {
-    if (alreadyEquipped || equipping) return;
-    const succeeded = await useGachaStore
-      .getState()
-      .equip(emotion, companion.id);
-    if (succeeded && mounted.current)
-      router.dismissTo({
-        pathname: '/mypage',
-        params: { equipped: String(Date.now()), emotion },
-      });
-  }
+  const label = emotions[mozzi.emotion].label;
   return (
     <Screen
       back
       title="모찌 장착하기"
       titleContent={<MyPageTitle>모찌 장착하기</MyPageTitle>}
       footer={
-        <Button
-          label={
-            alreadyEquipped
-              ? '현재 장착 중'
-              : equipping
-                ? '장착하고 있어요'
-                : `${emotions[emotion].label}에 장착하기`
-          }
-          disabled={alreadyEquipped || equipping}
-          loading={equipping}
-          onPress={() => void equip()}
-        />
+        <>
+          {!!error && <ErrorBanner message={error} />}
+          <Button
+            label={
+              mozzi.equipped
+                ? '현재 장착 중'
+                : equip.isPending
+                  ? '장착하고 있어요'
+                  : `${label}에 장착하기`
+            }
+            disabled={mozzi.equipped || equip.isPending}
+            loading={equip.isPending}
+            onPress={() => {
+              setError('');
+              equip.mutate();
+            }}
+          />
+        </>
       }
       contentStyle={{ gap: 16 }}
     >
-      <AppText variant="label">장착할 감정을 선택해 주세요</AppText>
-      <EmotionSlotPicker
-        value={emotion}
-        onChange={setEmotion}
-        disabled={equipping}
-      />
       <View
         style={{
           backgroundColor: colors.white,
@@ -115,13 +129,13 @@ export function EquipCompanionScreen() {
           alignItems: 'center',
         }}
       >
-        <EmotionImage emotion={emotion} companionId={companion.id} size={180} />
-        <TierBadge tier={companion.tier} />
+        <EmotionImage emotion={mozzi.emotion} companion={mozzi} size={180} />
+        <TierBadge tier={mozzi.tier} />
         <AppText variant="title" style={{ textAlign: 'center' }}>
-          {companion.name}
+          {mozzi.name}
         </AppText>
         <AppText variant="small" style={{ textAlign: 'center' }}>
-          {companion.description}
+          {label} 모찌
         </AppText>
       </View>
       <View
@@ -134,9 +148,7 @@ export function EquipCompanionScreen() {
       >
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           <Leaf size={22} color={colors.sage} />
-          <AppText variant="label">
-            {emotions[emotion].label}에 이 모찌를 장착하면
-          </AppText>
+          <AppText variant="label">{label}에 이 모찌를 장착하면</AppText>
         </View>
         {benefits.map(item => (
           <View
@@ -157,17 +169,6 @@ export function EquipCompanionScreen() {
           </View>
         ))}
       </View>
-      {companion.id !== 'default' && (
-        <AppText variant="caption">
-          감정별 표정은 준비 중이에요. 지금은 선택한 모찌의 기본 이미지로
-          보여드려요.
-        </AppText>
-      )}
-      <AppText variant="caption">
-        AI 그림 반영은 준비 중이에요. 현재는 장착 선택과 새 기록의 모찌가
-        연결돼요.
-      </AppText>
-      {!!error && <ErrorBanner message={error} />}
     </Screen>
   );
 }

@@ -14,18 +14,23 @@ import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Sheet } from '@/components/ui/Sheet';
 import { BalanceChip, GachaChip, TierBadge } from '@/components/gacha/GachaUI';
-import { gachaArt, mochis, season, tierOrder, tiers } from '@/constants/gacha';
+import { Loading, StatePanel } from '@/components/ui/Feedback';
+import { gachaArt } from '@/constants/gacha';
 import { colors, spacing } from '@/theme/tokens';
 import { useGachaStore } from '@/stores/useGachaStore';
+import type { MochiCard } from '@/types/gacha';
+import { useGachaRates, useGachaStatus } from './useGachaQueries';
 
 const openCollection = () => router.push('/gacha/collection');
 const startPull = (count: number) =>
   router.push({ pathname: '/gacha/opening', params: { count: String(count) } });
 
 // Figma 05 · P-01 / P-01B / P-01C 뽑기 홈, P-05 확률 시트, P-12 중복 별조각.
+// 잔액·도감 진행도는 서버(GET /gacha/status) 값이다. 받기 전에는 뽑기 버튼을 열지 않는다.
 export function GachaHomeScreen() {
-  const tickets = useGachaStore(state => state.tickets);
-  const shards = useGachaStore(state => state.shards);
+  const status = useGachaStatus();
+  const wallet = useGachaStore(state => state.wallet);
+  const tickets = wallet?.tickets ?? 0;
   const pending = useGachaStore(state => state.pendingDuplicate);
   const [oddsOpen, setOddsOpen] = useState(false);
   const { origin, target, play, style } = useShardFlight();
@@ -60,10 +65,10 @@ export function GachaHomeScreen() {
           >
             모찌 뽑기
           </AppText>
-          <BalanceChip label={`뽑기권 ${tickets}`} />
+          <BalanceChip label={`뽑기권 ${wallet ? wallet.tickets : '-'}`} />
           <View ref={target} collapsable={false}>
             <BalanceChip
-              label={`별조각 ${shards}`}
+              label={`별조각 ${wallet ? wallet.shards : '-'}`}
               onPress={() => router.push('/gacha/exchange')}
             />
           </View>
@@ -86,7 +91,9 @@ export function GachaHomeScreen() {
             }}
           >
             <AppText variant="small" style={{ color: colors.primary }}>
-              {season}
+              {status.data
+                ? `도감 ${status.data.collection.owned} / ${status.data.collection.total}`
+                : ' '}
             </AppText>
             <Pressable
               accessibilityRole="button"
@@ -100,8 +107,17 @@ export function GachaHomeScreen() {
           <NightRoom
             origin={origin}
             flightStyle={style}
-            duplicate={pending?.id}
+            duplicate={pending?.card}
           />
+          {status.isError && !wallet && (
+            <StatePanel
+              compact
+              title="뽑기권을 확인하지 못했어요"
+              description="연결 상태를 확인하고 다시 시도해 주세요."
+              retry={() => void status.refetch()}
+              retryLabel="다시 불러오기"
+            />
+          )}
           <GachaChip
             label="확률 보기"
             width={150}
@@ -116,7 +132,9 @@ export function GachaHomeScreen() {
             gap: spacing.md,
           }}
         >
-          {tickets === 0 ? (
+          {!wallet ? (
+            status.isPending && <Loading label="뽑기권을 확인하고 있어요" />
+          ) : tickets === 0 ? (
             <Button
               label="뽑기권 없음"
               disabled
@@ -166,7 +184,7 @@ function NightRoom({
 }: {
   origin: ReturnType<typeof useShardFlight>['origin'];
   flightStyle: ReturnType<typeof useShardFlight>['style'];
-  duplicate?: keyof typeof mochis;
+  duplicate?: MochiCard;
 }) {
   return (
     <View
@@ -214,7 +232,7 @@ function NightRoom({
         >
           <Animated.Image
             accessible={false}
-            source={mochis[duplicate].source}
+            source={{ uri: duplicate.imageUrl }}
             resizeMode="contain"
             style={[{ width: '100%', height: '100%' }, flightStyle(0)]}
           />
@@ -314,6 +332,8 @@ function useShardFlight() {
   return { origin, target, play, style };
 }
 
+// P-05 확률은 서버 값(GET /gacha/rates)을 그대로 보여 준다.
+const percent = (rate: number) => `${Number((rate * 100).toFixed(3))}%`;
 function OddsSheet({
   visible,
   onClose,
@@ -321,40 +341,51 @@ function OddsSheet({
   visible: boolean;
   onClose: () => void;
 }) {
+  const rates = useGachaRates(visible);
   return (
     <Sheet visible={visible} onClose={onClose} title="등급별 획득 확률">
-      <AppText variant="small">
-        {season} {' '}/{' '} 1회 뽑기 기준
-      </AppText>
-      <View style={{ gap: 8 }}>
-        <View style={{ flexDirection: 'row' }}>
-          <AppText variant="caption" style={{ width: 128 }}>
-            등급
-          </AppText>
-          <AppText variant="caption" style={{ flex: 1 }}>
-            확률
-          </AppText>
-          <AppText variant="caption" style={{ textAlign: 'right' }}>
-            중복 시 별조각
-          </AppText>
-        </View>
-        {tierOrder.map(tier => (
-          <View
-            key={tier}
-            style={{ flexDirection: 'row', alignItems: 'center' }}
-          >
-            <View style={{ width: 128 }}>
-              <TierBadge tier={tier} />
-            </View>
-            <AppText variant="label" style={{ flex: 1 }}>
-              {tiers[tier].odds}%
+      <AppText variant="small">1회 뽑기 기준</AppText>
+      {rates.data ? (
+        <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: 'row' }}>
+            <AppText variant="caption" style={{ width: 128 }}>
+              등급
             </AppText>
-            <AppText variant="small" style={{ textAlign: 'right' }}>
-              +{tiers[tier].duplicateShards}
+            <AppText variant="caption" style={{ flex: 1 }}>
+              확률
+            </AppText>
+            <AppText variant="caption" style={{ textAlign: 'right' }}>
+              중복 시 별조각
             </AppText>
           </View>
-        ))}
-      </View>
+          {rates.data.map(item => (
+            <View
+              key={item.tier}
+              style={{ flexDirection: 'row', alignItems: 'center' }}
+            >
+              <View style={{ width: 128 }}>
+                <TierBadge tier={item.tier} />
+              </View>
+              <AppText variant="label" style={{ flex: 1 }}>
+                {percent(item.rate)}
+              </AppText>
+              <AppText variant="small" style={{ textAlign: 'right' }}>
+                +{item.duplicateShards}
+              </AppText>
+            </View>
+          ))}
+        </View>
+      ) : rates.isError ? (
+        <StatePanel
+          compact
+          title="확률을 불러오지 못했어요"
+          description="연결 상태를 확인하고 다시 시도해 주세요."
+          retry={() => void rates.refetch()}
+          retryLabel="다시 불러오기"
+        />
+      ) : (
+        <Loading label="확률을 불러오고 있어요" />
+      )}
       <View
         style={{
           backgroundColor: colors.bg,

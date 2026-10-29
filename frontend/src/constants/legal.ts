@@ -1,7 +1,7 @@
-import terms from '../../assets/legal/terms.json';
-import privacy from '../../assets/legal/privacy.json';
-
-// 본문과 버전은 같은 파일에 둔다. 본문을 고치면 version도 함께 올려야 서버(GET /meta)와 비교할 수 있다.
-export const legalDocuments = { TERMS: terms, PRIVACY: privacy };
-export type LegalType = keyof typeof legalDocuments;
+// 약관 본문은 서버(GET /legal/*)에서 받는다. 원본은 docs/legal이고 문구를 고치면 서버 배포로 바뀐다.
+export type LegalType = 'TERMS' | 'PRIVACY';
 export const legalTypes: LegalType[] = ['TERMS', 'PRIVACY'];
+export const legalLabels: Record<LegalType, string> = {
+  TERMS: '이용약관',
+  PRIVACY: '개인정보 처리방침',
+};

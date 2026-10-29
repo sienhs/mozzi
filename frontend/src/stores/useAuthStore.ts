@@ -8,7 +8,7 @@ import {
   isSessionRejected,
 } from '@/services/authErrors';
 import { googleAuth } from '@/services/googleAuth';
-import { getMember } from '@/services/memberApi';
+import { deleteMember, getMember } from '@/services/memberApi';
 import { getApiBaseUrl } from '@/services/authConfig';
 import { queryClient } from '@/services/queryClient';
 import type {
@@ -21,6 +21,7 @@ import { validNickname } from '@/types/auth';
 import { useAppStore } from './useAppStore';
 import { useGachaStore } from './useGachaStore';
 import { useMetaStore } from './useMetaStore';
+import { useRewardStore } from './useRewardStore';
 import { useTagStore } from './useTagStore';
 
 type AuthStatus =
@@ -40,6 +41,8 @@ interface AuthState {
   signup: (nickname: string, terms: AgreedTerms[]) => Promise<void>;
   cancelSignup: () => void;
   signOut: () => Promise<void>;
+  // 회원 탈퇴. 실패하면 오류를 던지고 로그인 상태를 그대로 둔다.
+  withdraw: () => Promise<void>;
   invalidate: (message?: string) => Promise<void>;
 }
 let bootstrapPromise: Promise<void> | null = null;
@@ -50,6 +53,7 @@ const resetUserData = () => {
   useAppStore.getState().resetSession();
   useGachaStore.getState().resetSession();
   useTagStore.getState().resetSession();
+  useRewardStore.getState().resetSession();
 };
 async function finishLogin(tokens: AuthTokens, version: number) {
   await authSession.save(tokens, version);
@@ -231,6 +235,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       if (version === authSession.version()) set({ pending: false });
     }
+  },
+  withdraw: async () => {
+    if (get().pending) return;
+    set({ pending: true });
+    try {
+      await deleteMember();
+    } catch (error) {
+      set({ pending: false });
+      throw error;
+    }
+    // 서버 세션은 이미 끝났다. 이 기기의 로그인 정보와 기록 캐시를 지운다.
+    try {
+      await googleAuth.clear();
+    } catch {
+      /* Local cleanup must still proceed. */
+    }
+    await get().invalidate();
   },
   signOut: async () => {
     if (get().pending) return;

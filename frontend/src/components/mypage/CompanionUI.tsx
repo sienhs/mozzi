@@ -1,30 +1,25 @@
 import { memo } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Check, Leaf } from 'lucide-react-native';
-import { companions } from '@/constants/companions';
 import { colors } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
-import type { CompanionId } from '@/types/companion';
-import { companionArtworkStyle } from '@/constants/companionArtwork';
+import type { Companion, OwnedMozzi } from '@/types/companion';
 
+// 모찌 카드 그림. 카드마다 감정이 하나라 그 감정의 표정 그대로다.
 export function CompanionArtwork({
-  id,
+  companion,
   aspectRatio = 1.25,
 }: {
-  id: CompanionId;
+  companion: Companion;
   aspectRatio?: number;
 }) {
   return (
     <View style={[styles.artwork, { aspectRatio }]}>
       <Image
-        source={companions[id].source}
+        source={{ uri: companion.imageUrl }}
         resizeMode="contain"
-        accessibilityLabel={companions[id].name}
-        style={[
-          StyleSheet.absoluteFill,
-          { width: '100%', height: '100%' },
-          companionArtworkStyle(id),
-        ]}
+        accessibilityLabel={companion.name}
+        style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
       />
     </View>
   );
@@ -58,19 +53,18 @@ export function CompanionNotice({ success = false }: { success?: boolean }) {
   );
 }
 export const OwnedCompanionCard = memo(function OwnedCompanionCard({
-  id,
-  equipped,
+  mozzi,
   onSelect,
 }: {
-  id: CompanionId;
-  equipped: boolean;
-  onSelect: (id: CompanionId) => void;
+  mozzi: OwnedMozzi;
+  onSelect: (mozzi: OwnedMozzi) => void;
 }) {
+  const { equipped } = mozzi;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${companions[id].name}${equipped ? ', 장착 중' : ''}`}
-      onPress={() => onSelect(id)}
+      accessibilityLabel={`${mozzi.name}${equipped ? ', 장착 중' : ''}`}
+      onPress={() => onSelect(mozzi)}
       style={[
         styles.ownedCard,
         equipped && {
@@ -82,7 +76,7 @@ export const OwnedCompanionCard = memo(function OwnedCompanionCard({
       <View pointerEvents="none" style={styles.ownedBadge}>
         {equipped && <EquippedBadge />}
       </View>
-      <CompanionArtwork id={id} aspectRatio={1} />
+      <CompanionArtwork companion={mozzi} aspectRatio={1} />
       <AppText
         variant="label"
         numberOfLines={2}
@@ -94,7 +88,7 @@ export const OwnedCompanionCard = memo(function OwnedCompanionCard({
           lineHeight: 24,
         }}
       >
-        {companions[id].name}
+        {mozzi.name}
       </AppText>
     </Pressable>
   );

@@ -86,7 +86,7 @@ function DiaryDetail({ entry }: { entry: DiaryEntry }) {
       ) : (
         <PictureState
           emotion={entry.emotion}
-          companionId={entry.companionId}
+          companion={entry.companion}
           generating={entry.generation === 'generating'}
           tone="sage"
           caption={

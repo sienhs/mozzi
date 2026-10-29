@@ -12,14 +12,15 @@ import {
 } from '@/types/server';
 import { api } from './api';
 import { AuthError, errorBody, errorCode } from './authErrors';
+import { parseReward, type Reward } from './rewardApi';
 
 // 일기·그림 API (backend docs/api/diary.md, home.md). 화면과 스토어는 이 파일만 부른다.
 // 일기 생성 → 그림 요청 순서이고, 그림 결과는 GET /home·/diaries/daily의 image로 확인한다(SSE 없음).
 export const DIARY_IMAGE_ONLY_TODAY = 'IMAGE_ONLY_TODAY';
 export const DIARY_IMAGE_ALREADY_REQUESTED = 'IMAGE_ALREADY_REQUESTED';
 
-// 그림 요청의 필수값 characterId. 서버에 캐릭터 표·감정별 캐릭터 조회 API가 아직 없어 임시로 기본 캐릭터 1을 보낸다.
-// 서버는 지금 저장만 하고 기본 캐릭터로 그린다. API가 생기면 이 값만 바꾼다.
+// 그림 요청의 필수값 characterId. 서버는 이 값을 저장만 하고, 그림에는 그 감정에 고른 모찌
+// (PUT /members/me/mozzis)를 그린다. 그래서 고정값을 보낸다.
 export const PROVISIONAL_CHARACTER_ID = 1;
 
 // 그림 뒤에 쓰는 한 줄을 저장할 API가 아직 없다 (일기 수정 API 없음, 백엔드 추가 예정).
@@ -84,7 +85,7 @@ export const diaryApi = {
   async create(
     body: { emoticonId: number; content: string | null; myIconIds: number[] },
     requestKey: string,
-  ): Promise<{ diaryId: number; recordDate: string }> {
+  ): Promise<{ diaryId: number; recordDate: string; reward: Reward | null }> {
     try {
       const { data } = await api.post('/diaries', body, {
         headers: { 'Idempotency-Key': requestKey },
@@ -94,7 +95,12 @@ export const diaryApi = {
         typeof data?.recordDate !== 'string'
       )
         throw invalidResponse();
-      return { diaryId: data.diaryId, recordDate: data.recordDate };
+      return {
+        diaryId: data.diaryId,
+        recordDate: data.recordDate,
+        // 그날 첫 일기면 뽑기권 보상이 함께 온다. 같은 키로 다시 보내면 첫 응답(보상 포함)이 그대로 온다.
+        reward: parseReward(data.reward),
+      };
     } catch (error) {
       const conflict = isAxiosError(error) ? error.response?.data : undefined;
       if (

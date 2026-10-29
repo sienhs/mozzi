@@ -1,187 +1,118 @@
-import { companions, companionEmotionSource } from '@/constants/companions';
-import {
-  filterOwnedCompanions,
-  ownedCompanionIds,
-} from '@/features/mypage/ownedCompanions';
-import { useMockControls } from '@/mocks/controls';
-import { mockEquipmentService, mockGachaService } from '@/mocks/services';
-import { diaryApi } from '@/services/diaryApi';
-import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
-import { emptyDraft, useAppStore } from '@/stores/useAppStore';
-import { setAuthPreview } from '@/mocks/authPreview';
-import { useAuthStore } from '@/stores/useAuthStore';
+import { companionEmotionSource, companionName } from '@/constants/companions';
+import { emotions } from '@/constants/emotions';
+import { api } from '@/services/api';
+import { parseCard, parseDraw } from '@/services/gachaApi';
+import { mozziApi, parsePicks } from '@/services/mozziApi';
+import { createFakeServer } from '../test-utils/fakeServer';
 
-beforeEach(() => {
-  jest.useFakeTimers();
-  jest.setSystemTime(new Date('2026-10-28T03:00:00Z'));
-  useMockControls.getState().reset();
-  useGachaStore.setState(initialGachaState());
-  setAuthPreview();
-  useAppStore.getState().resetSession();
-  useAppStore.setState({
-    draft: emptyDraft(),
-    saveStatus: 'idle',
-    saveError: '',
+jest.mock('@/services/authConfig', () => ({
+  ...jest.requireActual('@/services/authConfig'),
+  getApiBaseUrl: () => 'https://api.example.test/api/v1',
+}));
+const defaultAdapter = api.defaults.adapter;
+afterEach(() => {
+  api.defaults.adapter = defaultAdapter;
+});
+const card = {
+  cardId: 141,
+  code: 'S2-04-01',
+  name: '수박 모찌',
+  tier: 'EPIC',
+  emotion: 'HAPPY',
+  series: '과일 모찌',
+  imageUrl: 'https://cdn.example.test/cards/S2-04-01.png',
+  owned: true,
+  ownedCount: 2,
+  isNew: false,
+  exchangeCost: null,
+};
+
+test('server cards map their tier and emotion and reject malformed ones', () => {
+  expect(parseCard(card)).toMatchObject({
+    cardId: 141,
+    tier: 'epic',
+    emotion: 'happy',
+    exchangeCost: null,
   });
-});
-afterEach(async () => {
-  await jest.runOnlyPendingTimersAsync();
-  jest.restoreAllMocks();
-  jest.useRealTimers();
-});
-
-test('default is always owned, unowned characters cannot be equipped, and re-equipping sends no request', async () => {
-  expect(ownedCompanionIds([])).toEqual(['default']);
-  const request = jest.spyOn(mockEquipmentService, 'equip');
-  expect(await useGachaStore.getState().equip('happy', 'default')).toBe(false);
   expect(
-    await useGachaStore.getState().equip('happy', 'strawberry-crown'),
-  ).toBe(false);
-  expect(request).not.toHaveBeenCalled();
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
+    parseCard({ ...card, tier: 'MYTHIC', exchangeCost: 400 }),
+  ).toMatchObject({ tier: 'myth', exchangeCost: 400 });
+  expect(() => parseCard({ ...card, tier: 'SUPER' })).toThrow();
+  expect(() => parseCard({ ...card, emotion: 'TIRED' })).toThrow();
+  expect(() => parseCard({ ...card, imageUrl: '' })).toThrow();
 });
 
-test('equip failure keeps the existing character, supports retry, and rejects concurrent requests', async () => {
-  const request = jest.spyOn(mockEquipmentService, 'equip');
-  useMockControls.getState().failNext('equip');
-  const failure = useGachaStore.getState().equip('happy', 'grape');
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await failure).toBe(false);
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
-  expect(useGachaStore.getState().equipmentError).toContain('다시 시도');
-  const retry = useGachaStore.getState().equip('happy', 'grape');
-  expect(await useGachaStore.getState().equip('happy', 'cherry')).toBe(false);
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await retry).toBe(true);
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('grape');
-  expect(request).toHaveBeenCalledTimes(2);
-  expect(useGachaStore.getState().owned).toContain('grape');
-  const reset = useGachaStore.getState().equip('happy', 'default');
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await reset).toBe(true);
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
-});
-
-test('new draws and exchanges record real acquisition times without automatically equipping', async () => {
-  jest
-    .spyOn(mockGachaService, 'pull')
-    .mockResolvedValue([{ id: 'strawberry-crown', isNew: true, shards: 0 }]);
-  await useGachaStore.getState().pull(1);
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
-  expect(useGachaStore.getState().acquiredAt['strawberry-crown']).toBe(
-    new Date().toISOString(),
-  );
-  const acquired = useGachaStore.getState().acquiredAt['strawberry-crown'];
-  jest
-    .spyOn(mockGachaService, 'pull')
-    .mockResolvedValue([{ id: 'strawberry-crown', isNew: false, shards: 40 }]);
-  await useGachaStore.getState().pull(1);
-  expect(useGachaStore.getState().acquiredAt['strawberry-crown']).toBe(
-    acquired,
-  );
-  const exchange = useGachaStore.getState().exchange('watermelon');
-  await jest.advanceTimersByTimeAsync(500);
-  await exchange;
-  expect(useGachaStore.getState().acquiredAt.watermelon).toBe(
-    new Date().toISOString(),
-  );
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
-});
-
-test('equipping alone never starts image generation and logout ignores pending equip responses', async () => {
-  // 그림 요청 때 감정별 장착 모찌를 스냅샷으로 고정하는 것은 record-session.test.ts에서 확인한다.
-  const generate = jest.spyOn(diaryApi, 'requestImage');
-  const equip = useGachaStore.getState().equip('happy', 'grape');
-  await useAuthStore.getState().signOut();
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await equip).toBe(false);
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
-  expect(generate).not.toHaveBeenCalled();
-});
-
-test('search, category, tier and sort compose using only owned characters and known dates', () => {
-  const state = useGachaStore.getState();
-  const acquiredAt = {
-    grape: '2026-10-26T00:00:00Z',
-    apple: '2026-10-28T00:00:00Z',
+test('a draw response must hold one result per ticket used', () => {
+  const body = {
+    drawId: 9001,
+    results: [{ card, firstAcquired: false, shardsGained: 5 }],
+    ticketCount: 13,
+    shardCount: 145,
+    collection: { owned: 10, total: 100 },
   };
-  expect(
-    filterOwnedCompanions({
-      ...state,
-      acquiredAt,
-      category: 'fruit',
-      tier: 'epic',
-      query: '포도',
-    }),
-  ).toEqual(['grape']);
-  expect(
-    filterOwnedCompanions({
-      ...state,
-      acquiredAt,
-      category: 'halloween',
-      tier: 'legend',
-    }),
-  ).toEqual([]);
-  expect(filterOwnedCompanions({ ...state, acquiredAt }).slice(0, 2)).toEqual([
-    'apple',
-    'grape',
-  ]);
-  expect(
-    filterOwnedCompanions({ ...state, acquiredAt, sort: 'oldest' }).slice(0, 2),
-  ).toEqual(['grape', 'apple']);
-  expect(filterOwnedCompanions({ ...state, query: '딸기' })).toEqual([]);
-  expect(state.acquiredAt).toEqual({});
-  expect(companions.default.category).toBeNull();
-});
-
-test('a session reset invalidates the old equip without cancelling a new session equip', async () => {
-  const oldRequest = useGachaStore.getState().equip('happy', 'grape');
-  const version = useGachaStore.getState().equipmentVersion;
-  useGachaStore.getState().resetSession();
-  expect(useGachaStore.getState().equipmentVersion).toBeGreaterThan(version);
-  const newRequest = useGachaStore.getState().equip('happy', 'cherry');
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await oldRequest).toBe(false);
-  expect(await newRequest).toBe(true);
-  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('cherry');
-  expect(useGachaStore.getState().equipping).toBe(false);
-});
-
-test('each emotion has an independent slot and the same companion can fill multiple slots', async () => {
-  const request = jest.spyOn(mockEquipmentService, 'equip');
-  const happy = useGachaStore.getState().equip('happy', 'grape');
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await happy).toBe(true);
-  const sad = useGachaStore.getState().equip('sad', 'cherry');
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await sad).toBe(true);
-  const calm = useGachaStore.getState().equip('calm', 'grape');
-  await jest.advanceTimersByTimeAsync(450);
-  expect(await calm).toBe(true);
-  expect(useGachaStore.getState().equippedByEmotion).toEqual({
-    happy: 'grape',
-    calm: 'grape',
-    neutral: 'default',
-    sad: 'cherry',
-    angry: 'default',
+  expect(parseDraw(body, 1)).toMatchObject({
+    tickets: 13,
+    shards: 145,
+    items: [{ isNew: false, shards: 5 }],
   });
-  expect(request).toHaveBeenLastCalledWith('calm', 'grape');
-  useGachaStore.getState().resetEquipment();
-  expect(Object.values(useGachaStore.getState().equippedByEmotion)).toEqual(
-    Array(5).fill('default'),
-  );
+  expect(() => parseDraw(body, 2)).toThrow();
 });
 
-test('emotion artwork uses a supplied remote image and falls back only for missing emotions', () => {
-  const image = { uri: 'https://example.com/grape-sad.png' };
-  const previous = companions.grape.emotionSources;
-  try {
-    companions.grape.emotionSources = { sad: image };
-    expect(companionEmotionSource('grape', 'sad')).toBe(image);
-    expect(companionEmotionSource('grape', 'happy')).toBe(
-      companions.grape.source,
-    );
-  } finally {
-    companions.grape.emotionSources = previous;
-  }
+test('picks fill every emotion and unpicked ones mean the default mochi', () => {
+  const picks = parsePicks({
+    memberId: 7,
+    mozzis: [
+      {
+        emotion: 'SAD',
+        selected: {
+          cardId: 141,
+          name: '수박 모찌',
+          tier: 'EPIC',
+          imageUrl: card.imageUrl,
+        },
+      },
+      { emotion: 'HAPPY', selected: null },
+    ],
+  });
+  expect(picks.sad?.cardId).toBe(141);
+  expect(picks.happy).toBeNull();
+  expect(picks.calm).toBeNull();
+  expect(companionName(picks.sad)).toBe('수박 모찌');
+  expect(companionName(picks.happy)).toBe('기본 모찌');
+  expect(companionEmotionSource(picks.sad, 'sad')).toEqual({
+    uri: card.imageUrl,
+  });
+  expect(companionEmotionSource(null, 'happy')).toBe(emotions.happy.source);
+  expect(companionEmotionSource(null, 'happy', true)).toBe(emotions.happy.face);
+  expect(() => parsePicks({ memberId: 7 })).toThrow();
+});
+
+test('owned mozzi filters and picks go to the server in its format', async () => {
+  const server = createFakeServer('2026-10-28');
+  server.state.owned.set(205, {
+    count: 1,
+    seen: true,
+    at: '2026-10-25T09:00:00+09:00',
+  });
+  api.defaults.adapter = server.adapter;
+  const list = await mozziApi.owned({
+    emotion: 'sad',
+    tier: 'rare',
+    name: ' 체리 ',
+    sort: 'name',
+  });
+  expect(server.callsTo('GET', '/members/me/mozzis')[0].params).toEqual({
+    sort: 'NAME',
+    emotion: 'SAD',
+    tier: 'RARE',
+    name: '체리',
+  });
+  expect(list).toMatchObject([
+    { cardId: 205, emotion: 'sad', tier: 'rare', equipped: false },
+  ]);
+  await mozziApi.choose('sad', 205);
+  expect(server.callsTo('PUT', '/members/me/mozzis/SAD')[0].body).toEqual({
+    cardId: 205,
+  });
+  await expect(mozziApi.choose('happy', 205)).rejects.toBeDefined();
 });
