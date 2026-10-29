@@ -19,7 +19,7 @@ import {
 import { useDiary } from './useDiaryQueries';
 
 // 서버 기록은 날짜로 조회한다 (GET /diaries/daily — 서버에 ID 단건 조회가 없다).
-// 날짜 없이 들어오면 캘린더·검색이 아직 쓰는 로컬 샘플 기록에서 찾는다.
+// 날짜 없이 들어오면 검색이 아직 쓰는 로컬 샘플 기록에서 찾는다.
 export function DiaryDetailScreen() {
   const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
   const local = useAppStore(state =>

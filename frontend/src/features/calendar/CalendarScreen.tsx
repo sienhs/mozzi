@@ -6,13 +6,15 @@ import { AppText } from '@/components/ui/Text';
 import { Icon } from '@/components/ui/Icon';
 import { TextButton } from '@/components/ui/Button';
 import { DiaryRow } from '@/components/ui/DiaryCard';
+import { Loading, StatePanel } from '@/components/ui/Feedback';
 import { Sheet } from '@/components/ui/Sheet';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { emotions } from '@/constants/emotions';
 import { formatDate, monthCells, todayKey } from '@/constants/date';
 import { colors } from '@/theme/tokens';
-import type { DiaryEntry } from '@/types/diary';
-import { useAppStore } from '@/stores/useAppStore';
+import type { DiaryEntry, Emotion } from '@/types/diary';
+import { toAppEmotion } from '@/features/diary/serverDiary';
+import { useDiary, useMonthly } from '@/features/diary/useDiaryQueries';
 
 export function CalendarDay({
   date,
@@ -21,7 +23,7 @@ export function CalendarDay({
   onPress,
 }: {
   date: string;
-  entry?: DiaryEntry;
+  entry?: Pick<DiaryEntry, 'emotion' | 'companionId'>;
   selected: boolean;
   onPress: () => void;
 }) {
@@ -63,26 +65,32 @@ export function CalendarDay({
     </Pressable>
   );
 }
+// 서버 캘린더: 달마다 GET /diaries/monthly로 일기를 쓴 날의 감정을 받고,
+// 날짜를 누르면 그날 일기를 GET /diaries/daily로 불러 한 줄(없으면 감정 기본 제목)을 보여 준다.
+const monthKey = (month: Date) =>
+  `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
 export function CalendarScreen() {
   const today = todayKey();
-  const allEntries = useAppStore(state => state.entries);
-  // 캘린더에는 저장을 마친 기록만 보인다. 오늘 작성 중인 기록은 홈에서 이어 쓴다.
-  const entries = useMemo(
-    () => allEntries.filter(entry => entry.status === 'completed'),
-    [allEntries],
-  );
   const [month, setMonth] = useState(
     () => new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, 1),
   );
-  const [selected, setSelected] = useState<string | null>(() =>
-    today.startsWith('2026-10') &&
-    entries.some(entry => entry.date === '2026-10-21')
-      ? '2026-10-21'
-      : today,
+  const monthly = useMonthly(monthKey(month));
+  const recorded = useMemo(
+    () =>
+      new Map<string, Emotion>(
+        (monthly.data ?? []).map(item => [
+          item.recordDate,
+          toAppEmotion(item.emotion),
+        ]),
+      ),
+    [monthly.data],
   );
+  const [selected, setSelected] = useState<string | null>(today);
   const [emptyDate, setEmptyDate] = useState<string | null>(null);
   const cells = monthCells(month.getFullYear(), month.getMonth() + 1);
-  const entry = entries.find(item => item.date === selected);
+  const selectedRecorded = !!selected && recorded.has(selected);
+  const day = useDiary(selectedRecorded ? selected! : undefined);
+  const entry = selectedRecorded ? day.entry : null;
   function changeMonth(offset: number) {
     setMonth(
       value => new Date(value.getFullYear(), value.getMonth() + offset, 1),
@@ -145,11 +153,16 @@ export function CalendarScreen() {
                 <CalendarDay
                   key={date}
                   date={date}
-                  entry={entries.find(item => item.date === date)}
+                  entry={
+                    recorded.has(date)
+                      ? { emotion: recorded.get(date)! }
+                      : undefined
+                  }
                   selected={selected === date}
                   onPress={() => {
                     setSelected(date);
-                    if (!entries.some(item => item.date === date))
+                    // 달을 아직 받지 못했으면 기록 없음으로 단정하지 않는다.
+                    if (monthly.isSuccess && !recorded.has(date))
                       setEmptyDate(date);
                   }}
                 />
@@ -160,15 +173,37 @@ export function CalendarScreen() {
           </View>
         ))}
       </View>
-      {entry && (
+      {monthly.isError ? (
+        <StatePanel
+          compact
+          title="이달의 기록을 불러오지 못했어요"
+          description="연결 상태를 확인하고 다시 시도해 주세요."
+          retry={() => void monthly.refetch()}
+          retryLabel="다시 불러오기"
+        />
+      ) : monthly.isPending ? (
+        <Loading label="이달의 기록을 불러오고 있어요" />
+      ) : entry ? (
         <DiaryRow
           entry={entry}
           onPress={() =>
-            router.push({ pathname: '/diary/[id]', params: { id: entry.id } })
+            router.push({
+              pathname: '/diary/[id]',
+              params: { id: entry.id, date: entry.date },
+            })
           }
         />
-      )}
-      {!entry && (
+      ) : selectedRecorded && day.isError ? (
+        <StatePanel
+          compact
+          title="기록을 불러오지 못했어요"
+          description="연결 상태를 확인하고 다시 시도해 주세요."
+          retry={day.refetch}
+          retryLabel="다시 불러오기"
+        />
+      ) : selectedRecorded ? (
+        <Loading label="기록을 불러오고 있어요" />
+      ) : (
         <AppText variant="small" style={{ textAlign: 'center' }}>
           모찌가 그린 날을 눌러 보세요.
         </AppText>

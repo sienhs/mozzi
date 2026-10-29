@@ -403,6 +403,57 @@ test('detail reads the server diary by date with its image, tags and line, and h
   expect(await screen.findByText('기록을 찾지 못했어요')).toBeOnTheScreen();
 }, 20000);
 
+test('calendar draws the server month, opens a day by date, and retries a failed month', async () => {
+  setAuthPreview();
+  server.addDiary('2026-10-21', 'SAD', '조금 늦었던 퇴근', [['요리', 'WHAT']]);
+  server.addDiary('2026-10-22', 'CALM', null, [['산책', 'WHAT']]);
+  server.addDiary('2026-09-30', 'HAPPY', '구월의 마지막 날', [
+    ['요리', 'WHAT'],
+  ]);
+  server.next('GET /diaries/monthly', (_call, config) =>
+    fail(config, 500, 'INTERNAL_ERROR'),
+  );
+  const app = await renderApp('/calendar');
+  expect(
+    await screen.findByText('이달의 기록을 불러오지 못했어요'),
+  ).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
+  await advance(0);
+  expect(
+    screen.getByRole('button', { name: '10월 21일 수요일 우울' }),
+  ).toBeOnTheScreen();
+  expect(
+    server.callsTo('GET', '/diaries/monthly').map(call => call.params),
+  ).toEqual([{ yearMonth: '2026-10' }, { yearMonth: '2026-10' }]);
+  // 한 줄이 없는 날은 감정 기본 제목을 보여 준다.
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 22일 목요일 평온' }),
+  );
+  await advance(0);
+  expect(screen.getByText('평온 모찌와 남긴 하루')).toBeOnTheScreen();
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 21일 수요일 우울' }),
+  );
+  await advance(0);
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 21일 수요일 조금 늦었던 퇴근' }),
+  );
+  await advance(0);
+  expect(app.getPathname()).toBe('/diary/500');
+  expect(screen.getByText('조금 늦었던 퇴근')).toBeOnTheScreen();
+  await act(async () => {
+    router.back();
+  });
+  await fireEvent.press(screen.getByRole('button', { name: '이전 달' }));
+  await advance(0);
+  expect(
+    screen.getByRole('button', { name: '9월 30일 수요일 행복' }),
+  ).toBeOnTheScreen();
+  expect(server.callsTo('GET', '/diaries/monthly').at(-1)?.params).toEqual({
+    yearMonth: '2026-09',
+  });
+}, 20000);
+
 test('calendar empty-day sheet closes and logout removes protected screen access', async () => {
   setAuthPreview();
   const app = await renderApp('/calendar');
