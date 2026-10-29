@@ -52,7 +52,7 @@ class MozziCardSeederTest {
         Map<String, Object> first = jdbcTemplate.queryForMap(
                 "select series, name, tier, emotion, image_key, prompt from mozzi_card where code = 'S1-01-01'");
         assertThat(first).containsEntry("series", "S1")
-                .containsEntry("name", "구름사자 모찌")
+                .containsEntry("name", "구름사자 모찌 (행복)")
                 .containsEntry("tier", "MYTHIC")
                 .containsEntry("emotion", "HAPPY")
                 .containsEntry("image_key", "GACHA/S1-01-01_mozzi_mythic_001_happy_r2.png")

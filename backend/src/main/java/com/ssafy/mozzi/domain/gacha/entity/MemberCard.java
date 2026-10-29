@@ -75,6 +75,10 @@ public class MemberCard {
         return ownedCount;
     }
 
+    public OffsetDateTime getFirstAcquiredAt() {
+        return firstAcquiredAt;
+    }
+
     public OffsetDateTime getSeenAt() {
         return seenAt;
     }

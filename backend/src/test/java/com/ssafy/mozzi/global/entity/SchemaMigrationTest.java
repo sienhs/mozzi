@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13");
     }
 
     @Test
@@ -43,7 +43,7 @@ class SchemaMigrationTest {
                 "emoticon", "my_icon", "diary", "diary_icon", "diary_image",
                 "emotion_search", "emotion_search_result", "diary_embedding",
                 "gacha_tier", "mozzi_card", "member_card", "gacha_draw", "gacha_draw_result",
-                "member_wallet", "wallet_ledger");
+                "member_wallet", "wallet_ledger", "my_mozzi_emoticon");
         // No seasons: every active card is in one pool.
         assertThat(tables).doesNotContain("gacha_season");
         // Replaced by member_session in V5; two refresh schemes must not coexist.

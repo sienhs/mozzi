@@ -59,11 +59,15 @@ public final class GachaFixtures {
     }
 
     public Long card(String code, CardTier tier, boolean active) {
+        return card(code, tier, Emotion.HAPPY, active);
+    }
+
+    public Long card(String code, CardTier tier, Emotion emotion, boolean active) {
         return jdbcTemplate.queryForObject("""
                 insert into mozzi_card (code, series, name, tier, emotion, image_key, is_active)
                 values (?, '과일 모찌', ?, ?, ?, ?, ?) returning card_id
-                """, Long.class, code, "모찌 " + code, tier.name(), Emotion.HAPPY.name(),
-                "cards/" + code + "_mozzi_happy.png", active);
+                """, Long.class, code, "모찌 " + code, tier.name(), emotion.name(),
+                "cards/" + code + "_mozzi_" + emotion.name().toLowerCase() + ".png", active);
     }
 
     /** The member already owns the card, seen in the collection. */

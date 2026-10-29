@@ -18,7 +18,7 @@ public interface ImageRequestPublisher {
      * @param date      the diary's day, {@code YYYY-MM-DD}; today, since pictures can only
      *                  be requested on the day, except through the test API
      * @param emotion   the diary's emotion code, such as {@code CALM}
-     * @param characterImageUrl {@code "DEFAULT"} until the character image is set up
+     * @param characterImageUrl the member's mozzi for the emotion, else the configured image, else {@code "DEFAULT"}
      * @param timeOfDay English, or {@code ""}
      * @param weather   English, or {@code ""} for {@code NONE}
      * @param where     English, or {@code ""}
