@@ -1,261 +1,324 @@
+import * as SecureStore from 'expo-secure-store';
+import { QueryObserver } from '@tanstack/react-query';
 import { presetTag } from '@/constants/tags';
-import { useMockControls } from '@/mocks/controls';
-import { createMockEntries } from '@/mocks/diaries';
-import { mockDiaryService } from '@/mocks/services';
-import {
-  canRetry,
-  canRewrite,
-  emptyDraft,
-  isDraftLocked,
-  useAppStore,
-} from '@/stores/useAppStore';
+import { todayKey } from '@/constants/date';
+import { api } from '@/services/api';
+import { diaryApi, diaryKeys } from '@/services/diaryApi';
+import { imageRequests } from '@/services/imageRequests';
+import { queryClient } from '@/services/queryClient';
+import { isDraftLocked, useAppStore } from '@/stores/useAppStore';
+import { useGachaStore } from '@/stores/useGachaStore';
 import { useTagStore } from '@/stores/useTagStore';
+import type { HomeResponse } from '@/types/server';
+import {
+  createFakeServer,
+  fail,
+  timeout,
+  type FakeServer,
+} from '../test-utils/fakeServer';
 
+jest.mock('@/services/authConfig', () => ({
+  ...jest.requireActual('@/services/authConfig'),
+  getApiBaseUrl: () => 'https://api.example.test/api/v1',
+}));
+
+const MEMBER = 7;
 const tag = (id: string) => presetTag(id)!;
-const TODAY = '2026-10-26';
-const today = () =>
-  useAppStore.getState().entries.find(entry => entry.date === TODAY);
 const store = () => useAppStore.getState();
+let server: FakeServer;
+let device: Map<string, string>;
 
-beforeEach(() => {
-  jest.useFakeTimers();
-  jest.setSystemTime(new Date('2026-10-26T12:00:00Z'));
-  useMockControls.getState().reset();
-  useAppStore.getState().resetSession();
+beforeEach(async () => {
+  server = createFakeServer(todayKey());
+  api.defaults.adapter = server.adapter;
+  // 기기 저장소 (앱을 다시 켜도 남는다).
+  device = new Map();
+  jest
+    .mocked(SecureStore.getItemAsync)
+    .mockImplementation(async key => device.get(key) ?? null);
+  jest
+    .mocked(SecureStore.setItemAsync)
+    .mockImplementation(async (key, value) => {
+      device.set(key, value);
+    });
+  queryClient.clear();
+  diaryApi.forgetEmoticons();
+  store().resetSession();
   useTagStore.getState().resetSession();
-});
-afterEach(async () => {
-  await jest.runOnlyPendingTimersAsync();
-  jest.useRealTimers();
-  jest.restoreAllMocks();
+  useGachaStore.getState().resetSession();
+  await useTagStore.getState().load();
 });
 
 function pickDay() {
   store().selectEmotion('calm');
   store().toggleTag(tag('activity.cooking'));
+  store().toggleTag(tag('activity.eating'));
   store().toggleTag(tag('place.home'));
   store().toggleTag(tag('companion.family'));
+  store().toggleTag(tag('companion.friend'));
+  store().toggleTag(tag('weather.rainy'));
+  store().selectMainActivity('activity.eating');
 }
-async function requestPicture() {
-  if (!store().draft.mainActivityId)
-    store().selectMainActivity(store().draft.tags.activities[0]);
-  const pending = store().startGeneration();
-  await jest.advanceTimersByTimeAsync(1000);
-  return (await pending)!;
-}
-async function finishPicture() {
-  await jest.advanceTimersByTimeAsync(6000);
+const homeData = () =>
+  queryClient.getQueryData<HomeResponse>(diaryKeys.home(MEMBER));
+const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+const until = async (check: () => boolean) => {
+  for (let i = 0; i < 50 && !check(); i++) await settle();
+  expect(check()).toBe(true);
+};
+// 홈 화면이 열려 있는 것처럼 홈 조회를 구독한다 (무효화는 구독 중인 조회만 다시 읽는다).
+function watchHome() {
+  const observer = new QueryObserver(queryClient, {
+    queryKey: diaryKeys.home(MEMBER),
+    queryFn: diaryApi.home,
+  });
+  return observer.subscribe(() => undefined);
 }
 
-test('one tap sends one picture request built from tags alone, and a finished picture is not yet a saved record', async () => {
-  const start = jest.spyOn(mockDiaryService, 'start');
+test('one tap creates the diary without a line, then requests the picture with the chosen scene and keeps it on the device', async () => {
   pickDay();
-  useAppStore
-    .getState()
-    .selectMainActivity(useAppStore.getState().draft.tags.activities[0]);
-  const first = store().startGeneration();
-  expect(await store().startGeneration()).toBeNull();
-  await jest.advanceTimersByTimeAsync(1000);
-  const entry = (await first)!;
-  expect(start).toHaveBeenCalledTimes(1);
-  expect(start.mock.calls[0][0]).toEqual({
-    recordDate: TODAY,
-    emotion: 'calm',
-    activities: ['COOKING'],
-    place: 'HOME',
-    companions: ['FAMILY'],
-    weather: null,
-    customTagIds: [],
-  });
-  await finishPicture();
-  expect(today()).toMatchObject({
-    id: entry.id,
-    generation: 'ready',
-    status: 'draft',
-    memo: '',
-  });
-  expect(store().entries.filter(item => item.date === TODAY)).toHaveLength(1);
-});
-
-test('once the picture is requested the mood and tags are locked, so the record keeps the tags it was drawn with', async () => {
-  pickDay();
-  await requestPicture();
+  const first = store().startGeneration(MEMBER);
+  const second = store().startGeneration(MEMBER);
   expect(isDraftLocked(store())).toBe(true);
-  store().toggleTag(tag('activity.eating'));
-  store().selectEmotion('happy');
-  expect(store().draft).toMatchObject({
-    emotion: 'calm',
-    tags: { activities: ['activity.cooking'] },
-  });
-  expect(await store().startGeneration()).toBeNull();
-  await finishPicture();
-  expect(today()?.tags.map(item => item.label)).toEqual(['요리', '집', '가족']);
-});
-
-test('a request that fails before it is accepted keeps the choices and resends with the same key; a changed choice gets a new key', async () => {
-  const start = jest.spyOn(mockDiaryService, 'start');
-  useMockControls.getState().failNext('start');
-  pickDay();
-  expect(await requestPicture()).toBeNull();
-  expect(store().requestStatus).toBe('error');
-  expect(isDraftLocked(store())).toBe(false);
-  expect(store().draft.tags.activities).toEqual(['activity.cooking']);
-  useMockControls.getState().failNext('start');
-  expect(await requestPicture()).toBeNull();
-  expect(start.mock.calls[1][2]).toBe(start.mock.calls[0][2]);
-  store().toggleTag(tag('weather.rainy'));
-  const saved = await requestPicture();
-  expect(start.mock.calls[2][2]).not.toBe(start.mock.calls[1][2]);
-  expect(saved.tags.map(item => item.label)).toContain('비');
-});
-
-test('the line is optional; saving happens once and keeps the line after a failed attempt', async () => {
-  const complete = jest.spyOn(mockDiaryService, 'complete');
-  pickDay();
-  const entry = await requestPicture();
-  await finishPicture();
-  store().setMemo('비 오는 날 가족이랑 오므라이스');
-  useMockControls.getState().failNext('complete');
-  const first = store().completeDiary(entry.id);
-  expect(await store().completeDiary(entry.id)).toBeNull();
-  await jest.advanceTimersByTimeAsync(1000);
-  expect(await first).toBeNull();
-  expect(store().saveStatus).toBe('error');
-  expect(store().draft.memo).toBe('비 오는 날 가족이랑 오므라이스');
-  expect(today()?.status).toBe('draft');
-  const retry = store().completeDiary(entry.id);
-  await jest.advanceTimersByTimeAsync(1000);
-  expect(await retry).toMatchObject({
-    status: 'completed',
-    memo: '비 오는 날 가족이랑 오므라이스',
-    title: '비 오는 날 가족이랑 오므라이스',
-  });
-  expect(complete).toHaveBeenCalledTimes(2);
-  expect(complete.mock.calls[1][2]).toBe(complete.mock.calls[0][2]);
-  expect(store().draft).toEqual(emptyDraft());
-});
-
-test('a record without a line is saved with the fallback title', async () => {
-  pickDay();
-  const entry = await requestPicture();
-  await finishPicture();
-  const save = store().completeDiary(entry.id);
-  await jest.advanceTimersByTimeAsync(1000);
-  expect(await save).toMatchObject({
-    status: 'completed',
-    memo: '',
-    title: '평온 모찌와 남긴 하루',
-  });
-});
-
-test('the line keeps at most three lines and 100 characters', () => {
-  store().setMemo('하나\n둘\n셋\n넷');
-  expect(store().draft.memo).toBe('하나\n둘\n셋');
-  store().setMemo('가'.repeat(120));
-  expect(store().draft.memo).toHaveLength(100);
-});
-
-test('a temporary failure redraws with the same tags, repeated taps share one retry, and it never offers rewriting', async () => {
-  const retry = jest.spyOn(mockDiaryService, 'retry');
-  useMockControls.getState().failNext('generation');
-  pickDay();
-  const entry = await requestPicture();
-  await finishPicture();
-  const failed = today()!;
-  expect(failed.generation).toBe('failed');
-  expect(canRetry(failed)).toBe(true);
-  expect(canRewrite(failed)).toBe(false);
-  expect(store().reopenDraft(entry.id)).toBe(false);
-  const first = store().generateImage(entry.id);
-  expect(store().generateImage(entry.id)).toBe(first);
-  await finishPicture();
-  await first;
-  expect(retry).toHaveBeenCalledTimes(1);
-  expect(today()).toMatchObject({ generation: 'ready', failure: null });
-  expect(today()?.tags).toEqual(failed.tags);
-});
-
-test('redrawing stops when the daily retries are used up, without opening a rewrite', async () => {
-  pickDay();
-  useMockControls.getState().failNext('generation');
-  const entry = await requestPicture();
-  await finishPicture();
-  for (let attempt = 0; attempt < 3; attempt++) {
-    useMockControls.getState().failNext('generation');
-    const retry = store().generateImage(entry.id);
-    await finishPicture();
-    await retry;
-  }
-  const spent = today()!;
-  expect(spent.failure?.remainingRetries).toBe(0);
-  expect(canRetry(spent)).toBe(false);
-  expect(canRewrite(spent)).toBe(false);
-});
-
-test('a blocked picture reopens the day with the earlier choices; the fixed choices redraw the same record', async () => {
-  const added = useTagStore.getState().add('오므라이스');
-  await jest.advanceTimersByTimeAsync(400);
-  const result = await added;
-  if (result.kind !== 'custom') throw new Error('custom tag not created');
-  const rewrite = jest.spyOn(mockDiaryService, 'rewrite');
-  useMockControls.getState().failNext('generationBlocked');
-  pickDay();
-  store().selectCustomTag(result.id);
-  store().selectMainActivity(result.id);
-  const entry = await requestPicture();
-  await finishPicture();
-  const blocked = today()!;
-  expect(blocked.failure).toMatchObject({ retryable: false });
-  expect(blocked.failure?.blockedTags.map(item => item.label)).toEqual([
-    '오므라이스',
+  expect(await second).toBeNull();
+  const result = await first;
+  await settle();
+  expect(result).toEqual({ diaryId: 500, existing: false });
+  // 기본 태그는 같은 이름의 내 아이콘으로 만들어 쓴다.
+  const icons = Object.fromEntries(
+    server.state.icons.map(icon => [icon.name, icon]),
+  );
+  expect(server.state.icons.map(icon => [icon.name, icon.category])).toEqual([
+    ['요리', 'WHAT'],
+    ['식사', 'WHAT'],
+    ['집', 'WHERE'],
+    ['가족', 'WHO'],
+    ['친구', 'WHO'],
   ]);
-  expect(canRetry(blocked)).toBe(false);
-  expect(store().reopenDraft(entry.id)).toBe(true);
-  expect(isDraftLocked(store())).toBe(false);
-  expect(store().draft).toMatchObject({
-    emotion: 'calm',
-    memo: '',
-    tags: {
-      activities: ['activity.cooking', result.id],
-      place: 'place.home',
-      companions: ['companion.family'],
-    },
+  const [create] = server.callsTo('POST', '/diaries');
+  expect(server.callsTo('POST', '/diaries')).toHaveLength(1);
+  expect(create.key).toBeTruthy();
+  expect(create.body).toEqual({
+    emoticonId: 2,
+    content: null,
+    myIconIds: Object.values(icons).map(icon => icon.myIconId),
   });
-  store().toggleCustomTag(result.id);
-  store().toggleTag(tag('weather.rainy'));
-  await requestPicture();
-  await finishPicture();
-  expect(rewrite).toHaveBeenCalledTimes(1);
-  expect(store().entries.filter(item => item.date === TODAY)).toHaveLength(1);
-  expect(today()).toMatchObject({ generation: 'ready', status: 'draft' });
-  expect(today()?.tags.map(item => item.label)).toEqual([
-    '요리',
+  const [image] = server.callsTo('POST', '/diaries/500/image');
+  expect(image.key).toBeTruthy();
+  expect(image.body).toEqual({
+    characterId: 1,
+    weather: 'RAINY',
+    whereMyIconId: icons['집'].myIconId,
+    // 동행은 처음 고른 한 명만 그림에 들어간다.
+    whoMyIconId: icons['가족'].myIconId,
+    whatMyIconId: icons['식사'].myIconId,
+  });
+  expect(server.state.images.get(500)?.status).toBe('PENDING');
+  // 일기는 서버에 고정됐으니 초안을 비운다. 고른 장면은 기기에 남는다.
+  expect(store().draft.emotion).toBeNull();
+  const saved = await imageRequests.get(MEMBER, 500);
+  expect(saved?.body).toEqual(image.body);
+  expect(saved?.imageTags.map(item => item.label)).toEqual([
+    '식사',
     '집',
     '가족',
     '비',
   ]);
-  expect(isDraftLocked(store())).toBe(true);
+  expect(device.has(`mozzi.image-requests.v1.${MEMBER}`)).toBe(true);
 });
 
-test('an account reset discards late picture, save and custom-tag results', async () => {
+test('preset icons are reused, hidden from my tags, and count toward the server limit of nine', async () => {
+  server.icon('요리', 'WHAT');
+  for (let i = 0; i < 8; i++) server.icon(`활동${i}`, 'WHAT');
+  useTagStore.getState().resetSession();
+  await useTagStore.getState().load();
+  // 기본 태그와 같은 이름은 내 태그 목록에 보이지 않는다.
+  expect(useTagStore.getState().tags).toHaveLength(8);
+  expect(await useTagStore.getState().ensureIcon(tag('activity.cooking'))).toBe(
+    server.state.icons[0].myIconId,
+  );
+  expect(server.callsTo('POST', '/my-icons')).toHaveLength(0);
+  const added = await useTagStore.getState().add('새 활동', 'activity');
+  expect(added).toEqual({ kind: 'none' });
+  expect(useTagStore.getState().error).toContain('9개');
+  expect(server.callsTo('POST', '/my-icons')).toHaveLength(0);
+  // 다른 카테고리는 따로 센다.
+  expect(await useTagStore.getState().add('새 장소', 'place')).toMatchObject({
+    kind: 'custom',
+  });
+});
+
+test('a failure before the diary exists keeps the choices and resends with the same key; a changed choice gets a new key', async () => {
   pickDay();
-  const entry = await requestPicture();
-  useAppStore.getState().resetSession();
-  await finishPicture();
-  expect(store().entries).toEqual(createMockEntries());
-  // 저장 도중의 초기화
+  server.next('POST /diaries', (_call, config) =>
+    fail(config, 500, 'INTERNAL_ERROR'),
+  );
+  expect(await store().startGeneration(MEMBER)).toBeNull();
+  expect(store().requestStatus).toBe('error');
+  expect(store().requestError).toBe('INTERNAL_ERROR 메시지');
+  expect(store().draft.tags.activities).toHaveLength(2);
+  const firstKey = server.callsTo('POST', '/diaries')[0].key;
+  server.next('POST /diaries', (_call, config) => timeout(config));
+  // 응답이 끊겼고 서버에도 기록이 없다: 실패로 남기고 같은 키를 유지한다.
+  expect(await store().startGeneration(MEMBER)).toBeNull();
+  expect(server.callsTo('POST', '/diaries')[1].key).toBe(firstKey);
+  store().selectMainActivity('activity.cooking');
+  await store().startGeneration(MEMBER);
+  expect(server.callsTo('POST', '/diaries')[2].key).not.toBe(firstKey);
+});
+
+test('a lost create response is rechecked on the server and continues to the picture without a duplicate diary', async () => {
   pickDay();
-  const second = await requestPicture();
-  await finishPicture();
-  const save = store().completeDiary(second.id);
-  useAppStore.getState().resetSession();
-  await jest.advanceTimersByTimeAsync(1000);
-  expect(await save).toBeNull();
-  expect(store().entries.find(item => item.id === entry.id)).toBeUndefined();
-  // 내 태그 추가 도중의 초기화
+  server.next('POST /diaries', (call, config) => {
+    server.process(call, config);
+    return timeout(config);
+  });
+  const result = await store().startGeneration(MEMBER);
+  await settle();
+  expect(result).toEqual({ diaryId: 500, existing: false });
+  expect(server.state.diaries).toHaveLength(1);
+  expect(server.callsTo('POST', '/diaries/500/image')).toHaveLength(1);
+});
+
+test('a diary made on another device is opened instead of drawing over it', async () => {
+  server.state.diaries.push({
+    diaryId: 900,
+    recordDate: todayKey(),
+    emotion: 'HAPPY',
+    content: '다른 기기',
+    iconIds: [server.icon('독서', 'WHAT').myIconId],
+  });
+  pickDay();
+  expect(await store().startGeneration(MEMBER)).toEqual({
+    diaryId: 900,
+    existing: true,
+  });
+  expect(server.callsTo('POST', '/diaries/900/image')).toHaveLength(0);
+  expect(store().requestStatus).toBe('idle');
+});
+
+test('a picture request without a response is not called a failure; the home is rechecked and a resend keeps the key', async () => {
+  pickDay();
+  server.next('POST /diaries/500/image', (call, config) => {
+    server.process(call, config);
+    return timeout(config);
+  });
+  const stop = watchHome();
+  await store().startGeneration(MEMBER);
+  await until(() => store().image.status === 'unknown');
+  expect(store().image).toMatchObject({ diaryId: 500, status: 'unknown' });
+  // 결과를 단정하지 않고 홈을 다시 읽어 그리는 중임을 확인한다.
+  await until(() => homeData()?.todayStatus === 'IMAGE_PENDING');
+  stop();
+  const key = store().image.key;
+  // 다시 보내면 같은 키로 보내고, 이미 접수됐다는 409는 실패가 아니다.
+  await store().sendImage(MEMBER, 500);
+  const calls = server.callsTo('POST', '/diaries/500/image');
+  expect(calls[1].key).toBe(key);
+  expect(store().image.status).toBe('idle');
+});
+
+test('a redraw resends the stored scene and the mochi equipped for the chosen mood even after it changes; repeated taps share one request', async () => {
+  pickDay();
+  const slots = useGachaStore.getState().equippedByEmotion;
+  useGachaStore.setState({
+    equippedByEmotion: { ...slots, calm: 'peach', happy: 'cherry' },
+  });
+  await store().startGeneration(MEMBER);
+  await settle();
+  server.finish(500, 'FAILED');
+  useGachaStore.setState({ equippedByEmotion: { ...slots, calm: 'grape' } });
+  const first = store().sendImage(MEMBER, 500);
+  const second = store().sendImage(MEMBER, 500);
+  expect(second).toBe(first);
+  await first;
+  const calls = server.callsTo('POST', '/diaries/500/image');
+  expect(calls).toHaveLength(2);
+  expect(calls[1].body).toEqual(calls[0].body);
+  expect(calls[1].key).not.toBe(calls[0].key);
+  expect(store().requests[500]?.companionId).toBe('peach');
+});
+
+test('IMAGE_ONLY_TODAY is shown and the home is read again', async () => {
+  pickDay();
+  await store().startGeneration(MEMBER);
+  await settle();
+  server.finish(500, 'FAILED');
+  server.state.today = '2099-01-01';
+  const stop = watchHome();
+  await store().sendImage(MEMBER, 500);
+  expect(store().image).toMatchObject({ status: 'error', key: null });
+  expect(store().image.error).toBe('IMAGE_ONLY_TODAY 메시지');
+  await until(() => homeData()?.todayStatus === 'NOT_RECORDED');
+  stop();
+});
+
+test('after the app was closed, the stored scene recovers the lost request; without it the activity must be chosen again', async () => {
+  pickDay();
+  server.next('POST /diaries/500/image', (_call, config) => timeout(config));
+  await store().startGeneration(MEMBER);
+  await settle();
+  expect(server.home().todayStatus).toBe('IMAGE_NOT_REQUESTED');
+  // 앱 재시작: 메모리는 비고 기기 저장소만 남는다.
+  store().resetSession();
+  await store().sendImage(MEMBER, 500);
+  const sent = server.callsTo('POST', '/diaries/500/image');
+  expect(sent).toHaveLength(2);
+  expect(sent[1].body).toEqual(sent[0].body);
+
+  // 기기 저장소도 없으면 대표 활동을 다시 골라야 보낸다.
+  server.state.images.delete(500);
+  device.clear();
+  store().resetSession();
+  await queryClient.fetchQuery({
+    queryKey: diaryKeys.home(MEMBER),
+    queryFn: diaryApi.home,
+  });
+  await store().sendImage(MEMBER, 500);
+  expect(server.callsTo('POST', '/diaries/500/image')).toHaveLength(2);
+  const what = server.state.icons.find(icon => icon.name === '요리')!;
+  await store().sendImage(MEMBER, 500, what.myIconId);
+  const recovered = server.callsTo('POST', '/diaries/500/image')[2];
+  expect(recovered.body).toMatchObject({
+    whatMyIconId: what.myIconId,
+    weather: 'NONE',
+    characterId: 1,
+  });
+});
+
+test('the one-line save is not faked while the server has no API for it', async () => {
+  pickDay();
+  await store().startGeneration(MEMBER);
+  await settle();
+  server.finish(500, 'SUCCEEDED');
+  store().setMemo('비 오는 날');
+  const before = server.state.calls.length;
+  expect(await store().completeDiary(MEMBER, 500)).toBe(false);
+  expect(server.state.calls).toHaveLength(before);
+  expect(server.state.diaries[0].content).toBeNull();
+});
+
+test('an account reset discards late diary, picture and tag responses', async () => {
+  pickDay();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  server.next('POST /diaries', async (call, config) => {
+    await gate;
+    return server.process(call, config);
+  });
+  const pending = store().startGeneration(MEMBER);
+  await settle();
+  store().resetSession();
+  release();
+  expect(await pending).toBeNull();
+  expect(server.callsTo('POST', '/diaries/500/image')).toHaveLength(0);
+  expect(store().requests).toEqual({});
+  expect(store().requestStatus).toBe('idle');
+
   const added = useTagStore.getState().add('비밀 태그');
   useTagStore.getState().resetSession();
-  await jest.advanceTimersByTimeAsync(400);
   expect(await added).toEqual({ kind: 'none' });
   expect(useTagStore.getState().tags).toEqual([]);
 });
@@ -263,30 +326,24 @@ test('an account reset discards late picture, save and custom-tag results', asyn
 test('same names in different categories remain distinct; deleting the chosen custom activity invalidates the scene', async () => {
   const ids: string[] = [];
   for (const category of ['activity', 'place', 'companion'] as const) {
-    const creating = useTagStore.getState().add('모임', category);
-    await jest.advanceTimersByTimeAsync(400);
-    const result = await creating;
+    const result = await useTagStore.getState().add('모임', category);
     if (result.kind !== 'custom') throw new Error('custom tag not created');
     ids.push(result.id);
     store().selectCustomTag(result.id);
   }
   expect(new Set(ids).size).toBe(3);
-  expect(useTagStore.getState().tags.map(tag => tag.category)).toEqual([
-    'activity',
-    'place',
-    'companion',
+  expect(server.state.icons.map(icon => icon.category)).toEqual([
+    'WHAT',
+    'WHERE',
+    'WHO',
   ]);
   store().selectEmotion('calm');
   store().toggleTag(tag('activity.cooking'));
   store().selectMainActivity(ids[0]);
-  expect(store().draft.mainActivityId).toBe(ids[0]);
-  const removing = useTagStore.getState().remove(ids[0]);
-  await jest.advanceTimersByTimeAsync(300);
-  expect(await removing).toBe(true);
+  expect(await useTagStore.getState().remove(ids[0])).toBe(true);
+  expect(server.callsTo('DELETE', `/my-icons/${ids[0]}`)).toHaveLength(1);
   store().forgetCustomTag(ids[0]);
   expect(store().draft.mainActivityId).toBeNull();
-  expect(store().draft.tags.activities).toEqual(['activity.cooking']);
   expect(store().draft.tags.place).toBe(ids[1]);
-  expect(store().draft.tags.companions).toEqual([ids[2]]);
-  expect(await store().startGeneration()).toBeNull();
+  expect(await store().startGeneration(MEMBER)).toBeNull();
 });

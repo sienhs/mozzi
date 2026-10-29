@@ -94,9 +94,10 @@ export const tagCategories: Record<
   weather: { title: '날씨', limit: '선택', single: true, min: 0, max: 1 },
 };
 export const customTagLimits = {
-  // 라벨 길이(글자 수)와 계정당 개수. 서버 상한이 정해지면 맞춘다 (CONTRACT: B3).
+  // 서버 내 아이콘 규칙 (POST /my-icons): 이름 10자, 카테고리마다 9개.
+  // 서버에는 기본 태그가 없어 기본 태그를 고르면 같은 이름의 아이콘을 만들고, 그것도 9개에 센다.
   maxLength: 10,
-  maxSaved: 20,
+  maxPerCategory: 9,
 };
 
 export const presetTags: PresetTag[] = tagCategoryOrder.flatMap(category =>

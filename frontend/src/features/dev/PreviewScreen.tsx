@@ -13,9 +13,7 @@ import { setAuthPreview } from '@/mocks/authPreview';
 import { useAppStore } from '@/stores/useAppStore';
 import { useMockControls } from '@/mocks/controls';
 import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
-import { createMockEntries } from '@/mocks/diaries';
-import type { MockOperation } from '@/mocks/controls';
-import type { DiaryEntry, Emotion } from '@/types/diary';
+import type { Emotion } from '@/types/diary';
 
 // Development-only catalogue. It is protected in the root Stack and has no production entry point.
 export function PreviewScreen() {
@@ -31,33 +29,7 @@ export function PreviewScreen() {
     prepare();
     router.push(href);
   }
-  // 오늘 기록을 원하는 단계로 만든다. 저장 전(draft) 기록은 G-02에서 한 줄을 쓰고 저장할 수 있다.
-  function setToday(
-    generation: DiaryEntry['generation'],
-    status: DiaryEntry['status'] = 'draft',
-    failure: DiaryEntry['failure'] = null,
-  ) {
-    prepare();
-    useAppStore.getState().resetDraft();
-    const sample = createMockEntries().find(
-      entry => entry.date === '2026-10-22',
-    )!;
-    const today = todayKey();
-    const entry: DiaryEntry = {
-      ...sample,
-      id: `diary-${today}`,
-      date: today,
-      generation,
-      status,
-      failure,
-      memo: status === 'completed' ? sample.memo : '',
-    };
-    useAppStore.setState(state => ({
-      entries: [entry, ...state.entries.filter(item => item.date !== today)],
-    }));
-    return entry;
-  }
-  function draft(fail?: MockOperation) {
+  function draft() {
     prepare();
     useAppStore.setState(state => ({
       entries: state.entries.filter(entry => entry.date !== todayKey()),
@@ -77,32 +49,8 @@ export function PreviewScreen() {
         memo: '',
       },
     });
-    if (fail) useMockControls.getState().failNext(fail);
     router.push('/record/tags');
   }
-  function generating(home = false) {
-    const entry = setToday('generating');
-    void useAppStore.getState().resumeImage(entry.id);
-    router.push(
-      home
-        ? '/home'
-        : { pathname: '/record/generation', params: { id: entry.id } },
-    );
-  }
-  function generationPreview(
-    generation: DiaryEntry['generation'],
-    failure: DiaryEntry['failure'] = null,
-  ) {
-    const entry = setToday(generation, 'draft', failure);
-    router.push({ pathname: '/record/generation', params: { id: entry.id } });
-  }
-  const retryable = {
-    code: 'GENERATION_TIMEOUT',
-    message: '그림을 완성하지 못했어요.',
-    retryable: true,
-    remainingRetries: 3,
-    blockedTags: [],
-  };
   return (
     <Screen title="00–04 화면 미리보기" back>
       <Heading
@@ -171,6 +119,10 @@ export function PreviewScreen() {
         }}
       />
       <AppText variant="heading">02 · 오늘의 기록</AppText>
+      <AppText variant="small">
+        홈·그림 상태(H-01~H-03, E-01)는 서버 GET /home을 따르므로 Mock으로
+        만들지 않아요. 실제 서버에 로그인해서 확인해 주세요.
+      </AppText>
       <Button
         label="H-01 홈 · 기록 전"
         variant="secondary"
@@ -199,37 +151,6 @@ export function PreviewScreen() {
         label="R-02 태그 선택 / 그림 요청 중"
         variant="secondary"
         onPress={() => draft()}
-      />
-      <Button
-        label="G-01 그림 생성 중"
-        variant="secondary"
-        onPress={() => generating()}
-      />
-      <Button
-        label="G-02 그림 확인 · 오늘의 한 줄"
-        variant="secondary"
-        onPress={() => generationPreview('ready')}
-      />
-      <Button
-        label="H-04 홈 · 그림 완성 · 저장 전"
-        variant="secondary"
-        onPress={() => {
-          setToday('ready');
-          router.push('/home');
-        }}
-      />
-      <Button
-        label="H-03 홈 · 그림 생성 중"
-        variant="secondary"
-        onPress={() => generating(true)}
-      />
-      <Button
-        label="H-02 홈 · 기록 후"
-        variant="secondary"
-        onPress={() => {
-          setToday('ready', 'completed');
-          router.push('/home');
-        }}
       />
       <AppText variant="heading">03 · 돌아보기와 검색</AppText>
       <Button
@@ -265,42 +186,6 @@ export function PreviewScreen() {
         onPress={() => open('/settings')}
       />
       <AppText variant="heading">04 · 오류와 빈 상태</AppText>
-      <Button
-        label="E-01 홈 · 그림 생성 실패"
-        variant="secondary"
-        onPress={() => {
-          setToday('failed', 'draft', retryable);
-          router.push('/home');
-        }}
-      />
-      <Button
-        label="E-02 그림 요청 실패 (그림 그리기로 실행)"
-        variant="secondary"
-        onPress={() => draft('start')}
-      />
-      <Button
-        label="E-03 그림 생성 실패"
-        variant="secondary"
-        onPress={() => generationPreview('failed', retryable)}
-      />
-      <Button
-        label="E-03 생성 실패 경로 (그림 그리기부터 실행)"
-        variant="secondary"
-        onPress={() => draft('generation')}
-      />
-      <Button
-        label="E-07 유해 판정 → 다시 작성 (그림 그리기부터 실행)"
-        variant="secondary"
-        onPress={() => draft('generationBlocked')}
-      />
-      <Button
-        label="E-08 저장 실패 (기록 저장하기로 실행)"
-        variant="secondary"
-        onPress={() => {
-          generationPreview('ready');
-          useMockControls.getState().failNext('complete');
-        }}
-      />
       <Button
         label="E-04 검색 · 빈 결과"
         variant="secondary"

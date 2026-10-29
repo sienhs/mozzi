@@ -1,7 +1,9 @@
 import type { CompanionId } from './companion';
 
 export type Emotion = 'happy' | 'calm' | 'neutral' | 'sad' | 'angry';
-export type GenerationStatus = 'generating' | 'ready' | 'failed';
+// notRequested: 서버에 일기는 있는데 그림 요청이 없다 (요청 유실·앱 종료). 다시 보내기로 복구한다.
+export type GenerationStatus =
+  'notRequested' | 'generating' | 'ready' | 'failed';
 
 // 기본 태그 분류. 그림의 장면 축(무엇을·어디서·누구와·날씨)과 같다.
 export type TagCategory = 'activity' | 'place' | 'companion' | 'weather';
@@ -49,16 +51,6 @@ export interface DiaryDraft {
   // 오늘의 한 줄. 그림을 확인한 뒤에 쓴다 (선택).
   memo: string;
 }
-// 그림 요청 값. 프롬프트 문장은 만들지 않고 코드와 내 태그 ID만 보낸다 (CONTRACT: B1).
-export interface GenerationRequest {
-  recordDate: string;
-  emotion: Emotion;
-  activities: string[];
-  place: string | null;
-  companions: string[];
-  weather: string | null;
-  customTagIds: string[];
-}
 export interface GenerationFailure {
   code: string;
   message: string;
@@ -68,6 +60,7 @@ export interface GenerationFailure {
   blockedTags: DiaryTag[];
 }
 export type RecordPhase =
+  | 'notRequested'
   | 'editing'
   | 'requesting'
   | 'generating'
@@ -80,6 +73,12 @@ export interface DiaryEntry {
   imageTags?: DiaryTag[];
   // Absent on legacy records; those retain the default character.
   companionId?: CompanionId;
+  // 서버 일기 ID. 로컬 샘플 기록에는 없다.
+  serverId?: number;
+  // 완성된 그림의 주소. 없으면(샘플 기록) 앱에 든 샘플 그림을 보여 준다.
+  imageUrl?: string | null;
+  // 서버가 그림 (다시) 요청을 받아 줄 상태인지 (GET /home canRequestImage). 모르면 undefined.
+  canRequestImage?: boolean;
   id: string;
   date: string;
   emotion: Emotion;

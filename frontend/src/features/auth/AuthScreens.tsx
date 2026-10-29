@@ -10,11 +10,11 @@ import { ErrorBanner } from '@/components/ui/Feedback';
 import { DiaryArtwork } from '@/components/ui/DiaryCard';
 import { Sheet } from '@/components/ui/Sheet';
 import { LegalDocument } from '@/components/ui/LegalDocument';
-import { legalDocuments, type LegalType } from '@/constants/legal';
+import { legalDocuments, legalTypes, type LegalType } from '@/constants/legal';
 import { Checkbox } from '@/components/ui/Selection';
 import { colors } from '@/theme/tokens';
-import { authConfig } from '@/services/authConfig';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useMetaStore } from '@/stores/useMetaStore';
 import { validNickname } from '@/types/auth';
 
 export function WelcomeScreen() {
@@ -61,10 +61,24 @@ export function OnboardingScreen() {
     useAuthStore();
   const [nickname, setNickname] = useState('');
   const [touched, setTouched] = useState(false);
-  const [agreed, setAgreed] = useState({ TERMS: false, PRIVACY: false });
+  // 동의한 본문의 버전을 기억한다. 서버 버전이 바뀌면 그 동의는 더 이상 유효하지 않다.
+  const [agreed, setAgreed] = useState<Record<LegalType, string | null>>({
+    TERMS: null,
+    PRIVACY: null,
+  });
   const [document, setDocument] = useState<LegalType | null>(null);
-  const termsReady =
-    !!legalDocuments.TERMS.body && !!legalDocuments.PRIVACY.body;
+  const meta = useMetaStore(state => state.meta);
+  const metaLoading = useMetaStore(state => state.status === 'loading');
+  // 앱에 든 본문 버전과 서버가 요구하는 버전이 같을 때만 그 본문으로 동의를 받는다.
+  const versionOf = (type: LegalType) =>
+    meta?.termsVersions[type] === legalDocuments[type].version
+      ? legalDocuments[type].version
+      : null;
+  const termsReady = legalTypes.every(
+    type => !!legalDocuments[type].body && !!versionOf(type),
+  );
+  const isAgreed = (type: LegalType) =>
+    !!agreed[type] && agreed[type] === versionOf(type);
   if (status === 'authenticated') return <Redirect href="/home" />;
   if (status !== 'signupRequired' || !ticket) return <Redirect href="/" />;
   return (
@@ -84,14 +98,13 @@ export function OnboardingScreen() {
             disabled={
               !validNickname(nickname) ||
               !termsReady ||
-              !agreed.TERMS ||
-              !agreed.PRIVACY
+              !legalTypes.every(isAgreed)
             }
             onPress={async () => {
-              await signup(nickname, [
-                { type: 'TERMS', version: authConfig.terms.TERMS.version },
-                { type: 'PRIVACY', version: authConfig.terms.PRIVACY.version },
-              ]);
+              await signup(
+                nickname,
+                legalTypes.map(type => ({ type, version: agreed[type]! })),
+              );
               if (useAuthStore.getState().status === 'authenticated')
                 router.replace('/home');
             }}
@@ -136,12 +149,21 @@ export function OnboardingScreen() {
       <View style={{ gap: 8 }}>
         <AppText variant="label">필수 약관 동의</AppText>
         {!termsReady ? (
-          <AppText variant="small">
-            가입에 필요한 약관을 준비하고 있어요. 준비가 완료되면 가입할 수
-            있어요.
-          </AppText>
+          <>
+            <AppText variant="small">
+              {!meta
+                ? '약관 정보를 불러오지 못했어요. 다시 확인해 주세요.'
+                : '약관이 새로 바뀌었어요. 앱을 최신 버전으로 업데이트한 뒤 가입해 주세요.'}
+            </AppText>
+            <TextButton
+              label={metaLoading ? '확인하고 있어요' : '약관 다시 확인하기'}
+              onPress={() => {
+                if (!metaLoading) void useMetaStore.getState().load();
+              }}
+            />
+          </>
         ) : (
-          (['TERMS', 'PRIVACY'] as const).map(type => (
+          legalTypes.map(type => (
             <View key={type}>
               <TextButton
                 label={`${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 보기`}
@@ -149,10 +171,13 @@ export function OnboardingScreen() {
               />
               <Checkbox
                 label={`${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 동의 (필수)`}
-                checked={agreed[type]}
+                checked={isAgreed(type)}
                 onChange={checked => {
                   if (!pending)
-                    setAgreed(value => ({ ...value, [type]: checked }));
+                    setAgreed(value => ({
+                      ...value,
+                      [type]: checked ? versionOf(type) : null,
+                    }));
                 }}
               />
             </View>

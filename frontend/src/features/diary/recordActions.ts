@@ -1,15 +1,11 @@
-import { router } from 'expo-router';
 import type { DiaryEntry } from '@/types/diary';
 import { useAppStore } from '@/stores/useAppStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 
-// 다시 작성하기 (재시도 불가 실패): 이전 선택을 채운 기분 화면부터 다시 연다.
-// 생성 화면에서는 그 화면을 기분 화면으로 바꾸고, 홈·상세에서는 위에 연다.
-export function rewriteEntry(entry: DiaryEntry, from: 'generation' | 'list') {
-  if (!useAppStore.getState().reopenDraft(entry.id)) return;
-  if (from === 'generation') router.replace('/record/emotion');
-  else router.push('/record/emotion');
-}
-// 다시 그리기 (일시적인 실패): 같은 태그로 그림만 다시 요청한다.
-export function retryEntry(entry: DiaryEntry) {
-  void useAppStore.getState().generateImage(entry.id);
+// 다시 그리기(실패) · 다시 보내기(요청 유실). 처음 요청한 장면과 모찌를 그대로 보낸다.
+// 보관한 장면이 없으면 화면이 대표 활동을 다시 고르게 하고 whatMyIconId를 넘긴다.
+export function sendImageFor(entry: DiaryEntry, whatMyIconId?: number) {
+  const memberId = useAuthStore.getState().member?.memberId;
+  if (memberId === undefined || !entry.serverId) return;
+  void useAppStore.getState().sendImage(memberId, entry.serverId, whatMyIconId);
 }

@@ -1,4 +1,5 @@
-import { Image, Pressable, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Image, Pressable, View } from 'react-native';
 import type { DiaryEntry } from '@/types/diary';
 import { formatDate } from '@/constants/date';
 import { colors, radii } from '@/theme/tokens';
@@ -6,6 +7,7 @@ import { EmotionImage, EmotionPill } from '@/components/emotion/Emotion';
 import { AppText } from './Text';
 import { Icon } from './Icon';
 import { PictureState } from './Feedback';
+import { TextButton } from './Button';
 
 const tagLabels = (entry: DiaryEntry) =>
   entry.tags.map(tag => tag.label).join(' · ');
@@ -13,13 +15,17 @@ export const diaryArtwork = require('../../../assets/figma/warm-evening.png');
 // 기록 그림은 1:1이다 (AI 결과 768×768). Mock 그림은 3:2라 가운데를 잘라 보여 준다.
 export const DIARY_ARTWORK_RATIO = 1;
 // The frame owns the ratio: an Image sized with width + aspectRatio keeps the source's pixel height.
+// uri가 있으면 서버 그림을, 없으면(시작 화면·샘플 기록) 앱에 든 샘플 그림을 보여 준다.
 export function DiaryArtwork({
   rounded = true,
   ratio = DIARY_ARTWORK_RATIO,
+  uri,
 }: {
   rounded?: boolean;
   ratio?: number;
+  uri?: string | null;
 }) {
+  if (uri) return <RemoteArtwork uri={uri} rounded={rounded} ratio={ratio} />;
   return (
     <View
       style={{
@@ -35,6 +41,64 @@ export function DiaryArtwork({
         resizeMode="cover"
         style={{ width: '100%', height: '100%' }}
       />
+    </View>
+  );
+}
+function RemoteArtwork({
+  uri,
+  rounded,
+  ratio,
+}: {
+  uri: string;
+  rounded: boolean;
+  ratio: number;
+}) {
+  const [state, setState] = useState<'loading' | 'loaded' | 'failed'>(
+    'loading',
+  );
+  // 다시 불러오기는 같은 주소로 Image를 새로 만든다.
+  const [attempt, setAttempt] = useState(0);
+  return (
+    <View
+      style={{
+        width: '100%',
+        aspectRatio: ratio,
+        borderRadius: rounded ? radii.card : 0,
+        overflow: 'hidden',
+        backgroundColor: colors.sageSoft,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {state !== 'failed' && (
+        <Image
+          key={attempt}
+          source={{ uri }}
+          accessibilityLabel="오늘의 그림일기"
+          resizeMode="cover"
+          onLoad={() => setState('loaded')}
+          onError={() => setState('failed')}
+          style={{ position: 'absolute', width: '100%', height: '100%' }}
+        />
+      )}
+      {state === 'loading' && (
+        <ActivityIndicator
+          accessibilityLabel="그림을 불러오고 있어요"
+          color={colors.sage}
+        />
+      )}
+      {state === 'failed' && (
+        <View style={{ alignItems: 'center', gap: 4 }}>
+          <AppText variant="small">그림을 불러오지 못했어요</AppText>
+          <TextButton
+            label="다시 불러오기"
+            onPress={() => {
+              setState('loading');
+              setAttempt(value => value + 1);
+            }}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -56,7 +120,7 @@ export function DiaryCard({
   const content = (
     <>
       {entry.generation === 'ready' ? (
-        <DiaryArtwork rounded={false} />
+        <DiaryArtwork rounded={false} uri={entry.imageUrl} />
       ) : (
         <PictureState
           emotion={entry.emotion}

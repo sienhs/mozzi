@@ -6,21 +6,43 @@ import type {
   SelectableTag,
   RecordPhase,
 } from '@/types/diary';
+import type { HomeResponse, ImageRequestBody } from '@/types/server';
 import { createMockEntries } from '@/mocks/diaries';
-import { diaryGateway } from '@/services/diaryGateway';
-import { errorMessage, toGenerationFailure } from '@/services/diaryErrors';
-import { allowedRecordDate, todayKey } from '@/constants/date';
+import {
+  CONTENT_SAVE_SUPPORTED,
+  DIARY_IMAGE_ALREADY_REQUESTED,
+  DiaryExistsError,
+  PROVISIONAL_CHARACTER_ID,
+  diaryApi,
+  diaryKeys,
+} from '@/services/diaryApi';
+import {
+  apiErrorMessage,
+  errorCode,
+  isUnknownOutcome,
+} from '@/services/authErrors';
+import {
+  imageRequests,
+  type ImageRequestSnapshot,
+} from '@/services/imageRequests';
+import { queryClient } from '@/services/queryClient';
+import { todayKey } from '@/constants/date';
 import {
   emptySelection,
   activityChoices,
+  chosenActivity,
   removeSelectedTag,
-  toImageTags,
+  resolveTag,
   selectCustomTag,
-  selectionFromTags,
-  toDiaryTags,
-  toGenerationRequest,
+  toImageTags,
   toggleTag,
 } from '@/features/diary/tagRules';
+import {
+  iconTag,
+  toAppEmotion,
+  toServerEmotion,
+  toServerWeather,
+} from '@/features/diary/serverDiary';
 import { createRequestKey } from '@/utils/requestKey';
 import { useTagStore } from './useTagStore';
 import { useGachaStore } from './useGachaStore';
@@ -34,19 +56,31 @@ export const emptyDraft = (): DiaryDraft => ({
   tags: emptySelection(),
   memo: '',
 });
+// 그림 (다시) 요청 한 건의 진행 상태. unknown: 응답을 받지 못해 서버가 받았는지 모른다(홈 재조회로 확인).
+export interface ImageAction {
+  diaryId: number | null;
+  status: 'idle' | 'sending' | 'unknown' | 'error';
+  error: string;
+  // Idempotency-Key. 응답을 못 받아 다시 보낼 때만 같은 값을 쓴다.
+  key: string | null;
+}
+export type StartResult = { diaryId: number; existing: boolean };
 interface AppState {
   draft: DiaryDraft;
+  // 캘린더·검색이 아직 쓰는 로컬 샘플 기록. 오늘 기록·홈·상세는 서버(TanStack Query)에서 온다.
   entries: DiaryEntry[];
-  // 그림 요청(접수 전) 상태. 접수 뒤의 그림 상태는 기록(entry.generation)에 있다.
+  // 일기 생성(그림 요청 전 단계) 상태.
   requestStatus: 'idle' | 'requesting' | 'error';
   requestError: string;
   requestKey: string | null;
-  // 최종 저장 상태. 그림 성공과는 별개다.
+  image: ImageAction;
+  // 그림 요청 때 고른 장면·모찌 (diaryId별). 다시 그리기·다시 보내기에 그대로 쓴다.
+  // null은 기기에서 찾아봤지만 없다는 뜻이다(키가 없으면 아직 확인 전).
+  requests: Record<string, ImageRequestSnapshot | null>;
+  // 한 줄 저장 상태. 그림 성공과는 별개다.
   saveStatus: 'idle' | 'saving' | 'error';
   saveError: string;
   saveKey: string | null;
-  // 재시도 불가 실패 뒤 다시 작성 중인 기록. 이 기록만 잠금이 풀린다.
-  rewriteId: string | null;
   tagNotice: string;
   session: number;
   resetSession: () => void;
@@ -58,44 +92,37 @@ interface AppState {
   forgetCustomTag: (id: string) => void;
   selectMainActivity: (id: string) => void;
   setMemo: (memo: string) => void;
-  startGeneration: () => Promise<DiaryEntry | null>;
-  generateImage: (id: string) => Promise<void>;
-  resumeImage: (id: string) => Promise<void>;
-  reopenDraft: (id: string) => boolean;
-  completeDiary: (id: string) => Promise<DiaryEntry | null>;
+  // 일기를 만들고 이어서 그림을 요청한다. 일기가 만들어지면 결과 화면으로 넘어간다.
+  startGeneration: (memberId: number) => Promise<StartResult | null>;
+  // 다시 그리기(실패) · 다시 보내기(요청 유실). 보관한 장면이 없으면 whatMyIconId를 사용자가 다시 고른다.
+  sendImage: (
+    memberId: number,
+    diaryId: number,
+    whatMyIconId?: number,
+  ) => Promise<void>;
+  loadRequest: (memberId: number, diaryId: number) => Promise<void>;
+  completeDiary: (memberId: number, diaryId: number) => Promise<boolean>;
 }
-type RecordState = Pick<
-  AppState,
-  'draft' | 'entries' | 'requestStatus' | 'rewriteId'
->;
-// 지금 작성 중인 날의 기록 (하루 1기록).
-export const recordEntry = (state: Pick<AppState, 'draft' | 'entries'>) => {
-  const date = allowedRecordDate(state.draft.recordDate);
-  return state.entries.find(item => item.date === date);
-};
-// 그림을 요청한 뒤에는 기분·태그를 바꿀 수 없다. 재시도 불가 실패로 다시 작성하는 기록만 예외다.
-export function isDraftLocked(state: RecordState) {
-  if (state.requestStatus === 'requesting') return true;
-  const entry = recordEntry(state);
-  return !!entry && entry.id !== state.rewriteId;
-}
+// 일기 생성 요청 중에는 기분·태그를 바꾸지 않는다. 만들어진 뒤에는 초안이 비워지고 기록 화면은 useRecordGuard가 막는다.
+export const isDraftLocked = (state: Pick<AppState, 'requestStatus'>) =>
+  state.requestStatus === 'requesting';
 export function entryPhase(entry: DiaryEntry, saving: boolean): RecordPhase {
   if (entry.status === 'completed') return 'completed';
+  if (entry.generation === 'notRequested') return 'notRequested';
   if (entry.generation === 'generating') return 'generating';
   if (entry.generation === 'failed') return 'failed';
   return saving ? 'saving' : 'reviewing';
 }
-// 다시 그리기는 일시적인 실패에서, 남은 횟수가 있을 때만 된다.
+// 다시 그리기는 서버가 받아 줄 때만(실패 3번 미만, 오늘 기록, 무엇을 아이콘이 남아 있음).
 export const canRetry = (entry: DiaryEntry) =>
   entry.generation === 'failed' &&
   entry.status === 'draft' &&
   (!entry.failure ||
     (entry.failure.retryable && entry.failure.remainingRetries > 0));
-// 다시 작성하기는 다시 그려도 소용없는 실패(유해 판정 등)에서만 된다.
-export const canRewrite = (entry: DiaryEntry) =>
-  entry.generation === 'failed' &&
+export const canResend = (entry: DiaryEntry) =>
+  entry.generation === 'notRequested' &&
   entry.status === 'draft' &&
-  entry.failure?.retryable === false;
+  entry.canRequestImage !== false;
 export const limitMemo = (memo: string) =>
   memo
     .split('\n')
@@ -103,6 +130,12 @@ export const limitMemo = (memo: string) =>
     .join('\n')
     .slice(0, MEMO_MAX_LENGTH);
 
+const idleImage = (): ImageAction => ({
+  diaryId: null,
+  status: 'idle',
+  error: '',
+  key: null,
+});
 const initialRecordState = () => ({
   draft: emptyDraft(),
   requestStatus: 'idle' as const,
@@ -111,43 +144,22 @@ const initialRecordState = () => ({
   saveStatus: 'idle' as const,
   saveError: '',
   saveKey: null,
-  rewriteId: null,
   tagNotice: '',
 });
-const generations = new Map<string, Promise<void>>();
+const refreshDiaries = (memberId: number) =>
+  queryClient.invalidateQueries({ queryKey: diaryKeys.all(memberId) });
+// 응답을 받지 못했을 때 서버에 오늘 일기가 생겼는지 직접 확인한다.
+const fetchHome = (memberId: number) =>
+  queryClient
+    .fetchQuery({
+      queryKey: diaryKeys.home(memberId),
+      queryFn: diaryApi.home,
+      staleTime: 0,
+    })
+    .catch((): HomeResponse | null => null);
+const sending = new Map<number, Promise<void>>();
+
 export const useAppStore = create<AppState>((set, get) => {
-  const patchEntry = (id: string, patch: Partial<DiaryEntry>) =>
-    set(state => ({
-      entries: state.entries.map(item =>
-        item.id === id ? { ...item, ...patch } : item,
-      ),
-    }));
-  // 그림 완성을 기다린다. 같은 기록의 작업은 하나만 돌고, 계정이 바뀐 뒤의 결과는 버린다.
-  const watch = (id: string, before?: () => Promise<void>) => {
-    const running = generations.get(id);
-    if (running) return running;
-    const session = get().session;
-    patchEntry(id, { generation: 'generating', failure: null });
-    const job = (async () => {
-      let patch: Partial<DiaryEntry> = { generation: 'ready', failure: null };
-      try {
-        if (before) await before();
-        await diaryGateway.generate({
-          diaryId: id,
-          companionId:
-            get().entries.find(entry => entry.id === id)?.companionId ??
-            'default',
-        });
-      } catch (error) {
-        patch = { generation: 'failed', failure: toGenerationFailure(error) };
-      }
-      if (get().session !== session) return;
-      generations.delete(id);
-      patchEntry(id, patch);
-    })();
-    generations.set(id, job);
-    return job;
-  };
   const editDraft = (update: (draft: DiaryDraft) => Partial<DiaryDraft>) => {
     if (isDraftLocked(get())) return;
     set(state => ({
@@ -156,15 +168,26 @@ export const useAppStore = create<AppState>((set, get) => {
       requestKey: null,
     }));
   };
+  const remember = async (memberId: number, snapshot: ImageRequestSnapshot) => {
+    await imageRequests.save(memberId, snapshot);
+    set(state => ({
+      requests: { ...state.requests, [snapshot.diaryId]: snapshot },
+    }));
+  };
   return {
     ...initialRecordState(),
     entries: createMockEntries(),
+    image: idleImage(),
+    requests: {},
     session: 0,
     resetSession: () => {
-      generations.clear();
+      sending.clear();
+      imageRequests.resetMemory();
       set(state => ({
         ...initialRecordState(),
         entries: createMockEntries(),
+        image: idleImage(),
+        requests: {},
         session: state.session + 1,
       }));
     },
@@ -218,121 +241,221 @@ export const useAppStore = create<AppState>((set, get) => {
         saveKey: null,
       }));
     },
-    startGeneration: async () => {
+    startGeneration: async memberId => {
       const state = get();
       if (state.requestStatus === 'requesting') return null;
-      const existing = recordEntry(state);
-      if (existing && existing.id !== state.rewriteId) return null;
-      const companionId = state.draft.emotion
-        ? useGachaStore.getState().equippedByEmotion[state.draft.emotion]
-        : 'default';
       const library = useTagStore.getState().tags;
-      const recordDate = allowedRecordDate(state.draft.recordDate);
-      const draft = { ...state.draft, recordDate };
-      const request = toGenerationRequest(draft, library, recordDate);
-      if (!request) return null;
-      const tags = toDiaryTags(draft.tags, library);
-      const imageTags = toImageTags(draft, library);
+      const { draft } = state;
+      const main = chosenActivity(draft, library);
+      if (!draft.emotion || !main) return null;
       const requestKey = state.requestKey ?? createRequestKey();
       const session = state.session;
-      set({ draft, requestStatus: 'requesting', requestError: '', requestKey });
-      try {
-        const result = existing
-          ? await diaryGateway.rewrite(
-              existing.id,
-              request,
-              tags,
-              requestKey,
-              imageTags,
-            )
-          : await diaryGateway.start(request, tags, requestKey, imageTags);
-        if (get().session !== session) return null;
-        const entry = { ...result, companionId };
-        set(current => ({
-          entries: [
-            entry,
-            ...current.entries.filter(item => item.date !== entry.date),
-          ],
-          draft: { ...current.draft, memo: '' },
-          requestStatus: 'idle',
-          requestKey: null,
-          rewriteId: null,
-          tagNotice: '',
-          saveStatus: 'idle',
-          saveError: '',
-          saveKey: null,
-        }));
-        void watch(entry.id);
-        return entry;
-      } catch (error) {
-        // 요청 키는 남겨 두고, 같은 선택으로 다시 보내면 같은 키를 쓴다.
+      set({ requestStatus: 'requesting', requestError: '', requestKey });
+      const fail = (error: unknown) => {
         if (get().session === session)
           set({
             requestStatus: 'error',
-            requestError: errorMessage(error, '그림을 부탁하지 못했어요.'),
+            requestError: apiErrorMessage(
+              error,
+              '그림을 부탁하지 못했어요. 고른 태그는 그대로 있어요.',
+            ),
           });
         return null;
+      };
+      // 고른 태그를 서버 아이콘으로 바꾼다. 일기에는 고른 태그 전체를, 그림에는 대표 활동 하나와 장소·첫 번째 동행을 쓴다.
+      const place = resolveTag(draft.tags.place, library);
+      const companions = draft.tags.companions
+        .map(id => resolveTag(id, library))
+        .filter((tag): tag is SelectableTag => !!tag);
+      const selected = [...activityChoices(draft.tags, library)];
+      if (place) selected.push(place);
+      selected.push(...companions);
+      const weather = resolveTag(draft.tags.weather, library);
+      let body: ImageRequestBody;
+      let created: { diaryId: number; recordDate: string } | null = null;
+      try {
+        const ids = new Map<string, number>();
+        for (const tag of selected)
+          ids.set(tag.id, await useTagStore.getState().ensureIcon(tag));
+        body = {
+          characterId: PROVISIONAL_CHARACTER_ID,
+          weather: toServerWeather(
+            weather && 'code' in weather ? weather.code : null,
+          ),
+          whereMyIconId: place ? ids.get(place.id)! : null,
+          whoMyIconId: companions[0] ? ids.get(companions[0].id)! : null,
+          whatMyIconId: ids.get(main.id)!,
+        };
+        const emoticonId = await diaryApi.emoticonId(
+          toServerEmotion(draft.emotion),
+        );
+        if (get().session !== session) return null;
+        try {
+          created = await diaryApi.create(
+            {
+              emoticonId,
+              content: null,
+              myIconIds: [...new Set(ids.values())],
+            },
+            requestKey,
+          );
+        } catch (error) {
+          if (!(error instanceof DiaryExistsError) && !isUnknownOutcome(error))
+            throw error;
+          // 이미 있거나 응답이 끊겼다. 앞서 보낸 이 요청으로 만들어진 일기면 이어서 그림을 요청하고,
+          // 다른 기기에서 만든 일기면 그 기록으로 보낸다.
+          const home = await fetchHome(memberId);
+          if (get().session !== session) return null;
+          const diary = home?.todayDiary;
+          const ours =
+            !!diary &&
+            home?.todayStatus === 'IMAGE_NOT_REQUESTED' &&
+            diary.myIcons.WHAT.some(
+              icon => icon.myIconId === body.whatMyIconId,
+            );
+          if (diary && ours)
+            created = { diaryId: diary.diaryId, recordDate: diary.recordDate };
+          else if (diary) {
+            set({ ...initialRecordState() });
+            return { diaryId: diary.diaryId, existing: true };
+          } else throw error;
+        }
+      } catch (error) {
+        return fail(error);
       }
-    },
-    generateImage: id => {
-      const running = generations.get(id);
-      if (running) return running;
-      const entry = get().entries.find(item => item.id === id);
-      if (!entry || !canRetry(entry)) return Promise.resolve();
-      const requestKey = createRequestKey();
-      return watch(id, () => diaryGateway.retry(id, requestKey));
-    },
-    // 그리는 중인 기록의 결과를 다시 기다린다 (앱 재진입·개발용 화면).
-    resumeImage: id => {
-      const entry = get().entries.find(item => item.id === id);
-      if (!entry || entry.generation !== 'generating') return Promise.resolve();
-      return watch(id);
-    },
-    reopenDraft: id => {
-      const entry = get().entries.find(item => item.id === id);
-      if (!entry || !canRewrite(entry)) return false;
-      set({
-        ...initialRecordState(),
-        rewriteId: id,
-        draft: {
-          mainActivityId: null,
-          recordDate: entry.date,
-          emotion: entry.emotion,
-          tags: selectionFromTags(entry.tags, useTagStore.getState().tags),
-          memo: '',
-        },
+      if (get().session !== session) return null;
+      const imageTags = toImageTags(draft, library);
+      await remember(memberId, {
+        diaryId: created.diaryId,
+        recordDate: created.recordDate,
+        body,
+        // 그림 속 모찌는 고른 기분에 장착한 모찌로 고정한다.
+        companionId: useGachaStore.getState().equippedByEmotion[draft.emotion],
+        imageTags,
       });
-      return true;
+      if (get().session !== session) return null;
+      // 일기는 이제 서버에 고정됐다. 초안을 비우고 그림을 요청한다(결과는 화면이 기다리지 않아도 된다).
+      set({ ...initialRecordState() });
+      void get().sendImage(memberId, created.diaryId);
+      void refreshDiaries(memberId);
+      return { diaryId: created.diaryId, existing: false };
     },
-    completeDiary: async id => {
+    sendImage: (memberId, diaryId, whatMyIconId) => {
+      const running = sending.get(diaryId);
+      if (running) return running;
+      const session = get().session;
+      const task = (async () => {
+        let snapshot =
+          get().requests[diaryId] ??
+          (await imageRequests.get(memberId, diaryId));
+        if (!snapshot) {
+          // 앱이 꺼져 고른 장면을 잃었다. 일기에 남은 아이콘으로 다시 만들고, 대표 활동은 사용자가 고른 것을 쓴다.
+          const home = queryClient.getQueryData<HomeResponse>(
+            diaryKeys.home(memberId),
+          );
+          const diary =
+            home?.todayDiary?.diaryId === diaryId ? home.todayDiary : null;
+          const what = diary?.myIcons.WHAT.find(
+            icon => icon.myIconId === whatMyIconId,
+          );
+          if (!diary || !what) return;
+          const where = diary.myIcons.WHERE[0];
+          const who = diary.myIcons.WHO[0];
+          snapshot = {
+            diaryId,
+            recordDate: diary.recordDate,
+            body: {
+              characterId: PROVISIONAL_CHARACTER_ID,
+              weather: 'NONE',
+              whereMyIconId: where?.myIconId ?? null,
+              whoMyIconId: who?.myIconId ?? null,
+              whatMyIconId: what.myIconId,
+            },
+            companionId:
+              useGachaStore.getState().equippedByEmotion[
+                toAppEmotion(diary.emotion)
+              ],
+            imageTags: [what, where, who]
+              .filter(icon => !!icon)
+              .map(icon => iconTag(icon!)),
+          };
+          await remember(memberId, snapshot);
+        } else if (!get().requests[diaryId])
+          set(state => ({
+            requests: { ...state.requests, [diaryId]: snapshot! },
+          }));
+        if (get().session !== session) return;
+        const previous = get().image;
+        const key =
+          previous.diaryId === diaryId && previous.key
+            ? previous.key
+            : createRequestKey();
+        set({ image: { diaryId, status: 'sending', error: '', key } });
+        let next: ImageAction = idleImage();
+        try {
+          await diaryApi.requestImage(diaryId, snapshot.body, key);
+        } catch (error) {
+          const code = errorCode(error);
+          // 이미 그리는 중·완성: 앞서 보낸 요청이나 다른 기기의 요청이 받아들여졌다. 홈 재조회로 상태를 맞춘다.
+          if (code === DIARY_IMAGE_ALREADY_REQUESTED) next = idleImage();
+          else if (isUnknownOutcome(error))
+            next = {
+              diaryId,
+              status: 'unknown',
+              error:
+                '요청이 전달됐는지 확인하지 못했어요. 상태를 다시 확인하고 있어요.',
+              key,
+            };
+          else
+            next = {
+              diaryId,
+              status: 'error',
+              error: apiErrorMessage(error, '그림을 부탁하지 못했어요.'),
+              key: null,
+            };
+        }
+        if (get().session !== session) return;
+        set({ image: next });
+        // 결과와 상관없이 서버 상태를 다시 읽는다 (IMAGE_ONLY_TODAY·IMAGE_ALREADY_REQUESTED·타임아웃 포함).
+        await refreshDiaries(memberId);
+      })();
+      sending.set(diaryId, task);
+      void task
+        .finally(() => {
+          if (sending.get(diaryId) === task) sending.delete(diaryId);
+        })
+        .catch(() => undefined);
+      return task;
+    },
+    loadRequest: async (memberId, diaryId) => {
+      if (diaryId in get().requests) return;
+      const session = get().session;
+      const snapshot = await imageRequests.get(memberId, diaryId);
+      if (get().session === session && !get().requests[diaryId])
+        set(state => ({
+          requests: { ...state.requests, [diaryId]: snapshot },
+        }));
+    },
+    completeDiary: async (memberId, diaryId) => {
       const state = get();
-      if (state.saveStatus === 'saving') return null;
-      const entry = state.entries.find(item => item.id === id);
-      if (!entry || entryPhase(entry, false) !== 'reviewing') return null;
+      if (state.saveStatus === 'saving' || !CONTENT_SAVE_SUPPORTED)
+        return false;
       const saveKey = state.saveKey ?? createRequestKey();
       const session = state.session;
       set({ saveStatus: 'saving', saveError: '', saveKey });
       try {
-        const saved = await diaryGateway.complete(
-          id,
-          state.draft.memo,
-          saveKey,
-        );
-        if (get().session !== session) return null;
-        patchEntry(id, {
-          memo: saved.memo,
-          title: saved.memo || entry.title,
-          status: 'completed',
-        });
+        await diaryApi.saveContent(diaryId, state.draft.memo.trim(), saveKey);
+        if (get().session !== session) return false;
         set(initialRecordState());
-        return get().entries.find(item => item.id === id) ?? null;
+        await refreshDiaries(memberId);
+        return true;
       } catch (error) {
         if (get().session === session)
           set({
             saveStatus: 'error',
-            saveError: errorMessage(error, '기록을 저장하지 못했어요.'),
+            saveError: apiErrorMessage(error, '기록을 저장하지 못했어요.'),
           });
-        return null;
+        return false;
       }
     },
   };

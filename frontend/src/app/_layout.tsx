@@ -15,6 +15,12 @@ import { Button } from '@/components/ui/Button';
 import { colors, fonts } from '@/theme/tokens';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { SPLASH_MIN_MS, Splash } from '@/components/ui/Splash';
+import { useMetaStore } from '@/stores/useMetaStore';
+import {
+  ForceUpdateScreen,
+  MetaErrorScreen,
+  RecommendedUpdateSheet,
+} from '@/features/update/UpdateScreens';
 
 // The native splash only covers font loading; the S-C start screen takes over after it.
 void SplashScreen.preventAutoHideAsync();
@@ -24,6 +30,13 @@ export default function RootLayout() {
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+  // 메타는 로그인과 무관하게 앱 시작 때 함께 부른다. 받기 전에는 버전·약관을 판단할 수 없다.
+  const meta = useMetaStore(state => state.meta);
+  const metaFailed = useMetaStore(state => state.status === 'error');
+  const update = useMetaStore(state => state.update);
+  useEffect(() => {
+    void useMetaStore.getState().load();
+  }, []);
   const [loaded, fontError] = useFonts({
     [fonts.regular]: require('../../assets/온글잎 박다현체.ttf'),
   });
@@ -42,8 +55,12 @@ export default function RootLayout() {
         <StatusBar style="dark" hidden={!splashDone} />
         {!fontsSettled ? (
           <View style={{ flex: 1, backgroundColor: colors.bg }} />
-        ) : !splashDone || status === 'restoring' ? (
+        ) : !splashDone || (!meta && !metaFailed) || status === 'restoring' ? (
           <Splash />
+        ) : !meta ? (
+          <MetaErrorScreen />
+        ) : update === 'required' ? (
+          <ForceUpdateScreen />
         ) : status === 'restorationError' ? (
           <Screen header={false}>
             <ErrorBanner message={error} />
@@ -59,6 +76,7 @@ export default function RootLayout() {
             {fontError && (
               <ErrorBanner message="글꼴을 불러오지 못해 기본 글꼴로 표시해요." />
             )}
+            <RecommendedUpdateSheet />
             <Stack
               screenOptions={{
                 headerShown: false,

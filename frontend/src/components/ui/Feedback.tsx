@@ -58,12 +58,14 @@ export function StatePanel({
   description,
   emotion = 'happy',
   retry,
+  retryLabel = '다시 물어보기',
   compact,
 }: {
   title: string;
   description: string;
   emotion?: Emotion;
   retry?: () => void;
+  retryLabel?: string;
   compact?: boolean;
 }) {
   return (
@@ -100,7 +102,7 @@ export function StatePanel({
         >
           <Icon name="refresh" size={18} color={colors.primary} />
           <AppText variant="small" style={{ color: colors.primary }}>
-            다시 물어보기
+            {retryLabel}
           </AppText>
         </Pressable>
       )}

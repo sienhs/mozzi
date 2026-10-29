@@ -92,3 +92,13 @@ beforeEach(() => {
     error: '',
   });
 });
+
+// GET /meta runs at app start before any screen. Routed tests get a current, supported
+// response by default; tests about meta failure or updates override fetchMeta.
+jest.mock('@/services/metaApi', () => ({
+  fetchMeta: jest.fn(async () => ({
+    termsVersions: { TERMS: '1.0', PRIVACY: '1.0' },
+    minSupportedVersion: '1.0.0',
+    latestVersion: '1.0.0',
+  })),
+}));
