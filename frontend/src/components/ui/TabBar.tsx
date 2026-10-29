@@ -73,7 +73,14 @@ export function TabBar({ state, navigateToTab, insets }: BottomTabBarProps) {
             )}
             <AppText
               variant="caption"
-              style={{ color, textAlign: 'center', fontSize: 15 }}
+              style={{
+                color,
+                textAlign: 'center',
+                fontSize: 12,
+                lineHeight: 18,
+                maxWidth: '100%',
+              }}
+              numberOfLines={3}
             >
               {tab.label}
             </AppText>

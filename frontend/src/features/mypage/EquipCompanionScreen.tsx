@@ -76,7 +76,7 @@ export function EquipCompanionScreen() {
     if (succeeded && mounted.current)
       router.dismissTo({
         pathname: '/mypage',
-        params: { equipped: String(Date.now()) },
+        params: { equipped: String(Date.now()), emotion },
       });
   }
   return (

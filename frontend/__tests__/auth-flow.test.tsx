@@ -18,6 +18,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMetaStore } from '@/stores/useMetaStore';
 import { fetchMeta } from '@/services/metaApi';
 import { api } from '@/services/api';
+import { queryClient } from '@/services/queryClient';
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 jest.mock('@/services/googleAuth', () => ({
@@ -50,6 +51,7 @@ const pair = () => ({
   refreshExpiresAt: new Date(Date.now() + 2592000000).toISOString(),
 });
 beforeEach(async () => {
+  queryClient.clear();
   jest.clearAllMocks();
   await authSession.clear();
   useAuthStore.setState({
@@ -84,6 +86,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await cleanup();
+  queryClient.clear();
   jest.restoreAllMocks();
 });
 

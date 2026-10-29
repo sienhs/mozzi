@@ -38,9 +38,16 @@ export default function RootLayout() {
     void useMetaStore.getState().load();
   }, []);
   const [loaded, fontError] = useFonts({
-    [fonts.regular]: require('../../assets/온글잎 박다현체.ttf'),
+    [fonts.pen]: require('../../assets/fonts/OwnglyphParkDahyun.ttf'),
   });
   const fontsSettled = loaded || !!fontError;
+  useEffect(() => {
+    if (__DEV__ && fontError)
+      console.warn(
+        'Handwriting font unavailable; using the system font.',
+        fontError.message,
+      );
+  }, [fontError]);
   const [splashDone, setSplashDone] = useState(SPLASH_MIN_MS <= 0);
   useEffect(() => {
     if (!fontsSettled) return;
@@ -73,9 +80,6 @@ export default function RootLayout() {
           </Screen>
         ) : (
           <>
-            {fontError && (
-              <ErrorBanner message="글꼴을 불러오지 못해 기본 글꼴로 표시해요." />
-            )}
             <RecommendedUpdateSheet />
             <Stack
               screenOptions={{

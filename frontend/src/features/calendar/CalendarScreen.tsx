@@ -58,13 +58,8 @@ export function CalendarDay({
       >
         {Number(date.slice(8))}
       </AppText>
-      {entry && (
-        <EmotionImage
-          emotion={entry.emotion}
-          size={28}
-          companionId={entry.companionId}
-        />
-      )}
+      {/* 날짜 셀은 장착 모찌와 관계없이 기본 감정 이미지로 표시한다. */}
+      {entry && <EmotionImage emotion={entry.emotion} size={28} />}
     </Pressable>
   );
 }

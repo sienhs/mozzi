@@ -8,6 +8,7 @@ import { AppText } from './Text';
 import { Icon } from './Icon';
 import { PictureState } from './Feedback';
 import { TextButton } from './Button';
+import { MotionReveal } from './Motion';
 
 const tagLabels = (entry: DiaryEntry) =>
   entry.tags.map(tag => tag.label).join(' · ');
@@ -25,9 +26,11 @@ export function DiaryArtwork({
   ratio?: number;
   uri?: string | null;
 }) {
+  const [loaded, setLoaded] = useState(false);
   if (uri) return <RemoteArtwork uri={uri} rounded={rounded} ratio={ratio} />;
   return (
-    <View
+    <MotionReveal
+      ready={loaded}
       style={{
         width: '100%',
         aspectRatio: ratio,
@@ -36,12 +39,13 @@ export function DiaryArtwork({
       }}
     >
       <Image
+        onLoad={() => setLoaded(true)}
         source={diaryArtwork}
         accessibilityLabel="따뜻한 방에서 오므라이스를 먹는 모찌의 그림일기"
         resizeMode="cover"
         style={{ width: '100%', height: '100%' }}
       />
-    </View>
+    </MotionReveal>
   );
 }
 function RemoteArtwork({
@@ -71,15 +75,20 @@ function RemoteArtwork({
       }}
     >
       {state !== 'failed' && (
-        <Image
+        <MotionReveal
           key={attempt}
-          source={{ uri }}
-          accessibilityLabel="오늘의 그림일기"
-          resizeMode="cover"
-          onLoad={() => setState('loaded')}
-          onError={() => setState('failed')}
+          ready={state === 'loaded'}
           style={{ position: 'absolute', width: '100%', height: '100%' }}
-        />
+        >
+          <Image
+            source={{ uri }}
+            accessibilityLabel="오늘의 그림일기"
+            resizeMode="cover"
+            onLoad={() => setState('loaded')}
+            onError={() => setState('failed')}
+            style={{ width: '100%', height: '100%' }}
+          />
+        </MotionReveal>
       )}
       {state === 'loading' && (
         <ActivityIndicator
@@ -137,7 +146,7 @@ export function DiaryCard({
         }}
       >
         <AppText variant="caption">{formatDate(entry.date)}</AppText>
-        <AppText variant="label">{entry.title}</AppText>
+        <AppText variant="heading">{entry.title}</AppText>
         <DiaryMeta entry={entry} />
       </View>
     </>

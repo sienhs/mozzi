@@ -84,6 +84,14 @@ jest.mock('expo-secure-store', () => ({
   deleteItemAsync: jest.fn(async () => undefined),
 }));
 beforeEach(() => {
+  // Cache collection timers must not keep Jest alive after API queries finish.
+  // Tests clear the cache explicitly; production query settings stay unchanged.
+  const { queryClient } = require('@/services/queryClient');
+  const options = queryClient.getDefaultOptions();
+  queryClient.setDefaultOptions({
+    ...options,
+    queries: { ...options.queries, gcTime: Infinity },
+  });
   require('@/stores/useAuthStore').useAuthStore.setState({
     status: 'signedOut',
     member: null,
