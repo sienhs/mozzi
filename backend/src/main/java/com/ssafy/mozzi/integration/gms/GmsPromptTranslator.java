@@ -52,6 +52,7 @@ public class GmsPromptTranslator implements PromptTranslator {
               Put it in the matching field.
 
             OUTPUT
+            Answer with one JSON object with the keys what, where, who and blocked.
             - what: ONE activity that best shows the day, starting with an -ing verb.
               You may add an object or food from the tags (식사 + 떡볶이 → "eating spicy red rice cakes").
             - where: one place starting with at, in or on. If there are two places, use the where tag.
