@@ -16,13 +16,17 @@ import { colors } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useGachaStore } from '@/stores/useGachaStore';
 import { filterOwnedCompanions } from './ownedCompanions';
+import { MotionReveal } from '@/components/ui/Motion';
 
 export function MyPageScreen() {
   const profile = useAuthStore(state => state.member);
   const equippedByEmotion = useGachaStore(state => state.equippedByEmotion);
   const owned = useGachaStore(state => state.owned);
   const acquiredAt = useGachaStore(state => state.acquiredAt);
-  const { equipped } = useLocalSearchParams<{ equipped?: string }>();
+  const { equipped, emotion: equippedEmotion } = useLocalSearchParams<{
+    equipped?: string;
+    emotion?: string;
+  }>();
   const [dismissedSuccess, setDismissedSuccess] = useState<string>();
   const showSuccess = !!equipped && equipped !== dismissedSuccess;
   useEffect(() => {
@@ -97,7 +101,17 @@ export function MyPageScreen() {
                     padding: 6,
                   }}
                 >
-                  <EmotionImage emotion={emotion} companionId={id} size={64} />
+                  <MotionReveal
+                    pop
+                    animate={showSuccess && equippedEmotion === emotion}
+                    replayKey={equipped}
+                  >
+                    <EmotionImage
+                      emotion={emotion}
+                      companionId={id}
+                      size={64}
+                    />
+                  </MotionReveal>
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <AppText variant="label">{emotions[emotion].label}</AppText>

@@ -144,6 +144,34 @@ async function drawPicture(app: Awaited<ReturnType<typeof renderApp>>) {
   await waitFor(() => expect(app.getPathname()).toBe('/record/generation'));
 }
 
+test('completed home uses the server image and keeps previous diary navigation', async () => {
+  setAuthPreview();
+  server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
+    ['요리', 'WHAT'],
+  ]);
+  const todayId = server.addDiary(TODAY, 'CALM', '산책하며 남긴 하루', [
+    ['산책', 'WHAT'],
+  ]);
+  const app = await renderApp('/home');
+  expect(await screen.findByText('일기 펼쳐보기')).toBeOnTheScreen();
+  expect(screen.getByText('오므라이스를 만들었어')).toBeOnTheScreen();
+  expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
+    uri: `https://cdn.example.test/diary/${todayId}.webp`,
+  });
+  expect(screen.queryByRole('button', { name: '오늘 기록하기' })).toBeNull();
+  await fireEvent.press(
+    screen.getByRole('button', { name: '지난 기록 모두 보기' }),
+  );
+  expect(app.getPathname()).toBe('/calendar');
+  await fireEvent.press(screen.getByRole('tab', { name: '홈' }));
+  await fireEvent.press(
+    screen.getByRole('button', { name: /산책하며 남긴 하루/ }),
+  );
+  expect(app.getPathname()).toBe(`/diary/${todayId}`);
+  expect(await screen.findByText('산책하며 남긴 하루')).toBeOnTheScreen();
+  expect(server.callsTo('GET', '/home').length).toBeGreaterThan(0);
+}, 20000);
+
 test('tags create the diary, the picture is polled until done, and the one-line step shows the server image without faking a save', async () => {
   setAuthPreview();
   server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
@@ -151,7 +179,7 @@ test('tags create the diary, the picture is polled until done, and the one-line 
   ]);
   const app = await renderApp('/home');
   expect(await screen.findByText('지난 기록')).toBeOnTheScreen();
-  expect(screen.getByText('10월 26일 월요일')).toBeOnTheScreen();
+  expect(screen.getByLabelText('10월 26일 월요일')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
   await chooseDay();
   await fireEvent.press(
@@ -243,7 +271,7 @@ test('home shows each server status: pending, completed with and without a line,
 
   server.state.diaries[0].content = '비 오는 날 오므라이스';
   await reopenHome();
-  expect(await screen.findByText('오늘도 한 장 남겼어요')).toBeOnTheScreen();
+  expect(await screen.findByText('일기 펼쳐보기')).toBeOnTheScreen();
   expect(screen.getByText('비 오는 날 오므라이스')).toBeOnTheScreen();
 
   server.state.diaries[0].content = null;

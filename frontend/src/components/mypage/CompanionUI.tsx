@@ -5,6 +5,7 @@ import { companions } from '@/constants/companions';
 import { colors } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
 import type { CompanionId } from '@/types/companion';
+import { companionArtworkStyle } from '@/constants/companionArtwork';
 
 export function CompanionArtwork({
   id,
@@ -19,7 +20,11 @@ export function CompanionArtwork({
         source={companions[id].source}
         resizeMode="contain"
         accessibilityLabel={companions[id].name}
-        style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
+        style={[
+          StyleSheet.absoluteFill,
+          { width: '100%', height: '100%' },
+          companionArtworkStyle(id),
+        ]}
       />
     </View>
   );
@@ -74,15 +79,20 @@ export const OwnedCompanionCard = memo(function OwnedCompanionCard({
         },
       ]}
     >
-      {equipped && (
-        <View pointerEvents="none" style={styles.ownedBadge}>
-          <EquippedBadge />
-        </View>
-      )}
+      <View pointerEvents="none" style={styles.ownedBadge}>
+        {equipped && <EquippedBadge />}
+      </View>
       <CompanionArtwork id={id} aspectRatio={1} />
       <AppText
-        variant="small"
-        style={{ color: colors.ink, textAlign: 'center' }}
+        variant="label"
+        numberOfLines={2}
+        style={{
+          color: colors.ink,
+          textAlign: 'center',
+          minHeight: 48,
+          fontSize: 18,
+          lineHeight: 24,
+        }}
       >
         {companions[id].name}
       </AppText>
@@ -109,12 +119,12 @@ export function MyPageTitle({
 }
 
 const styles = StyleSheet.create({
-  artwork: { width: '100%' },
+  artwork: { width: '100%', overflow: 'hidden' },
   badge: {
     alignSelf: 'flex-end',
     backgroundColor: colors.sage,
     borderRadius: 16,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 2,
   },
   notice: {
@@ -136,7 +146,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
     borderWidth: 1.5,
     borderColor: colors.paperEdge,
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
   },
-  ownedBadge: { position: 'absolute', top: 8, right: 8, zIndex: 1 },
+  ownedBadge: {
+    height: 24,
+    width: '100%',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
 });

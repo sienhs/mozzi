@@ -14,7 +14,7 @@ export function EmotionSlotPicker({
   disabled?: boolean;
 }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+    <View style={{ flexDirection: 'row', gap: 6 }}>
       {emotionOrder.map(emotion => (
         <Pressable
           key={emotion}
@@ -24,8 +24,10 @@ export function EmotionSlotPicker({
           disabled={disabled}
           onPress={() => onChange(emotion)}
           style={{
+            flex: 1,
+            minWidth: 0,
             minHeight: 44,
-            paddingHorizontal: 14,
+            paddingHorizontal: 2,
             paddingVertical: 8,
             borderRadius: 16,
             borderWidth: 1.5,
@@ -33,9 +35,10 @@ export function EmotionSlotPicker({
             backgroundColor:
               value === emotion ? emotions[emotion].color : colors.white,
             justifyContent: 'center',
+            alignItems: 'center',
           }}
         >
-          <AppText variant="small" style={{ color: colors.ink }}>
+          <AppText variant="label" style={{ color: colors.ink, fontSize: 18 }}>
             {emotions[emotion].label}
           </AppText>
         </Pressable>

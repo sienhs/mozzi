@@ -139,7 +139,9 @@ function SettingsRow({
     </>
   );
   const style = {
-    minHeight: 52,
+    minHeight: 58,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
     flexDirection: 'row' as const,
     gap: 8,
     alignItems: 'center' as const,

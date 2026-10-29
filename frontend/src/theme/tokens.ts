@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 // Figma 00 · 디자인 시스템 (온글잎 박다현체 / 390 × 844).
 export const colors = {
@@ -40,9 +40,16 @@ export const colors = {
   gachaSageInk: '#52644A',
 } as const;
 export const fonts = {
-  // The supplied font has one weight; all variants use the same face.
-  regular: 'OwnglyphParkDahyun',
-  medium: 'OwnglyphParkDahyun',
+  regular: Platform.select({
+    android: 'sans-serif',
+    ios: 'System',
+    default: 'system-ui',
+  })!,
+  medium: Platform.select({
+    android: 'sans-serif-medium',
+    ios: 'System',
+    default: 'system-ui',
+  })!,
   bold: 'OwnglyphParkDahyun',
   pen: 'OwnglyphParkDahyun',
 } as const;
@@ -86,26 +93,26 @@ export const typography = StyleSheet.create({
   },
   body: {
     fontFamily: fonts.regular,
-    fontSize: 20,
-    lineHeight: 30,
+    fontSize: 16,
+    lineHeight: 26,
     color: colors.ink,
   },
   label: {
-    fontFamily: fonts.medium,
+    fontFamily: fonts.pen,
     fontSize: 20,
     lineHeight: 30,
     color: colors.ink,
   },
   small: {
     fontFamily: fonts.regular,
-    fontSize: 18,
-    lineHeight: 26,
+    fontSize: 15,
+    lineHeight: 24,
     color: colors.muted,
   },
   caption: {
     fontFamily: fonts.medium,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 13,
+    lineHeight: 20,
     color: colors.muted,
   },
 });

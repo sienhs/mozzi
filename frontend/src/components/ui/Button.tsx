@@ -49,6 +49,8 @@ export function Button({
         disabled && styles.disabled,
         pressed &&
           !inactive && {
+            transform: [{ scale: 0.98 }],
+            boxShadow: 'none',
             backgroundColor:
               variant === 'primary' ? colors.pressed : colors.line,
           },

@@ -10,15 +10,20 @@ import { EmotionPicker } from '@/components/emotion/Emotion';
 import { CalendarDay } from '@/features/calendar/CalendarScreen';
 import { companionEmotionSource } from '@/constants/companions';
 import { gachaArt } from '@/constants/gacha';
-import { emotions } from '@/constants/emotions';
+import { emotionOrder, emotions } from '@/constants/emotions';
 import { useMockControls } from '@/mocks/controls';
 import { emptyDraft, useAppStore } from '@/stores/useAppStore';
 import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
 import { setAuthPreview } from '@/mocks/authPreview';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { api } from '@/services/api';
+import { queryClient } from '@/services/queryClient';
+import { todayKey } from '@/constants/date';
+import { createFakeServer } from '../test-utils/fakeServer';
 
 jest.mock('../assets/gacha/mochi-grape.png', () => 501);
 jest.mock('../assets/happy.png', () => 502);
+const defaultAdapter = api.defaults.adapter;
 
 const advance = async (ms: number) =>
   act(async () => {
@@ -26,6 +31,8 @@ const advance = async (ms: number) =>
   });
 beforeEach(() => {
   jest.useFakeTimers();
+  queryClient.clear();
+  api.defaults.adapter = createFakeServer(todayKey()).adapter;
   useMockControls.getState().reset();
   useGachaStore.setState(initialGachaState());
   setAuthPreview();
@@ -39,6 +46,8 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await cleanup();
+  queryClient.clear();
+  api.defaults.adapter = defaultAdapter;
   await jest.runOnlyPendingTimersAsync();
   jest.useRealTimers();
 });
@@ -182,6 +191,42 @@ test('picker uses the current companion while legacy calendar cells keep the def
   );
   expect(screen.getByLabelText('행복 모찌').props.source).toBe(502);
 });
+
+test.each(emotionOrder)(
+  'calendar uses the default %s image even when a collected companion is equipped and recorded',
+  async emotion => {
+    useGachaStore.setState({
+      equippedByEmotion: {
+        ...initialGachaState().equippedByEmotion,
+        [emotion]: 'grape',
+      },
+    });
+    await render(
+      <CalendarDay
+        date="2026-10-01"
+        selected={false}
+        onPress={jest.fn()}
+        entry={{
+          id: 'collected-companion',
+          date: '2026-10-01',
+          emotion,
+          companionId: 'grape',
+          tags: [],
+          memo: '',
+          title: '기록',
+          createdAt: '',
+          generation: 'ready',
+          status: 'completed',
+          failure: null,
+        }}
+      />,
+    );
+    expect(
+      screen.getByLabelText(`${emotions[emotion].label} 모찌`).props.source,
+    ).toBe(emotions[emotion].source);
+    expect(useGachaStore.getState().equippedByEmotion[emotion]).toBe('grape');
+  },
+);
 
 test('emotion chosen on mypage is carried through owned list and confirmation', async () => {
   const app = await renderRouter('./src/app', { initialUrl: '/mypage' });

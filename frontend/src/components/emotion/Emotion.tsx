@@ -1,9 +1,12 @@
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
 import { emotionOrder, emotions } from '@/constants/emotions';
 import type { Emotion } from '@/types/diary';
 import { colors } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
-import { companionEmotionSource } from '@/constants/companions';
+import { companionEmotionSource, companions } from '@/constants/companions';
+import { companionArtworkStyle } from '@/constants/companionArtwork';
+import { MotionReveal, useReducedMotion } from '@/components/ui/Motion';
 import type { CompanionId } from '@/types/companion';
 import { useGachaStore } from '@/stores/useGachaStore';
 
@@ -16,13 +19,21 @@ export function EmotionImage({
   size?: number;
   companionId?: CompanionId;
 }) {
+  const source = companionEmotionSource(companionId, emotion, size <= 32);
+  const normalize =
+    companionId !== 'default' && source === companions[companionId].source;
   return (
-    <Image
-      accessibilityLabel={`${emotions[emotion].label} 모찌`}
-      source={companionEmotionSource(companionId, emotion, size <= 32)}
-      resizeMode="contain"
-      style={{ width: size, height: size }}
-    />
+    <View style={{ width: size, height: size, overflow: 'hidden' }}>
+      <Image
+        accessibilityLabel={`${emotions[emotion].label} 모찌`}
+        source={source}
+        resizeMode="contain"
+        style={[
+          { width: size, height: size },
+          normalize && companionArtworkStyle(companionId),
+        ]}
+      />
+    </View>
   );
 }
 export function EmotionPicker({
@@ -41,30 +52,24 @@ export function EmotionPicker({
             {row.map(emotion => {
               const selected = value === emotion;
               return (
-                <Pressable
+                <EmotionOption
                   key={emotion}
-                  accessibilityRole="radio"
-                  accessibilityLabel={emotions[emotion].label}
-                  accessibilityState={{ selected }}
+                  emotion={emotion}
+                  selected={selected}
                   onPress={() => onChange(emotion)}
-                  style={[
-                    styles.option,
-                    selected && {
-                      backgroundColor: emotions[emotion].color,
-                      borderColor: colors.ink,
-                    },
-                  ]}
                 >
-                  <EmotionImage
-                    emotion={emotion}
-                    size={64}
-                    companionId={equippedByEmotion[emotion]}
-                  />
-                  <AppText variant="small" style={{ color: colors.ink }}>
+                  <MotionReveal pop replayKey={selected ? 'selected' : 'idle'}>
+                    <EmotionImage
+                      emotion={emotion}
+                      size={64}
+                      companionId={equippedByEmotion[emotion]}
+                    />
+                  </MotionReveal>
+                  <AppText variant="label" style={{ color: colors.ink }}>
                     {selected ? '✓ ' : ''}
                     {emotions[emotion].label}
                   </AppText>
-                </Pressable>
+                </EmotionOption>
               );
             })}
             {row.length === 2 && <View style={{ flex: 1 }} />}
@@ -72,6 +77,56 @@ export function EmotionPicker({
         ),
       )}
     </View>
+  );
+}
+function EmotionOption({
+  emotion,
+  selected,
+  onPress,
+  children,
+}: {
+  emotion: Emotion;
+  selected: boolean;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  const reduced = useReducedMotion();
+  const [value] = useState(() => new Animated.Value(selected ? 1 : 0));
+  useEffect(() => {
+    const animation = Animated.timing(value, {
+      toValue: selected ? 1 : 0,
+      duration: reduced ? 0 : 180,
+      useNativeDriver: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [reduced, selected, value]);
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={emotions[emotion].label}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={{ flex: 1 }}
+    >
+      <Animated.View
+        style={[
+          styles.option,
+          {
+            backgroundColor: value.interpolate({
+              inputRange: [0, 1],
+              outputRange: [colors.paper, emotions[emotion].color],
+            }),
+            borderColor: value.interpolate({
+              inputRange: [0, 1],
+              outputRange: [colors.paperEdge, colors.primary],
+            }),
+          },
+        ]}
+      >
+        {children}
+      </Animated.View>
+    </Pressable>
   );
 }
 export function EmotionPill({ emotion }: { emotion: Emotion }) {
@@ -84,7 +139,10 @@ export function EmotionPill({ emotion }: { emotion: Emotion }) {
         backgroundColor: emotions[emotion].color,
       }}
     >
-      <AppText variant="caption" style={{ color: colors.ink }}>
+      <AppText
+        variant="label"
+        style={{ color: colors.ink, fontSize: 18, lineHeight: 24 }}
+      >
         {emotions[emotion].label}
       </AppText>
     </View>
@@ -95,11 +153,11 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 16 },
   option: {
     flex: 1,
-    minHeight: 122,
-    borderRadius: 16,
+    minHeight: 140,
+    borderRadius: 22,
     borderWidth: 1.5,
-    borderColor: 'transparent',
-    backgroundColor: colors.white,
+    borderColor: colors.paperEdge,
+    backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
