@@ -63,7 +63,7 @@ class JacksonSerializationTest {
         assertThat(json).isEqualTo("{\"recordDate\":\"2026-10-22\"}");
     }
 
-    /** Spec 4.2 sends reminderTime as "21:00". */
+    /** Times go out as ISO strings, not arrays. */
     @Test
     void timesAreIsoStrings() {
         String json = objectMapper.writeValueAsString(new Reminder(OffsetTime.parse("21:00+09:00").toLocalTime()));

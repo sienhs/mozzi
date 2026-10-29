@@ -52,4 +52,20 @@ public class DiaryImageController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(diaryImageService.request(memberId, diaryId, request));
     }
 
+    /** Temporary (S15P31D102-132): removed once the picture is tested. */
+    @Operation(summary = "[테스트·임시] 제한 없이 그림 만들기",
+            description = "진짜 API와 같지만 날짜·완성 여부·실패 횟수를 보지 않는다. 완성된 그림은 덮어쓴다. "
+                    + "생성 중이면 409. AI 서버는 test/ 아래에 저장한다.")
+    @ApiResponse(responseCode = "202", description = "접수됨")
+    @PostMapping("/test")
+    public ResponseEntity<DiaryImageCreateResponseDto> requestForTest(
+            @CurrentMember Long memberId,
+            @PathVariable Long diaryId,
+            @Parameter(description = "요청마다 새로 만든 값, 재전송 시에는 같은 값 (최대 64자)")
+            @RequestHeader(DiaryController.IDEMPOTENCY_KEY) @NotBlank @Size(max = 64) String idempotencyKey,
+            @Valid @RequestBody DiaryImageCreateRequestDto request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(diaryImageService.requestForTest(memberId, diaryId, request));
+    }
+
 }

@@ -84,6 +84,40 @@ public class DiaryImageService {
         return new DiaryImageCreateResponseDto(diaryId, image.getStatus());
     }
 
+    /**
+     * {@link #request} without its limits, for testing the picture (S15P31D102-132,
+     * temporary): any day's diary, a finished picture is drawn again over the old one, and
+     * failures are not capped. Only a pending request still answers 409, because a result
+     * carries nothing but the diary id. The AI server stores these pictures under {@code test/}.
+     */
+    @Transactional
+    public DiaryImageCreateResponseDto requestForTest(
+            Long memberId, Long diaryId, DiaryImageCreateRequestDto request) {
+        Diary diary = diaryRepository.findForUpdate(diaryId, memberId)
+                .orElseThrow(() -> new BusinessException(
+                        CommonErrorCode.NOT_FOUND, "diary not found: diaryId=" + diaryId));
+        Optional<DiaryImage> existing = diaryImageRepository.findByDiaryId(diaryId);
+        if (existing.isPresent() && existing.get().getStatus() == ImageStatus.PENDING) {
+            throw new BusinessException(ImageErrorCode.IMAGE_ALREADY_REQUESTED,
+                    "image is PENDING: diaryId=" + diaryId);
+        }
+
+        DiaryImage.Selection selection = selectionOf(diaryRepository.findActiveIcons(diaryId), request);
+        DiaryImage image;
+        if (existing.isPresent()) {
+            image = existing.get();
+            image.redrawForTest(selection);
+        } else {
+            image = diaryImageRepository.save(DiaryImage.request(diaryId, selection));
+        }
+        diary.showImageStatus(image.getStatus());
+
+        log.info("image pipeline: step=requested diaryId={} failures={} test=true",
+                diaryId, image.getFailureCount());
+        eventPublisher.publishEvent(new ImageGenerationRequestedEvent(diaryId, true));
+        return new DiaryImageCreateResponseDto(diaryId, image.getStatus());
+    }
+
     private static void checkCanRetry(DiaryImage image) {
         if (image.canRetry()) {
             return;

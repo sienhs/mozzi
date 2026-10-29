@@ -228,6 +228,55 @@ class DiaryImageApiTest {
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("Idempotency-Key"));
     }
 
+    /** The temporary test API ignores the day, a finished picture and the failure cap. */
+    @Test
+    void theTestApiRedrawsAFinishedPictureOfAPastDiary() throws Exception {
+        Long yesterday = fixtures.diary(me, today.minusDays(1), fixtures.emoticon(Emotion.SAD), Emotion.SAD);
+        fixtures.attach(yesterday, cooking);
+        fixtures.picture(yesterday, ImageStatus.SUCCEEDED, 0, "https://cdn.test/diary/done.webp");
+
+        requestForTest(me, yesterday, body(9, "null", "null", null, null, cooking))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.imageStatus").value("PENDING"));
+
+        Map<String, Object> row = jdbcTemplate.queryForMap("select * from diary_image where diary_id = ?", yesterday);
+        assertThat(row)
+                .containsEntry("status", "PENDING")
+                .containsEntry("character_id", 9L)
+                .containsEntry("image_url", null);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from diary_image where diary_id = ?",
+                Integer.class, yesterday)).isOne();
+    }
+
+    @Test
+    void theTestApiIgnoresTheFailureCap() throws Exception {
+        fixtures.picture(diaryId, ImageStatus.FAILED, 3, null);
+
+        requestForTest(me, diaryId, body(7, "null", "null", null, null, cooking))
+                .andExpect(status().isAccepted());
+        assertThat(jdbcTemplate.queryForObject(
+                "select failure_count from diary_image where diary_id = ?", Integer.class, diaryId))
+                .isEqualTo(3);
+    }
+
+    @Test
+    void theTestApiStillRejectsARequestWhileDrawing() throws Exception {
+        requestForTest(me, diaryId, body(7, "null", "null", null, null, cooking)).andExpect(status().isAccepted());
+
+        requestForTest(me, diaryId, body(7, "null", "null", null, null, reading))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IMAGE_ALREADY_REQUESTED"));
+        requestForTest(someoneElse, diaryId, body(7, "null", "null", null, null, cooking))
+                .andExpect(status().isNotFound());
+    }
+
+    private ResultActions requestForTest(Long memberId, Long diaryId, String json) throws Exception {
+        return mockMvc.perform(as(memberId, post("/api/v1/diaries/{id}/image/test", diaryId))
+                .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json));
+    }
+
     private ResultActions request(Long memberId, Long diaryId, String json) throws Exception {
         return mockMvc.perform(as(memberId, post("/api/v1/diaries/{id}/image", diaryId))
                 .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())

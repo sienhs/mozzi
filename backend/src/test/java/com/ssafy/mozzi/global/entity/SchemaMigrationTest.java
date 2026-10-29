@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
     }
 
     @Test
@@ -38,7 +38,7 @@ class SchemaMigrationTest {
                 "select table_name from information_schema.tables where table_schema = 'public'", String.class);
 
         assertThat(tables).contains(
-                "member", "member_setting", "terms_agreement", "push_device",
+                "member", "terms_agreement", "push_device",
                 "idempotency_record", "member_session", "signup_ticket",
                 "emoticon", "my_icon", "diary", "diary_icon", "diary_image",
                 "emotion_search", "emotion_search_result", "diary_embedding");
@@ -48,6 +48,8 @@ class SchemaMigrationTest {
         assertThat(tables).doesNotContain("activity", "diary_activity");
         // Icons became text only in V9.
         assertThat(tables).doesNotContain("icon");
+        // The diary reminder was dropped in V10, and its settings with it.
+        assertThat(tables).doesNotContain("member_setting");
     }
 
     /** Columns are snake_case in the database and camelCase in Java (convention 1.1). */
@@ -202,26 +204,6 @@ class SchemaMigrationTest {
         assertThat(definition)
                 .contains("(member_id, category, created_at)")
                 .contains("WHERE (deleted_at IS NULL)");
-    }
-
-    /** Spec 4.2 defaults the reminder to 21:00 with notifications on. */
-    @Test
-    void reminderDefaultsComeFromTheSchema() {
-        jdbcTemplate.update("insert into member "
-                + "(email, nickname, provider, provider_subject, role, status, created_at, updated_at) "
-                + "values ('defaults@gmail.com', 'defaults', 'GOOGLE', 'sub-defaults', 'USER', 'ACTIVE', now(), now())");
-        Long memberId = jdbcTemplate.queryForObject(
-                "select member_id from member where provider_subject = 'sub-defaults'", Long.class);
-        jdbcTemplate.update("insert into member_setting (member_id, updated_at) values (?, now())", memberId);
-
-        var setting = jdbcTemplate.queryForMap(
-                "select reminder_enabled, reminder_time, timezone from member_setting where member_id = ?",
-                memberId);
-
-        assertThat(setting.get("reminder_enabled")).isEqualTo(true);
-        // java.sql.Time renders seconds, so the schema default '21:00' reads back as 21:00:00.
-        assertThat(setting.get("reminder_time")).hasToString("21:00:00");
-        assertThat(setting.get("timezone")).isEqualTo("Asia/Seoul");
     }
 
 }

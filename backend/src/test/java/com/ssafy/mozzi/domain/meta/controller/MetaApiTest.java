@@ -27,6 +27,8 @@ class MetaApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.termsVersions.TERMS").value("1.0"))
                 .andExpect(jsonPath("$.termsVersions.PRIVACY").value("1.0"))
+                .andExpect(jsonPath("$.termsPaths.TERMS").value("/legal/terms"))
+                .andExpect(jsonPath("$.termsPaths.PRIVACY").value("/legal/privacy"))
                 .andExpect(jsonPath("$.minSupportedVersion").value("1.0.0"))
                 .andExpect(jsonPath("$.latestVersion").value("1.0.0"));
     }

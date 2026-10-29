@@ -1,12 +1,10 @@
 package com.ssafy.mozzi.domain.member.repository;
 
-import java.time.OffsetDateTime;
 import java.util.Optional;
 import jakarta.persistence.LockModeType;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -66,17 +64,5 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
               and m.deletedAt is null
             """)
     boolean existsActiveNickname(@Param("comparisonKey") String comparisonKey);
-
-    /**
-     * Creates the member's settings row with the schema defaults (reminder on at 21:00,
-     * Asia/Seoul).
-     *
-     * <p>Native, so the defaults have one home — the migration — rather than being repeated
-     * in an entity that nothing else reads yet.
-     */
-    @Modifying
-    @Query(value = "insert into member_setting (member_id, updated_at) values (:memberId, :now)",
-            nativeQuery = true)
-    void insertDefaultSetting(@Param("memberId") Long memberId, @Param("now") OffsetDateTime now);
 
 }
