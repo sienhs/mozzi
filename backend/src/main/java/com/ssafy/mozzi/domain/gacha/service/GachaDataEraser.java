@@ -7,10 +7,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ssafy.mozzi.domain.gacha.repository.GachaDrawRepository;
 import com.ssafy.mozzi.domain.gacha.repository.GachaDrawResultRepository;
 import com.ssafy.mozzi.domain.gacha.repository.MemberCardRepository;
+import com.ssafy.mozzi.domain.gacha.repository.MyMozziEmoticonRepository;
 import com.ssafy.mozzi.domain.wallet.service.WalletService;
 
 /**
- * Deletes a withdrawing member's draws, cards and wallet, children first: nothing in the
+ * Deletes a withdrawing member's draws, mozzi picks, cards and wallet, children first: nothing in the
  * schema cascades.
  */
 @Service
@@ -19,13 +20,16 @@ public class GachaDataEraser {
     private final GachaDrawResultRepository drawResultRepository;
     private final GachaDrawRepository drawRepository;
     private final MemberCardRepository memberCardRepository;
+    private final MyMozziEmoticonRepository myMozziRepository;
     private final WalletService walletService;
 
     public GachaDataEraser(GachaDrawResultRepository drawResultRepository, GachaDrawRepository drawRepository,
-            MemberCardRepository memberCardRepository, WalletService walletService) {
+            MemberCardRepository memberCardRepository, MyMozziEmoticonRepository myMozziRepository,
+            WalletService walletService) {
         this.drawResultRepository = drawResultRepository;
         this.drawRepository = drawRepository;
         this.memberCardRepository = memberCardRepository;
+        this.myMozziRepository = myMozziRepository;
         this.walletService = walletService;
     }
 
@@ -38,6 +42,7 @@ public class GachaDataEraser {
         walletService.lock(memberId);
         drawResultRepository.deleteByMember(memberId);
         drawRepository.deleteByMember(memberId);
+        myMozziRepository.deleteByMember(memberId);
         memberCardRepository.deleteByMember(memberId);
         walletService.deleteAll(memberId);
     }

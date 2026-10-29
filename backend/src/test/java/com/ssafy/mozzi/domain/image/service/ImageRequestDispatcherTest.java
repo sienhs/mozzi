@@ -19,6 +19,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
+import com.ssafy.mozzi.domain.gacha.entity.CardTier;
+import com.ssafy.mozzi.domain.gacha.entity.MozziCard;
+import com.ssafy.mozzi.domain.gacha.repository.MozziCardRepository;
+import com.ssafy.mozzi.domain.gacha.service.GachaProperties;
 import com.ssafy.mozzi.domain.image.entity.DiaryImage;
 import com.ssafy.mozzi.domain.image.entity.TimeOfDay;
 import com.ssafy.mozzi.domain.image.entity.Weather;
@@ -29,6 +33,7 @@ class ImageRequestDispatcherTest {
 
     private final DiaryRepository diaryRepository = mock(DiaryRepository.class);
     private final DiaryImageRepository imageRepository = mock(DiaryImageRepository.class);
+    private final MozziCardRepository cardRepository = mock(MozziCardRepository.class);
     private final DiaryImageResultService resultService = mock(DiaryImageResultService.class);
     private final List<ImageRequestPublisher.Message> sent = new ArrayList<>();
     private final List<PromptTranslator.Source> translated = new ArrayList<>();
@@ -92,6 +97,21 @@ class ImageRequestDispatcherTest {
         assertThat(sent.get(0).characterPrompt()).isEmpty();
     }
 
+    /** The member's mozzi for the emotion replaces the default character, with its look. */
+    @Test
+    void theMembersMozziIsDrawnWithItsPrompt() {
+        when(cardRepository.findById(30L)).thenReturn(Optional.of(MozziCard.register(
+                "S1-01-02", "S1", "달토끼 모찌", CardTier.LEGENDARY, Emotion.CALM,
+                "GACHA/S1-01-02_mozzi_legendary_001_calm.png", "wearing a navy star cape")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, 30L, null, null, null, null, "요리")));
+
+        dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
+
+        assertThat(sent.get(0).characterImageUrl())
+                .isEqualTo("https://s3.test/GACHA/S1-01-02_mozzi_legendary_001_calm.png");
+        assertThat(sent.get(0).characterPrompt()).isEqualTo("wearing a navy star cape");
+    }
+
     @Test
     void aRequestNoLongerPendingIsNotSent() {
         DiaryImage image = DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리"));
@@ -122,12 +142,13 @@ class ImageRequestDispatcherTest {
     void blockedPicksAreRejectedAndNotSent() {
         stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
         dispatcher = new ImageRequestDispatcher(
-                diaryRepository, imageRepository,
+                diaryRepository, imageRepository, cardRepository,
                 source -> {
                     throw new InappropriatePromptException();
                 },
                 sent::add, resultService,
                 new ImageProperties("", "a round mochi", true),
+                new GachaProperties("https://s3.test"),
                 mock(PlatformTransactionManager.class));
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
@@ -147,8 +168,9 @@ class ImageRequestDispatcherTest {
             return new PromptTranslator.Translation(en(source.where()), en(source.who()), en(source.what()));
         };
         return new ImageRequestDispatcher(
-                diaryRepository, imageRepository, translator, publisher, resultService,
+                diaryRepository, imageRepository, cardRepository, translator, publisher, resultService,
                 new ImageProperties(characterImageUrl, "a round mochi", true),
+                new GachaProperties("https://s3.test"),
                 mock(PlatformTransactionManager.class));
     }
 

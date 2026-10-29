@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ssafy.mozzi.domain.auth.exception.AuthErrorCode;
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
 import com.ssafy.mozzi.domain.gacha.service.GachaDataEraser;
+import com.ssafy.mozzi.domain.gacha.service.MyMozziService;
 import com.ssafy.mozzi.domain.member.dto.MemberDetailResponseDto;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
@@ -40,18 +41,21 @@ public class MemberService {
     private final PushDeviceService pushDeviceService;
     private final WalletService walletService;
     private final GachaDataEraser gachaDataEraser;
+    private final MyMozziService myMozziService;
     private final TermsProperties termsProperties;
     private final Clock clock;
 
     public MemberService(MemberRepository memberRepository, TermsAgreementRepository termsAgreementRepository,
             MemberSessionService sessionService, PushDeviceService pushDeviceService, WalletService walletService,
-            GachaDataEraser gachaDataEraser, TermsProperties termsProperties, Clock clock) {
+            GachaDataEraser gachaDataEraser, MyMozziService myMozziService, TermsProperties termsProperties,
+            Clock clock) {
         this.memberRepository = memberRepository;
         this.termsAgreementRepository = termsAgreementRepository;
         this.sessionService = sessionService;
         this.pushDeviceService = pushDeviceService;
         this.walletService = walletService;
         this.gachaDataEraser = gachaDataEraser;
+        this.myMozziService = myMozziService;
         this.termsProperties = termsProperties;
         this.clock = clock;
     }
@@ -93,7 +97,7 @@ public class MemberService {
     public MemberDetailResponseDto getMe(Long memberId) {
         Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "member " + memberId));
-        return MemberDetailResponseDto.from(member);
+        return MemberDetailResponseDto.from(member, myMozziService.list(memberId));
     }
 
     /**

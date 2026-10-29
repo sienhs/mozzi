@@ -27,12 +27,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
 import com.ssafy.mozzi.domain.diary.controller.DiaryController;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
+import com.ssafy.mozzi.domain.gacha.entity.CardTier;
 import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.image.entity.ImageStatus;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.support.DiaryFixtures;
+import com.ssafy.mozzi.support.GachaFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 /**
@@ -103,6 +105,7 @@ class DiaryImageApiTest {
                 .containsEntry("status", "PENDING")
                 .containsEntry("failure_count", 0)
                 .containsEntry("character_id", 7L)
+                .containsEntry("mozzi_card_id", null)
                 .containsEntry("time_of_day", "EVENING")
                 .containsEntry("weather", "RAINY")
                 .containsEntry("where_name", "우리집")
@@ -298,6 +301,30 @@ class DiaryImageApiTest {
                 .andExpect(jsonPath("$.code").value("IMAGE_ALREADY_REQUESTED"));
         requestForTest(someoneElse, diaryId, body(7, "null", "null", null, null, cooking))
                 .andExpect(status().isNotFound());
+    }
+
+    /** The member's mozzi for the diary's emotion goes into the picture, whatever characterId says. */
+    @Test
+    void theMozziPickedForTheDiarysEmotionIsStored() throws Exception {
+        GachaFixtures gacha = new GachaFixtures(jdbcTemplate);
+        gacha.reset();
+        try {
+            Long calm = gacha.card("S1-01-02", CardTier.LEGENDARY, Emotion.CALM, true);
+            gacha.owned(me, calm);
+            jdbcTemplate.update("""
+                    insert into my_mozzi_emoticon (member_id, emotion, card_id, updated_at)
+                    values (?, 'CALM', ?, now())
+                    """, me, calm);
+
+            request(me, diaryId, body(7, "null", "null", null, null, cooking)).andExpect(status().isAccepted());
+
+            assertThat(jdbcTemplate.queryForMap(
+                    "select character_id, mozzi_card_id from diary_image where diary_id = ?", diaryId))
+                    .containsEntry("character_id", 7L)
+                    .containsEntry("mozzi_card_id", calm);
+        } finally {
+            gacha.reset();
+        }
     }
 
     private ResultActions requestForTest(Long memberId, Long diaryId, String json) throws Exception {

@@ -8,6 +8,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
+import com.ssafy.mozzi.domain.gacha.entity.MozziCard;
+import com.ssafy.mozzi.domain.gacha.repository.MozziCardRepository;
+import com.ssafy.mozzi.domain.gacha.service.GachaProperties;
 import com.ssafy.mozzi.domain.image.entity.DiaryImage;
 import com.ssafy.mozzi.domain.image.entity.ImageStatus;
 import com.ssafy.mozzi.domain.image.entity.TimeOfDay;
@@ -29,31 +32,37 @@ public class ImageRequestDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(ImageRequestDispatcher.class);
 
-    /** Sent as the character image until one is set up; the AI server draws its own default. */
+    /** Sent as the character image when there is none; the AI server draws its own default. */
     static final String DEFAULT_CHARACTER_IMAGE = "DEFAULT";
 
     private final DiaryRepository diaryRepository;
     private final DiaryImageRepository diaryImageRepository;
+    private final MozziCardRepository mozziCardRepository;
     private final PromptTranslator translator;
     private final ImageRequestPublisher publisher;
     private final DiaryImageResultService resultService;
     private final ImageProperties properties;
+    private final GachaProperties gachaProperties;
     private final TransactionTemplate readOnly;
 
     public ImageRequestDispatcher(
             DiaryRepository diaryRepository,
             DiaryImageRepository diaryImageRepository,
+            MozziCardRepository mozziCardRepository,
             PromptTranslator translator,
             ImageRequestPublisher publisher,
             DiaryImageResultService resultService,
             ImageProperties properties,
+            GachaProperties gachaProperties,
             PlatformTransactionManager transactionManager) {
         this.diaryRepository = diaryRepository;
         this.diaryImageRepository = diaryImageRepository;
+        this.mozziCardRepository = mozziCardRepository;
         this.translator = translator;
         this.publisher = publisher;
         this.resultService = resultService;
         this.properties = properties;
+        this.gachaProperties = gachaProperties;
         this.readOnly = new TransactionTemplate(transactionManager);
         this.readOnly.setReadOnly(true);
     }
@@ -97,7 +106,13 @@ public class ImageRequestDispatcher {
     private Request load(Long diaryId) {
         Diary diary = diaryRepository.findById(diaryId).orElse(null);
         DiaryImage image = diaryImageRepository.findByDiaryId(diaryId).orElse(null);
-        return diary == null || image == null ? null : new Request(diary, image);
+        if (diary == null || image == null) {
+            return null;
+        }
+        MozziCard card = image.getMozziCardId() == null
+                ? null
+                : mozziCardRepository.findById(image.getMozziCardId()).orElse(null);
+        return new Request(diary, image, card);
     }
 
     /** The AI server takes {@code ""}, not {@code null}, for anything not picked or not set up. */
@@ -127,14 +142,23 @@ public class ImageRequestDispatcher {
         DiaryImage image = request.image();
         TimeOfDay timeOfDay = image.getTimeOfDay();
         Weather weather = image.getWeather();
-        String characterImageUrl = characterImageUrl(properties.defaultCharacterImageUrl());
+        MozziCard card = request.card();
+        String characterImageUrl;
+        String characterPrompt;
+        if (card != null) {
+            characterImageUrl = gachaProperties.imageUrl(card.getImageKey());
+            characterPrompt = nullToEmpty(card.getPrompt());
+        } else {
+            characterImageUrl = characterImageUrl(properties.defaultCharacterImageUrl());
+            characterPrompt = characterPrompt(characterImageUrl, properties.defaultCharacterPrompt());
+        }
         return new ImageRequestPublisher.Message(
                 diary.getId(),
                 diary.getMemberId(),
                 diary.getRecordDate().toString(),
                 diary.getEmotion().name(),
                 characterImageUrl,
-                characterPrompt(characterImageUrl, properties.defaultCharacterPrompt()),
+                characterPrompt,
                 timeOfDay == null ? "" : timeOfDay.english(),
                 weather.english(),
                 nullToEmpty(english.where()),
@@ -143,7 +167,8 @@ public class ImageRequestDispatcher {
                 test);
     }
 
-    private record Request(Diary diary, DiaryImage image) {
+    /** @param card the member's mozzi drawn into the picture, or {@code null} for the default */
+    private record Request(Diary diary, DiaryImage image, MozziCard card) {
     }
 
 }

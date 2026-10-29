@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
+import com.ssafy.mozzi.domain.gacha.service.MyMozziService;
 import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.icon.entity.MyIcon;
 import com.ssafy.mozzi.domain.image.dto.DiaryImageCreateRequestDto;
@@ -38,6 +39,7 @@ public class DiaryImageService {
     private final DiaryRepository diaryRepository;
     private final DiaryImageRepository diaryImageRepository;
     private final IdempotencyStore idempotencyStore;
+    private final MyMozziService myMozziService;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
@@ -45,11 +47,13 @@ public class DiaryImageService {
             DiaryRepository diaryRepository,
             DiaryImageRepository diaryImageRepository,
             IdempotencyStore idempotencyStore,
+            MyMozziService myMozziService,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.diaryRepository = diaryRepository;
         this.diaryImageRepository = diaryImageRepository;
         this.idempotencyStore = idempotencyStore;
+        this.myMozziService = myMozziService;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -86,7 +90,7 @@ public class DiaryImageService {
         Optional<DiaryImage> existing = diaryImageRepository.findByDiaryId(diaryId);
         existing.ifPresent(DiaryImageService::checkCanRetry);
 
-        DiaryImage.Selection selection = selectionOf(diaryRepository.findActiveIcons(diaryId), request);
+        DiaryImage.Selection selection = selectionOf(diary, request);
         DiaryImage image;
         if (existing.isPresent()) {
             image = existing.get();
@@ -119,7 +123,7 @@ public class DiaryImageService {
                     "image is PENDING: diaryId=" + diaryId);
         }
 
-        DiaryImage.Selection selection = selectionOf(diaryRepository.findActiveIcons(diaryId), request);
+        DiaryImage.Selection selection = selectionOf(diary, request);
         DiaryImage image;
         if (existing.isPresent()) {
             image = existing.get();
@@ -148,12 +152,15 @@ public class DiaryImageService {
     }
 
     /**
-     * Turns the picked icon ids into names. Each must be one of the diary's live icons and
-     * in the category it was sent for.
+     * Turns the picked icon ids into names, and takes the member's mozzi for the diary's
+     * emotion. Each icon must be one of the diary's live icons and in the category it was
+     * sent for. The request's {@code characterId} is stored as sent but not drawn.
      */
-    private static DiaryImage.Selection selectionOf(List<MyIcon> diaryIcons, DiaryImageCreateRequestDto request) {
+    private DiaryImage.Selection selectionOf(Diary diary, DiaryImageCreateRequestDto request) {
+        List<MyIcon> diaryIcons = diaryRepository.findActiveIcons(diary.getId());
         return new DiaryImage.Selection(
                 request.characterId(),
+                myMozziService.cardFor(diary.getMemberId(), diary.getEmotion()).orElse(null),
                 request.timeOfDay(),
                 request.weather(),
                 nameOf(diaryIcons, request.whereMyIconId(), IconCategory.WHERE),
