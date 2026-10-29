@@ -9,7 +9,7 @@
 | [api/diary.md](api/diary.md) | 이모티콘, 아이콘, 일기, 그림 생성 |
 | [api/home.md](api/home.md) | 홈, 앱 메타 |
 | [api/emotion-search.md](api/emotion-search.md) | 감정 검색 |
-| [api/gacha.md](api/gacha.md) | 모찌 뽑기, 도감, 조각 교환 |
+| [api/gacha.md](api/gacha.md) | 모찌 뽑기, 도감, 별조각 교환, 뽑기권 지급 |
 
 테이블 구조는 [erd.md](erd.md)에 있다.
 
@@ -40,7 +40,7 @@
 - [x] `POST /my-icons` 아이콘 만들기
 - [x] `GET /my-icons` 내 아이콘 목록
 - [x] `DELETE /my-icons/{myIconId}` 아이콘 삭제
-- [x] `POST /diaries` 일기 쓰기 — 멱등 재전송 응답, `reward` 미구현
+- [x] `POST /diaries` 일기 쓰기 — 멱등 재전송 응답 미구현
 - [x] `GET /diaries/daily` 하루 일기
 - [x] `GET /diaries/monthly` 한 달 감정 (캘린더)
 - [x] `GET /diaries` 일기 목록
@@ -68,16 +68,21 @@
 
 ### 모찌 뽑기
 
-- [ ] `GET /gacha/status` 뽑기 홈
-- [ ] `GET /gacha/rates` 등급별 확률
-- [ ] `POST /gacha/draws` 뽑기 (1장 / 10장)
-- [ ] `GET /gacha/collection` 도감
-- [ ] `POST /gacha/collection/seen` NEW 표시 지우기
-- [ ] `POST /gacha/exchanges` 조각으로 교환
+- [x] `GET /gacha/status` 뽑기 홈
+- [x] `GET /gacha/rates` 등급별 확률
+- [x] `POST /gacha/draws` 뽑기 (1~10장)
+- [x] `GET /gacha/collection` 도감
+- [x] `POST /gacha/collection/seen` NEW 표시 지우기
+- [x] `POST /gacha/exchanges` 별조각으로 교환
+- [x] `POST /rewards/daily-login` 매일 접속 보상 (뽑기권 10)
+- [x] 가입 보상 (`POST /auth/signup`, 뽑기권 20), 일기 작성 보상 (`POST /diaries`의 `reward`, 뽑기권 10)
+- [x] 회원 탈퇴 시 뽑기 데이터 파기
+
+시즌제는 없다. 뽑기 API에 `seasonId` 파라미터와 `season` 응답 필드가 없다.
 
 ### 공통
 
-- [ ] `Idempotency-Key` 재전송 시 첫 응답 재사용 (현재는 헤더 검증만)
+- [ ] `Idempotency-Key` 재전송 시 첫 응답 재사용 — 뽑기·교환만 구현. 일기 작성은 헤더 검증만
 - [ ] 호출 제한 (`429 RATE_LIMITED`)
 
 ## 화면별 API
@@ -103,7 +108,8 @@
 | P-05 확률 정보 | `GET /gacha/rates` |
 | P-02 · P-03 · P-04 개봉 · 결과, P-12 중복, P-11 실패 | `POST /gacha/draws` |
 | P-06 도감, P-07 모찌 상세 | `GET /gacha/collection`, `POST /gacha/collection/seen` |
-| P-08 · P-09 · P-13 조각 교환 | `GET /gacha/collection`, `POST /gacha/exchanges` |
+| P-08 · P-09 · P-13 별조각 교환 | `GET /gacha/collection`, `POST /gacha/exchanges` |
+| 앱 실행 · 포그라운드 진입 (매일 접속 보상 얼럿) | `POST /rewards/daily-login` |
 
 ## 결정이 필요한 항목
 
@@ -111,8 +117,8 @@
 
 | # | 항목 | 현재 상태 |
 |---|---|---|
-| 1 | 조각 이름 | Figma에 "별조각"과 "빛조각"이 섞여 있음. API 필드는 `shard`로 두고 문구만 정하면 됨 |
-| 2 | 뽑기권 지급량 | 초안은 기록 1건에 1장. 10장 뽑기(뽑기권 10장)가 있으니 지급량 재검토 필요. 날짜당 1번만 지급은 확정 (일기 삭제가 없어져 재작성 경우는 사라짐) |
+| 1 | 조각 이름 | 확정: "별조각". API 필드는 `shard` |
+| 2 | 뽑기권 지급량 | 확정: 가입 20, 매일 접속 10, 일기 작성 10 (날짜당 1번). [gacha.md](api/gacha.md#뽑기권-지급) |
 | 3 | 닉네임 변경 화면 | A-02는 "설정에서 바꿀 수 있어요"라고 안내하지만 목업에 변경 화면이 없음. SET-01 프로필 행에서 진입하는 화면 필요 |
 | 4 | 캐릭터 | 캐릭터 테이블(이미지 URL, 프롬프트)과 보유 확인. 지금은 설정값의 기본 캐릭터 하나 |
 | 5 | 감정 검색 질문 보관 기간 | 90일로 구현(`ExpiredEmotionSearchCleaner`, 매일 04:40). 처리방침 7조에 아직 없음 |

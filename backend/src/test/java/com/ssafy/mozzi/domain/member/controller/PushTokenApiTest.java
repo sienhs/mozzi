@@ -25,6 +25,7 @@ import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.support.DiaryFixtures;
+import com.ssafy.mozzi.support.GachaFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 /**
@@ -147,8 +148,11 @@ class PushTokenApiTest {
     }
 
     private Long newMember(String name) {
-        return memberRepository.saveAndFlush(
+        Long memberId = memberRepository.saveAndFlush(
                 Member.signUp(name + "@gmail.com", AuthProvider.GOOGLE, name, name)).getId();
+        // Withdrawal deletes the wallet the sign-up transaction would have opened.
+        new GachaFixtures(jdbcTemplate).wallet(memberId);
+        return memberId;
     }
 
     private String token(Long memberId) {
