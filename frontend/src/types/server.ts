@@ -75,6 +75,7 @@ export interface MetaResponse {
   minSupportedVersion: string;
   latestVersion: string;
 }
+export type TimeOfDay = 'MORNING' | 'LUNCH' | 'EVENING';
 // 그림 요청 본문 (POST /diaries/{id}/image).
 export interface ImageRequestBody {
   characterId: number;
@@ -208,7 +209,7 @@ export function parseHome(value: unknown): HomeResponse {
     recentDiary,
   };
 }
-function parseSummary(value: unknown): DiarySummary {
+export function parseSummary(value: unknown): DiarySummary {
   if (
     !isObject(value) ||
     !isId(value.diaryId) ||

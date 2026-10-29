@@ -33,12 +33,32 @@ const custom = (
 test('preset and custom activities share the three-choice limit; selected tags remain removable', () => {
   const a = custom('a', '악기 연습');
   const selection = toggleTag(pick('activity.cooking', 'activity.walk'), a);
-  expect(canSelectTag(selection, tag('activity.music'))).toBe(false);
+  expect(canSelectTag(selection, tag('activity.reading'))).toBe(false);
   expect(canSelectTag(selection, custom('b', '수영'))).toBe(false);
   expect(toggleTag(selection, custom('b', '수영'))).toBe(selection);
   expect(toggleTag(selection, a).activities).toEqual([
     'activity.cooking',
     'activity.walk',
+  ]);
+});
+test('only the basic tags are preset; weather matches the server weather values', () => {
+  expect(presetTagsOf('activity').map(item => item.label)).toEqual([
+    '공부',
+    '일하기',
+    '운동',
+    '산책',
+    '휴식',
+    '식사',
+    '요리',
+    '독서',
+  ]);
+  expect(presetTagsOf('place')).toHaveLength(5);
+  expect(presetTagsOf('companion')).toHaveLength(4);
+  expect(presetTagsOf('weather').map(item => item.code)).toEqual([
+    'SUNNY',
+    'CLOUDY',
+    'RAINY',
+    'SNOWY',
   ]);
 });
 test('custom places replace preset places and share the single-choice limit', () => {
