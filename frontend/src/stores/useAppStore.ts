@@ -223,7 +223,9 @@ export const useAppStore = create<AppState>((set, get) => {
       if (state.requestStatus === 'requesting') return null;
       const existing = recordEntry(state);
       if (existing && existing.id !== state.rewriteId) return null;
-      const companionId = useGachaStore.getState().equippedId;
+      const companionId = state.draft.emotion
+        ? useGachaStore.getState().equippedByEmotion[state.draft.emotion]
+        : 'default';
       const library = useTagStore.getState().tags;
       const recordDate = allowedRecordDate(state.draft.recordDate);
       const draft = { ...state.draft, recordDate };

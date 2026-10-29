@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Smile, Sparkles, FileText, Leaf } from 'lucide-react-native';
@@ -7,7 +7,11 @@ import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { ErrorBanner, StatePanel } from '@/components/ui/Feedback';
 import { TierBadge } from '@/components/gacha/GachaUI';
-import { CompanionArtwork, MyPageTitle } from '@/components/mypage/CompanionUI';
+import { MyPageTitle } from '@/components/mypage/CompanionUI';
+import { EmotionSlotPicker } from '@/components/mypage/EmotionSlotPicker';
+import { EmotionImage } from '@/components/emotion/Emotion';
+import { emotions, isEmotion } from '@/constants/emotions';
+import type { Emotion } from '@/types/diary';
 import { companions, isCompanionId } from '@/constants/companions';
 import { colors } from '@/theme/tokens';
 import { useGachaStore } from '@/stores/useGachaStore';
@@ -15,8 +19,8 @@ import { useGachaStore } from '@/stores/useGachaStore';
 const benefits = [
   {
     icon: Smile,
-    title: '감정 모찌 5종 변경',
-    description: '일기의 감정을 선택한 모찌와 함께 표현해요.',
+    title: '선택한 감정의 모찌 변경',
+    description: '다른 감정에 장착한 모찌는 그대로 유지돼요.',
   },
   {
     icon: Sparkles,
@@ -30,9 +34,15 @@ const benefits = [
   },
 ];
 export function EquipCompanionScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, emotion: routeEmotion } = useLocalSearchParams<{
+    id: string;
+    emotion?: string;
+  }>();
+  const [emotion, setEmotion] = useState<Emotion>(
+    isEmotion(routeEmotion) ? routeEmotion : 'happy',
+  );
   const owned = useGachaStore(state => state.owned);
-  const equippedId = useGachaStore(state => state.equippedId);
+  const equippedId = useGachaStore(state => state.equippedByEmotion[emotion]);
   const equipping = useGachaStore(state => state.equipping);
   const error = useGachaStore(state => state.equipmentError);
   const mounted = useRef(false);
@@ -60,7 +70,9 @@ export function EquipCompanionScreen() {
   const alreadyEquipped = id === equippedId;
   async function equip() {
     if (alreadyEquipped || equipping) return;
-    const succeeded = await useGachaStore.getState().equip(companion.id);
+    const succeeded = await useGachaStore
+      .getState()
+      .equip(emotion, companion.id);
     if (succeeded && mounted.current)
       router.dismissTo({
         pathname: '/mypage',
@@ -79,7 +91,7 @@ export function EquipCompanionScreen() {
               ? '현재 장착 중'
               : equipping
                 ? '장착하고 있어요'
-                : '이 모찌 장착하기'
+                : `${emotions[emotion].label}에 장착하기`
           }
           disabled={alreadyEquipped || equipping}
           loading={equipping}
@@ -88,6 +100,12 @@ export function EquipCompanionScreen() {
       }
       contentStyle={{ gap: 16 }}
     >
+      <AppText variant="label">장착할 감정을 선택해 주세요</AppText>
+      <EmotionSlotPicker
+        value={emotion}
+        onChange={setEmotion}
+        disabled={equipping}
+      />
       <View
         style={{
           backgroundColor: colors.white,
@@ -97,7 +115,7 @@ export function EquipCompanionScreen() {
           alignItems: 'center',
         }}
       >
-        <CompanionArtwork id={companion.id} />
+        <EmotionImage emotion={emotion} companionId={companion.id} size={180} />
         <TierBadge tier={companion.tier} />
         <AppText variant="title" style={{ textAlign: 'center' }}>
           {companion.name}
@@ -116,7 +134,9 @@ export function EquipCompanionScreen() {
       >
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           <Leaf size={22} color={colors.sage} />
-          <AppText variant="label">이 모찌를 장착하면</AppText>
+          <AppText variant="label">
+            {emotions[emotion].label}에 이 모찌를 장착하면
+          </AppText>
         </View>
         {benefits.map(item => (
           <View

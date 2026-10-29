@@ -13,6 +13,7 @@ import {
   useAppStore,
 } from '@/stores/useAppStore';
 import { retryEntry, rewriteEntry } from '@/features/diary/recordActions';
+import { colors } from '@/theme/tokens';
 
 export function DiaryHomeScreen() {
   const entries = useAppStore(state => state.entries);
@@ -90,18 +91,53 @@ export function DiaryHomeScreen() {
       }
     >
       <View style={{ gap: 8 }}>
-        <AppText variant="small">{formatDate(today)}</AppText>
+        <View
+          style={{
+            alignSelf: 'flex-start',
+            backgroundColor: colors.sageSoft,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 4,
+          }}
+        >
+          <AppText variant="small" style={{ color: colors.mossInk }}>
+            {formatDate(today)}
+          </AppText>
+        </View>
         <Heading
-          titleStyle={!entry ? { fontSize: 28, lineHeight: 40 } : undefined}
+          titleStyle={{ fontSize: 32, lineHeight: 42 }}
           title={copy.title}
           description={copy.description}
         />
       </View>
       {!entry && (
-        <PictureState
-          caption="태그 몇 개면 그림이 돼요"
-          captionStyle={{ fontSize: 18, lineHeight: 28, textAlign: 'center' }}
-        />
+        <View
+          style={{
+            backgroundColor: colors.paper,
+            borderRadius: 26,
+            borderWidth: 1,
+            borderColor: colors.paperEdge,
+            padding: 8,
+            boxShadow: '0 6px 20px rgba(91, 65, 39, 0.07)',
+          }}
+        >
+          <View
+            style={{
+              alignSelf: 'flex-start',
+              margin: 12,
+              borderBottomWidth: 2,
+              borderBottomColor: colors.soft,
+            }}
+          >
+            <AppText variant="caption" style={{ color: colors.primary }}>
+              오늘의 한 페이지
+            </AppText>
+          </View>
+          <PictureState
+            caption="태그 몇 개면 그림이 돼요"
+            captionStyle={{ fontSize: 18, lineHeight: 28, textAlign: 'center' }}
+          />
+        </View>
       )}
       {entry && phase === 'completed' && (
         <DiaryCard entry={entry} onPress={() => openEntry(entry.id)} />
@@ -137,7 +173,12 @@ export function DiaryHomeScreen() {
       )}
       {!entry && recent && (
         <View style={{ gap: 12 }}>
-          <AppText variant="heading">지난 기록</AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <AppText variant="heading">지난 기록</AppText>
+            <View
+              style={{ flex: 1, height: 1, backgroundColor: colors.paperEdge }}
+            />
+          </View>
           <DiaryRow entry={recent} onPress={() => openEntry(recent.id)} />
         </View>
       )}

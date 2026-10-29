@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Leaf, Search, Star, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/ui/Screen';
@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/Button';
 import { Sheet } from '@/components/ui/Sheet';
 import { OwnedCompanionCard } from '@/components/mypage/CompanionUI';
 import { mochiCategories } from '@/constants/companions';
+import { emotions, isEmotion } from '@/constants/emotions';
+import { EmotionSlotPicker } from '@/components/mypage/EmotionSlotPicker';
+import type { Emotion } from '@/types/diary';
 import { tierOrder, tiers } from '@/constants/gacha';
 import { colors } from '@/theme/tokens';
 import { useGachaStore } from '@/stores/useGachaStore';
@@ -29,7 +32,11 @@ const sortLabels: Record<CompanionSort, string> = {
 export function OwnedCompanionsScreen() {
   const owned = useGachaStore(state => state.owned);
   const acquiredAt = useGachaStore(state => state.acquiredAt);
-  const equippedId = useGachaStore(state => state.equippedId);
+  const params = useLocalSearchParams<{ emotion?: string }>();
+  const [emotion, setEmotion] = useState<Emotion>(
+    isEmotion(params.emotion) ? params.emotion : 'happy',
+  );
+  const equippedId = useGachaStore(state => state.equippedByEmotion[emotion]);
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<MochiCategory | null>(null);
@@ -49,8 +56,8 @@ export function OwnedCompanionsScreen() {
   const total = ownedCompanionIds(owned).length;
   const select = useCallback(
     (id: CompanionId) =>
-      router.push({ pathname: '/mypage/mochi/[id]', params: { id } }),
-    [],
+      router.push({ pathname: '/mypage/mochi/[id]', params: { id, emotion } }),
+    [emotion],
   );
   const renderItem = useCallback(
     ({ item }: { item: CompanionId }) => (
@@ -100,6 +107,10 @@ export function OwnedCompanionsScreen() {
         columnWrapperStyle={{ gap: 8 }}
         ListHeaderComponent={
           <View style={{ gap: 14, paddingTop: 8, paddingBottom: 4 }}>
+            <AppText variant="label">
+              {emotions[emotion].label}에 함께할 모찌
+            </AppText>
+            <EmotionSlotPicker value={emotion} onChange={setEmotion} />
             <View style={{ position: 'relative' }}>
               <Input
                 accessibilityLabel="모찌 이름 검색"
@@ -114,7 +125,7 @@ export function OwnedCompanionsScreen() {
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <FilterButton
-                label={`카테고리 · ${categoryLabel}`}
+                label={category ? categoryLabel : '카테고리 · 전체'}
                 active={!!category}
                 onPress={() => {
                   setPendingCategory(category);
@@ -122,7 +133,8 @@ export function OwnedCompanionsScreen() {
                 }}
               />
               <FilterButton
-                label={`등급 · ${tier ? tiers[tier].label : '전체'}`}
+                label={tier ? tiers[tier].label : '등급 · 전체'}
+                iconColor={tier ? tiers[tier].color : colors.gachaGoldInk}
                 active={!!tier}
                 onPress={() => {
                   setPendingTier(tier);
@@ -259,11 +271,13 @@ function FilterButton({
   active,
   onPress,
   star,
+  iconColor = colors.sage,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
   star?: boolean;
+  iconColor?: string;
 }) {
   const Symbol = star ? Star : Leaf;
   return (
@@ -271,9 +285,19 @@ function FilterButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      style={[styles.filter, active && { borderColor: colors.primary }]}
+      style={[
+        styles.filter,
+        active && {
+          borderColor: colors.primary,
+          backgroundColor: colors.peachPaper,
+        },
+      ]}
     >
-      <Symbol size={18} color={star ? colors.gachaGoldInk : colors.sage} />
+      <Symbol
+        size={18}
+        color={iconColor}
+        fill={star ? iconColor : colors.sageSoft}
+      />
       <AppText variant="caption" style={{ flex: 1, color: colors.ink }}>
         {label}
       </AppText>
@@ -328,6 +352,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.line,
+    backgroundColor: colors.paper,
     borderRadius: 16,
     padding: 10,
     minHeight: 48,

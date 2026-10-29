@@ -10,6 +10,7 @@ import { EmotionPicker } from '@/components/emotion/Emotion';
 import { CalendarDay } from '@/features/calendar/CalendarScreen';
 import { companionEmotionSource } from '@/constants/companions';
 import { gachaArt } from '@/constants/gacha';
+import { emotions } from '@/constants/emotions';
 import { useMockControls } from '@/mocks/controls';
 import { emptyDraft, useAppStore } from '@/stores/useAppStore';
 import { initialGachaState, useGachaStore } from '@/stores/useGachaStore';
@@ -49,10 +50,10 @@ test('mypage tab opens the page, selecting a card does not equip, and a successf
   expect(app.getPathname()).toBe('/mypage');
   expect(screen.getByRole('tab', { name: '마이페이지' })).toBeSelected();
   expect(screen.getByText('테스트 님')).toBeOnTheScreen();
-  expect(screen.queryByRole('button', { name: '설정' })).toBeNull();
+  expect(screen.getByRole('button', { name: '설정' })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '로그아웃' })).toBeNull();
   await fireEvent.press(
-    screen.getByRole('button', { name: '내 모찌 변경하기' }),
+    screen.getByRole('button', { name: '행복 모찌 변경하기' }),
   );
   expect(app.getPathname()).toBe('/mypage/owned');
   expect(screen.queryByText('6종 보유')).toBeNull();
@@ -62,22 +63,22 @@ test('mypage tab opens the page, selecting a card does not equip, and a successf
   });
   await fireEvent.press(screen.getByRole('button', { name: '포도 모찌' }));
   expect(app.getPathname()).toBe('/mypage/mochi/grape');
-  expect(useGachaStore.getState().equippedId).toBe('default');
+  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
   useMockControls.getState().failNext('equip');
   await fireEvent.press(
-    screen.getByRole('button', { name: '이 모찌 장착하기' }),
+    screen.getByRole('button', { name: '행복에 장착하기' }),
   );
   await advance(450);
   expect(
     screen.getByText('모찌를 장착하지 못했어요. 다시 시도해 주세요.'),
   ).toBeOnTheScreen();
-  expect(useGachaStore.getState().equippedId).toBe('default');
+  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
   await fireEvent.press(
-    screen.getByRole('button', { name: '이 모찌 장착하기' }),
+    screen.getByRole('button', { name: '행복에 장착하기' }),
   );
   await advance(450);
   expect(app.getPathname()).toBe('/mypage');
-  expect(useGachaStore.getState().equippedId).toBe('grape');
+  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('grape');
   expect(screen.getByText('장착 완료!')).toBeOnTheScreen();
   await advance(3000);
   expect(screen.queryByText('장착 완료!')).toBeNull();
@@ -85,16 +86,26 @@ test('mypage tab opens the page, selecting a card does not equip, and a successf
   expect(screen.getByLabelText('유리병 속 기본 모찌').props.source).toBe(
     gachaArt.mochi,
   );
-  expect(useGachaStore.getState().equippedId).toBe('grape');
+  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('grape');
 }, 30000);
 
-test('profile card opens settings and back returns to the selected mypage tab', async () => {
+test('settings gear opens settings while profile card is static, and back returns to mypage', async () => {
   const app = await renderRouter('./src/app', { initialUrl: '/mypage' });
   expect(screen.getAllByRole('tab')).toHaveLength(5);
   expect(screen.getByRole('tab', { name: '마이페이지' })).toBeSelected();
-  await fireEvent.press(screen.getByRole('button', { name: '설정으로 이동' }));
+  expect(screen.queryByRole('button', { name: '설정으로 이동' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '설정' }));
   expect(app.getPathname()).toBe('/settings');
   expect(screen.getByRole('button', { name: '프로필 정보' })).toBeOnTheScreen();
+  expect(screen.queryByText('기록')).toBeNull();
+  expect(screen.queryByText('그림 저장 위치')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '프로필 정보' }));
+  expect(
+    screen.getByText('닉네임은 가입 후 변경할 수 없어요.'),
+  ).toBeOnTheScreen();
+  expect(screen.queryByRole('textbox', { name: '닉네임' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '닉네임 저장' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '확인' }));
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(app.getPathname()).toBe('/mypage');
   expect(screen.getByRole('tab', { name: '마이페이지' })).toBeSelected();
@@ -135,9 +146,17 @@ test('owned filters combine, cancel preserves selection, and empty filters can b
 }, 30000);
 
 test('picker uses the current companion while legacy calendar cells keep the default image', async () => {
-  useGachaStore.setState({ equippedId: 'grape' });
+  useGachaStore.setState({
+    equippedByEmotion: {
+      ...initialGachaState().equippedByEmotion,
+      happy: 'grape',
+    },
+  });
   await render(<EmotionPicker value="happy" onChange={jest.fn()} />);
   expect(screen.getByLabelText('행복 모찌').props.source).toBe(501);
+  expect(screen.getByLabelText('보통 모찌').props.source).toBe(
+    companionEmotionSource('default', 'neutral'),
+  );
   await cleanup();
   await render(
     <CalendarDay
@@ -163,6 +182,27 @@ test('picker uses the current companion while legacy calendar cells keep the def
   );
   expect(screen.getByLabelText('행복 모찌').props.source).toBe(502);
 });
+
+test('emotion chosen on mypage is carried through owned list and confirmation', async () => {
+  const app = await renderRouter('./src/app', { initialUrl: '/mypage' });
+  await fireEvent.press(
+    screen.getByRole('button', { name: `${emotions.sad.label} 모찌 변경하기` }),
+  );
+  expect(
+    screen.getByRole('radio', { name: `${emotions.sad.label} 장착 설정` }),
+  ).toBeSelected();
+  await fireEvent.press(screen.getByRole('button', { name: '포도 모찌' }));
+  expect(
+    screen.getByRole('radio', { name: `${emotions.sad.label} 장착 설정` }),
+  ).toBeSelected();
+  await fireEvent.press(
+    screen.getByRole('button', { name: `${emotions.sad.label}에 장착하기` }),
+  );
+  await advance(450);
+  expect(app.getPathname()).toBe('/mypage');
+  expect(useGachaStore.getState().equippedByEmotion.sad).toBe('grape');
+  expect(useGachaStore.getState().equippedByEmotion.happy).toBe('default');
+}, 30000);
 
 test('unowned detail routes cannot equip and unauthenticated users cannot open mypage', async () => {
   await renderRouter('./src/app', {

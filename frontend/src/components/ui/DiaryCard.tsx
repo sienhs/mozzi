@@ -79,8 +79,11 @@ export function DiaryCard({
     </>
   );
   const style = {
-    backgroundColor: colors.white,
+    backgroundColor: colors.paper,
     borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.paperEdge,
+    boxShadow: '0 5px 16px rgba(91, 65, 39, 0.06)',
     overflow: 'hidden' as const,
   };
   return onPress ? (
@@ -109,7 +112,9 @@ export function DiaryRow({
       accessibilityLabel={`${formatDate(entry.date)} ${entry.title}`}
       onPress={onPress}
       style={{
-        backgroundColor: colors.white,
+        backgroundColor: colors.paper,
+        borderWidth: 1,
+        borderColor: colors.paperEdge,
         borderRadius: 20,
         paddingVertical: 14,
         paddingLeft: 16,

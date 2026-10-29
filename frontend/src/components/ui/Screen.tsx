@@ -55,7 +55,7 @@ export function ScreenHeader({
         onLongPress={onTitleLongPress}
         style={{ flex: 1 }}
       >
-        {titleContent ?? <AppText variant="label">{title}</AppText>}
+        {titleContent ?? <AppText variant="heading">{title}</AppText>}
       </Pressable>
       {action && (
         <Pressable
@@ -161,7 +161,7 @@ export function Heading({
   display?: boolean;
 }) {
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 10 }}>
       {eyebrow && (
         <AppText variant="caption" style={{ color: colors.primary }}>
           {eyebrow}
@@ -194,6 +194,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.page,
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 6,
   },
   leading: { width: 48, height: 48, justifyContent: 'center' },
   trailing: {
@@ -205,7 +206,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: spacing.page,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.page,
     gap: spacing.section,
   },

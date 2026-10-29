@@ -9,6 +9,9 @@ export const emotionOrder: Emotion[] = [
   'sad',
   'angry',
 ];
+export function isEmotion(value: unknown): value is Emotion {
+  return typeof value === 'string' && emotionOrder.includes(value as Emotion);
+}
 // Keep these static require calls: Metro must discover every original PNG at build time.
 export const emotions: Record<
   Emotion,

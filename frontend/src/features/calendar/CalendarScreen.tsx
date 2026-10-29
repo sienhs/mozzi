@@ -96,7 +96,17 @@ export function CalendarScreen() {
   }
   return (
     <Screen tabbed title="캘린더" contentStyle={{ gap: 24 }}>
-      <View style={{ gap: 4 }}>
+      <View
+        style={{
+          gap: 6,
+          backgroundColor: colors.paper,
+          padding: 12,
+          borderRadius: 24,
+          borderWidth: 1,
+          borderColor: colors.paperEdge,
+          boxShadow: '0 4px 18px rgba(91, 65, 39, 0.04)',
+        }}
+      >
         <View className="flex-row items-center justify-between">
           <Pressable
             accessibilityRole="button"
@@ -187,4 +197,6 @@ const monthButton = {
   height: 48,
   alignItems: 'center' as const,
   justifyContent: 'center' as const,
+  borderRadius: 16,
+  backgroundColor: colors.sageSoft,
 };

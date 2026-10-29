@@ -99,10 +99,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    borderWidth: 1,
+    borderColor: colors.pressed,
+    boxShadow: '0 3px 0 rgba(96, 51, 31, 0.14)',
   },
-  secondary: { backgroundColor: colors.white },
+  secondary: {
+    backgroundColor: colors.white,
+    borderColor: colors.paperEdge,
+    boxShadow: 'none',
+  },
   google: { borderWidth: 1, borderColor: colors.border },
-  disabled: { backgroundColor: colors.line },
+  disabled: {
+    backgroundColor: colors.line,
+    borderColor: colors.line,
+    boxShadow: 'none',
+  },
   link: {
     minHeight: 48,
     paddingHorizontal: 8,
