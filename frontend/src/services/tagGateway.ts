@@ -8,7 +8,7 @@ import {
 } from '@/types/server';
 import { api } from './api';
 
-// 내 태그 = 서버 내 아이콘 (GET·POST·DELETE /my-icons). 카테고리마다 9개, 이름 10자까지.
+// 내 태그 = 서버 내 아이콘 (GET·POST·DELETE /my-icons). 카테고리마다 30개, 이름 10자까지.
 // 서버에는 기본 태그가 없어서 기본 태그도 같은 이름의 내 아이콘으로 만들어 쓴다 (useTagStore.ensureIcon).
 export const iconCategoryOf: Record<CustomTagCategory, IconCategory> = {
   activity: 'WHAT',
@@ -23,7 +23,7 @@ export const tagCategoryOf: Record<IconCategory, CustomTagCategory> = {
 export const isIconCategory = (
   category: TagCategory,
 ): category is CustomTagCategory => category !== 'weather';
-export const MY_ICON_LIMIT = 9;
+export const MY_ICON_LIMIT = 30;
 
 export interface TagGateway {
   list(): Promise<MyIcon[]>;

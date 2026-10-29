@@ -28,7 +28,7 @@ import com.ssafy.mozzi.global.entity.BaseTimeEntity;
 public class MyIcon extends BaseTimeEntity {
 
     /** Per category, deleted icons not counted. */
-    public static final int MAX_PER_CATEGORY = 9;
+    public static final int MAX_PER_CATEGORY = 30;
     public static final int NAME_MAX_LENGTH = 10;
 
     @Id

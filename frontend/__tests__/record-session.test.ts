@@ -131,20 +131,20 @@ test('one tap creates the diary without a line, then requests the picture with t
   expect(device.has(`mozzi.image-requests.v1.${MEMBER}`)).toBe(true);
 });
 
-test('preset icons are reused, hidden from my tags, and count toward the server limit of nine', async () => {
+test('preset icons are reused, hidden from my tags, and count toward the server limit of thirty', async () => {
   server.icon('요리', 'WHAT');
-  for (let i = 0; i < 8; i++) server.icon(`활동${i}`, 'WHAT');
+  for (let i = 0; i < 29; i++) server.icon(`활동${i}`, 'WHAT');
   useTagStore.getState().resetSession();
   await useTagStore.getState().load();
   // 기본 태그와 같은 이름은 내 태그 목록에 보이지 않는다.
-  expect(useTagStore.getState().tags).toHaveLength(8);
+  expect(useTagStore.getState().tags).toHaveLength(29);
   expect(await useTagStore.getState().ensureIcon(tag('activity.cooking'))).toBe(
     server.state.icons[0].myIconId,
   );
   expect(server.callsTo('POST', '/my-icons')).toHaveLength(0);
   const added = await useTagStore.getState().add('새 활동', 'activity');
   expect(added).toEqual({ kind: 'none' });
-  expect(useTagStore.getState().error).toContain('9개');
+  expect(useTagStore.getState().error).toContain('30개');
   expect(server.callsTo('POST', '/my-icons')).toHaveLength(0);
   // 다른 카테고리는 따로 센다.
   expect(await useTagStore.getState().add('새 장소', 'place')).toMatchObject({

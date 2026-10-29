@@ -117,7 +117,7 @@ class DiaryConcurrencyTest {
     }
 
     @Test
-    void twoIconsAtEightDoNotMakeTen() throws Exception {
+    void twoIconsForTheLastSlotDoNotExceedTheLimit() throws Exception {
         for (int i = 0; i < MyIcon.MAX_PER_CATEGORY - 1; i++) {
             fixtures.myIcon(memberId, "장소" + i, IconCategory.WHERE);
         }

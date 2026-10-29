@@ -24,6 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.icon.entity.IconCategory;
+import com.ssafy.mozzi.domain.icon.entity.MyIcon;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
@@ -107,12 +108,12 @@ class MyIconApiTest {
     }
 
     @Test
-    void nineIconsPerCategory() throws Exception {
-        for (int i = 0; i < 9; i++) {
+    void thirtyIconsPerCategory() throws Exception {
+        for (int i = 0; i < MyIcon.MAX_PER_CATEGORY; i++) {
             create(me, "장소" + i, "WHERE").andExpect(status().isCreated());
         }
 
-        create(me, "열번째", "WHERE")
+        create(me, "서른한번째", "WHERE")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("MY_ICON_LIMIT_EXCEEDED"));
         // The limit is per category and per member.

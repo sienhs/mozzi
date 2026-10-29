@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.endsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -439,6 +440,52 @@ class DiaryApiTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void contentCanBeAddedToADiarySavedWithoutOne() throws Exception {
+        long diaryId = body(create(me, calm, "null", cooking)).get("diaryId").asLong();
+
+        writeContent(me, diaryId, "\"  오므라이스를 만들어 먹었어  \"")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diaryId").value(diaryId))
+                .andExpect(jsonPath("$.content").value("오므라이스를 만들어 먹었어"));
+
+        daily(me, today).andExpect(jsonPath("$.content").value("오므라이스를 만들어 먹었어"));
+    }
+
+    /** A retry after a lost response succeeds; a different text does not replace the first. */
+    @Test
+    void contentIsWrittenOnlyOnce() throws Exception {
+        long diaryId = body(create(me, calm, "\"처음 쓴 글\"", cooking)).get("diaryId").asLong();
+
+        writeContent(me, diaryId, "\"처음 쓴 글\"").andExpect(status().isOk());
+        writeContent(me, diaryId, "\"다른 글\"")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DIARY_CONTENT_ALREADY_WRITTEN"));
+
+        daily(me, today).andExpect(jsonPath("$.content").value("처음 쓴 글"));
+    }
+
+    @Test
+    void addedContentFollowsTheSameRules() throws Exception {
+        long diaryId = body(create(me, calm, "null", cooking)).get("diaryId").asLong();
+
+        writeContent(me, diaryId, "\"   \"").andExpect(status().isBadRequest());
+        writeContent(me, diaryId, "\"" + "가".repeat(51) + "\"")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].reason").value("50자 이하로 입력해 주세요."));
+        daily(me, today).andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    void someoneElsesDiaryIsNotFoundForContent() throws Exception {
+        long diaryId = body(create(me, calm, "null", cooking)).get("diaryId").asLong();
+
+        writeContent(someoneElse, diaryId, "\"남의 일기\"")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        daily(me, today).andExpect(jsonPath("$.content").isEmpty());
+    }
+
     /** A day's record stays as it was: there is no deleting a diary. */
     @Test
     void diariesCannotBeDeleted() throws Exception {
@@ -465,6 +512,12 @@ class DiaryApiTest {
         return """
                 {"emoticonId": %d, "content": %s, "myIconIds": %s}
                 """.formatted(emoticonId, content, List.of(myIconIds));
+    }
+
+    private ResultActions writeContent(Long memberId, long diaryId, String content) throws Exception {
+        return mockMvc.perform(as(memberId, patch("/api/v1/diaries/{id}/content", diaryId))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\": " + content + "}"));
     }
 
     private ResultActions daily(Long memberId, LocalDate date) throws Exception {

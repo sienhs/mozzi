@@ -36,7 +36,8 @@ import com.ssafy.mozzi.global.entity.BaseTimeEntity;
  * concurrent insert.
  *
  * <p>Writes to an existing diary must start from {@code DiaryRepository#findForUpdate}. Today
- * that is the picture request, which must not let two requests both see "no picture yet".
+ * that is the picture request, which must not let two requests both see "no picture yet", and
+ * adding the one-line diary later.
  * {@link DynamicUpdate} keeps an update to only the columns it changed.
  */
 @Entity
@@ -106,6 +107,14 @@ public class Diary extends BaseTimeEntity {
     public static Diary create(
             Long memberId, LocalDate recordDate, Emoticon emoticon, String content, Collection<MyIcon> myIcons) {
         return new Diary(memberId, recordDate, emoticon, content, myIcons);
+    }
+
+    /**
+     * Fills in the one-line diary of a diary saved without one. What was written stays as it
+     * was, so the caller checks {@link #getContent()} is {@code null} first.
+     */
+    public void writeContent(String content) {
+        this.content = content;
     }
 
     /** Mirrors the picture's status; change both in the same transaction. */
