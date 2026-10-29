@@ -4,7 +4,7 @@ import {
   msUntilNextSeoulDay,
   pollDelay,
 } from '@/features/diary/useDiaryQueries';
-import { parseHome, type DiaryDetail } from '@/types/server';
+import { parseHome, parseMonthly, type DiaryDetail } from '@/types/server';
 
 const TODAY = '2026-10-26';
 const diary = (patch: Partial<DiaryDetail> = {}): DiaryDetail => ({
@@ -147,4 +147,35 @@ test('picture polling slows down over time and the day rolls over at Seoul midni
   expect(msUntilNextSeoulDay(new Date('2026-10-26T12:00:00Z'))).toBe(
     3 * 3_600_000,
   );
+});
+
+test('monthly calendar responses must belong to the requested month', () => {
+  const item = {
+    diaryId: 101,
+    recordDate: '2026-10-21',
+    emoticonId: 4,
+    emotion: 'SAD',
+  };
+  expect(
+    parseMonthly({ yearMonth: '2026-10', items: [item] }, '2026-10'),
+  ).toEqual([{ diaryId: 101, recordDate: '2026-10-21', emotion: 'SAD' }]);
+  expect(parseMonthly({ yearMonth: '2026-11', items: [] }, '2026-11')).toEqual(
+    [],
+  );
+  // 다른 달의 응답이나 다른 달의 날짜가 섞이면 엉뚱한 칸에 그리지 않는다.
+  expect(() =>
+    parseMonthly({ yearMonth: '2026-09', items: [] }, '2026-10'),
+  ).toThrow();
+  expect(() =>
+    parseMonthly(
+      { yearMonth: '2026-10', items: [{ ...item, recordDate: '2026-09-30' }] },
+      '2026-10',
+    ),
+  ).toThrow();
+  expect(() =>
+    parseMonthly(
+      { yearMonth: '2026-10', items: [{ ...item, emotion: 'TIRED' }] },
+      '2026-10',
+    ),
+  ).toThrow();
 });

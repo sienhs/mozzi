@@ -172,18 +172,7 @@ test('picker uses the current companion while legacy calendar cells keep the def
       date="2026-10-01"
       selected={false}
       onPress={jest.fn()}
-      entry={{
-        id: 'legacy',
-        date: '2026-10-01',
-        emotion: 'happy',
-        tags: [],
-        memo: '',
-        title: '기록',
-        createdAt: '',
-        generation: 'ready',
-        status: 'completed',
-        failure: null,
-      }}
+      entry={{ emotion: 'happy' }}
     />,
   );
   expect(screen.getByLabelText('행복 모찌').props.source).toBe(
@@ -207,17 +196,8 @@ test.each(emotionOrder)(
         selected={false}
         onPress={jest.fn()}
         entry={{
-          id: 'collected-companion',
-          date: '2026-10-01',
           emotion,
           companionId: 'grape',
-          tags: [],
-          memo: '',
-          title: '기록',
-          createdAt: '',
-          generation: 'ready',
-          status: 'completed',
-          failure: null,
         }}
       />,
     );

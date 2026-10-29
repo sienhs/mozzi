@@ -43,6 +43,12 @@ export interface HomeResponse {
   canRequestImage: boolean;
   recentDiary: DiaryDetail | null;
 }
+// GET /diaries/monthly의 한 칸. 일기를 쓴 날만 온다(한 줄·그림은 없다).
+export interface MonthlyItem {
+  diaryId: number;
+  recordDate: string;
+  emotion: ServerEmotion;
+}
 export interface MetaResponse {
   termsVersions: Record<TermsType, string>;
   minSupportedVersion: string;
@@ -180,6 +186,29 @@ export function parseHome(value: unknown): HomeResponse {
     canRequestImage: value.canRequestImage,
     recentDiary,
   };
+}
+export function parseMonthly(value: unknown, yearMonth: string): MonthlyItem[] {
+  if (
+    !isObject(value) ||
+    value.yearMonth !== yearMonth ||
+    !Array.isArray(value.items)
+  )
+    throw invalidResponse();
+  return value.items.map(item => {
+    if (
+      !isObject(item) ||
+      !isId(item.diaryId) ||
+      !isDate(item.recordDate) ||
+      !item.recordDate.startsWith(`${yearMonth}-`) ||
+      !oneOf(emotions, item.emotion)
+    )
+      throw invalidResponse();
+    return {
+      diaryId: item.diaryId,
+      recordDate: item.recordDate,
+      emotion: item.emotion,
+    };
+  });
 }
 export function parseMeta(value: unknown): MetaResponse {
   if (

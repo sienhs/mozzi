@@ -219,6 +219,22 @@ export function createFakeServer(today: string) {
       return ok(config, { diaryId, imageStatus: 'PENDING' }, 202);
     }
     if (method === 'GET' && url === '/home') return ok(config, home());
+    if (method === 'GET' && url === '/diaries/monthly') {
+      const yearMonth = call.params?.yearMonth ?? '';
+      if (!/^\d{4}-\d{2}$/.test(yearMonth)) fail(config, 400, 'INVALID_INPUT');
+      return ok(config, {
+        yearMonth,
+        items: state.diaries
+          .filter(item => item.recordDate.startsWith(`${yearMonth}-`))
+          .sort((a, b) => a.recordDate.localeCompare(b.recordDate))
+          .map(item => ({
+            diaryId: item.diaryId,
+            recordDate: item.recordDate,
+            emoticonId: emoticonIds[item.emotion],
+            emotion: item.emotion,
+          })),
+      });
+    }
     if (method === 'GET' && url === '/diaries/daily') {
       const diary = state.diaries.find(
         item => item.recordDate === call.params?.date,

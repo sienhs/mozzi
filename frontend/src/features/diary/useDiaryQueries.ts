@@ -102,6 +102,19 @@ export function useHome(): HomeView {
   };
 }
 
+// 한 달 캘린더 (GET /diaries/monthly). 일기를 쓴 날과 감정만 온다. 일기를 쓰면 diaryKeys.all로 함께 갱신된다.
+export function useMonthly(yearMonth: string) {
+  const memberId = useAuthStore(state => state.member?.memberId);
+  const focused = useIsFocused();
+  return useQuery({
+    queryKey: diaryKeys.monthly(memberId ?? 0, yearMonth),
+    queryFn: () => diaryApi.monthly(yearMonth),
+    enabled: memberId !== undefined,
+    subscribed: focused,
+    staleTime: 0,
+  });
+}
+
 // 하루 일기. 오늘 기록은 홈과 같은 데이터(GET /home)를 써서 두 화면이 어긋나지 않게 한다.
 export function useDiary(date: string | undefined) {
   const memberId = useAuthStore(state => state.member?.memberId);
@@ -116,8 +129,9 @@ export function useDiary(date: string | undefined) {
     subscribed: focused,
     staleTime: 0,
     placeholderData: () => {
-      if (home?.todayDiary?.recordDate === date) return home!.todayDiary;
-      if (home?.recentDiary?.recordDate === date) return home!.recentDiary;
+      if (!home || !date) return undefined;
+      if (home.todayDiary?.recordDate === date) return home.todayDiary;
+      if (home.recentDiary?.recordDate === date) return home.recentDiary;
       return undefined;
     },
     refetchInterval: current =>

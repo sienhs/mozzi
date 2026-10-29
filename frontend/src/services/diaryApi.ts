@@ -3,9 +3,11 @@ import {
   invalidResponse,
   parseDiaryDetail,
   parseHome,
+  parseMonthly,
   type DiaryDetail,
   type HomeResponse,
   type ImageRequestBody,
+  type MonthlyItem,
   type ServerEmotion,
 } from '@/types/server';
 import { api } from './api';
@@ -30,6 +32,8 @@ export const diaryKeys = {
   home: (memberId: number) => ['diary', memberId, 'home'] as const,
   daily: (memberId: number, date: string) =>
     ['diary', memberId, 'daily', date] as const,
+  monthly: (memberId: number, yearMonth: string) =>
+    ['diary', memberId, 'monthly', yearMonth] as const,
 };
 
 export class DiaryExistsError extends AuthError {
@@ -127,6 +131,13 @@ export const diaryApi = {
       if (errorCode(error) === 'NOT_FOUND') return null;
       throw error;
     }
+  },
+  // GET /diaries/monthly. 캘린더용으로 일기를 쓴 날의 감정만 준다. yearMonth는 YYYY-MM.
+  async monthly(yearMonth: string): Promise<MonthlyItem[]> {
+    const { data } = await api.get('/diaries/monthly', {
+      params: { yearMonth },
+    });
+    return parseMonthly(data, yearMonth);
   },
   // 그림을 본 뒤 쓴 한 줄 저장. 서버 API가 생기면 여기만 구현한다.
   async saveContent(
