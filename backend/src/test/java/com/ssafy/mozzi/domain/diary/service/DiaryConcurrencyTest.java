@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -107,7 +108,7 @@ class DiaryConcurrencyTest {
                             diaryId, new DiaryImage.Selection(1L, null, null, null, null, "요리")));
                     diary.showImageStatus(image.getStatus());
                 },
-                () -> diaryImageService.request(memberId, diaryId,
+                () -> diaryImageService.request(memberId, diaryId, UUID.randomUUID().toString(),
                         new DiaryImageCreateRequestDto(1L, null, null, null, null, cooking)));
 
         assertRejectedWith(second, ImageErrorCode.IMAGE_ALREADY_REQUESTED);

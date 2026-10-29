@@ -40,7 +40,8 @@ public class DiaryImageController {
 
     @Operation(summary = "그림 만들기",
             description = "실패한 그림은 다시 요청할 수 있다 (실패 3번까지). 생성 중이거나 완성됐으면 409. "
-                    + "결과는 푸시로 알린다.")
+                    + "결과는 푸시로 알린다. 같은 Idempotency-Key 재전송은 첫 응답을 그대로 준다. "
+                    + "실패 후 다시 그리기는 새 요청이므로 새 키를 쓴다.")
     @ApiResponse(responseCode = "202", description = "접수됨")
     @PostMapping
     public ResponseEntity<DiaryImageCreateResponseDto> request(
@@ -49,7 +50,7 @@ public class DiaryImageController {
             @Parameter(description = "요청마다 새로 만든 값, 재전송 시에는 같은 값 (최대 64자)")
             @RequestHeader(DiaryController.IDEMPOTENCY_KEY) @NotBlank @Size(max = 64) String idempotencyKey,
             @Valid @RequestBody DiaryImageCreateRequestDto request) {
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(diaryImageService.request(memberId, diaryId, request));
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(diaryImageService.request(memberId, diaryId, idempotencyKey, request));
     }
 
     /** Temporary (S15P31D102-132): removed once the picture is tested. */

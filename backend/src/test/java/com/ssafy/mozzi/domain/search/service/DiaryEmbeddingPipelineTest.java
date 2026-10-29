@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -98,7 +99,7 @@ class DiaryEmbeddingPipelineTest {
     /** The event path: saved, committed, embedded in the background. Diaries are never edited or deleted. */
     @Test
     void savedDiaryIsEmbedded() {
-        Long diaryId = diaryService.create(me, new DiaryCreateRequestDto(
+        Long diaryId = diaryService.create(me, UUID.randomUUID().toString(), new DiaryCreateRequestDto(
                 calm, "엄마랑 산책", List.of(family, rest))).diaryId();
 
         await().atMost(Duration.ofSeconds(10)).until(() -> rowCount(diaryId) == 1);

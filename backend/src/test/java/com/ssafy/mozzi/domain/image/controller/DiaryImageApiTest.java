@@ -157,6 +157,36 @@ class DiaryImageApiTest {
                 .andExpect(jsonPath("$.code").value("IMAGE_ALREADY_REQUESTED"));
     }
 
+    /** The replay is the first response as sent, even after the picture moved on. */
+    @Test
+    void aResendWithTheSameKeyReplaysTheFirstResponse() throws Exception {
+        String key = UUID.randomUUID().toString();
+        String picks = body(7, "null", "null", null, null, cooking);
+        request(me, diaryId, picks, key).andExpect(status().isAccepted());
+        jdbcTemplate.update("update diary_image set status = 'SUCCEEDED' where diary_id = ?", diaryId);
+
+        request(me, diaryId, picks, key)
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.imageStatus").value("PENDING"));
+        request(me, diaryId, body(7, "null", "null", null, null, reading), key)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
+
+    /** The body does not name the diary, so the key is scoped per diary through the path. */
+    @Test
+    void theSameKeyOnAnotherDiaryIsANewRequest() throws Exception {
+        Long yesterday = fixtures.diary(me, today.minusDays(1), fixtures.emoticon(Emotion.SAD), Emotion.SAD);
+        fixtures.attach(yesterday, cooking);
+        String key = UUID.randomUUID().toString();
+        String picks = body(7, "null", "null", null, null, cooking);
+        request(me, diaryId, picks, key).andExpect(status().isAccepted());
+
+        request(me, yesterday, picks, key)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("IMAGE_ONLY_TODAY"));
+    }
+
     @Test
     void aFinishedPictureIsNotRedrawn() throws Exception {
         fixtures.picture(diaryId, ImageStatus.SUCCEEDED, 0, "https://cdn.test/diary/done.webp");
@@ -278,8 +308,12 @@ class DiaryImageApiTest {
     }
 
     private ResultActions request(Long memberId, Long diaryId, String json) throws Exception {
+        return request(memberId, diaryId, json, UUID.randomUUID().toString());
+    }
+
+    private ResultActions request(Long memberId, Long diaryId, String json, String key) throws Exception {
         return mockMvc.perform(as(memberId, post("/api/v1/diaries/{id}/image", diaryId))
-                .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())
+                .header(DiaryController.IDEMPOTENCY_KEY, key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json));
     }
