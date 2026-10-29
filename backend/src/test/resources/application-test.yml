@@ -27,3 +27,6 @@ mozzi:
     # Picture inputs go out untranslated: GMS is never called from tests, and a translation
     # failing in the background would flip a picture a test expects to stay PENDING.
     translate: false
+  gacha:
+    # Off: tests insert their own cards (GachaFixtures) and count on the table holding only those.
+    seed-cards: false

@@ -42,15 +42,34 @@ public class MozziCard {
     @Column(nullable = false, length = 10)
     private Emotion emotion;
 
-    /** Public S3 key, {@code cards/{code}_{source file}_{emotion}.png}. */
+    /** Public S3 key, such as {@code GACHA/{code}_{source file}_{emotion}.png}. */
     @Column(name = "image_key", nullable = false, length = 100)
     private String imageKey;
 
     @Column(name = "is_active", nullable = false)
     private boolean active;
 
+    /** The card's look in English, for the picture. Null for cards registered without one. */
+    @Column(length = 200)
+    private String prompt;
+
     protected MozziCard() {
         // JPA
+    }
+
+    /** An active card, as {@code MozziCardSeeder} registers it. */
+    public static MozziCard register(String code, String series, String name, CardTier tier,
+            Emotion emotion, String imageKey, String prompt) {
+        MozziCard card = new MozziCard();
+        card.code = code;
+        card.series = series;
+        card.name = name;
+        card.tier = tier;
+        card.emotion = emotion;
+        card.imageKey = imageKey;
+        card.prompt = prompt;
+        card.active = true;
+        return card;
     }
 
     public Long getId() {
@@ -83,6 +102,10 @@ public class MozziCard {
 
     public boolean isActive() {
         return active;
+    }
+
+    public String getPrompt() {
+        return prompt;
     }
 
 }
