@@ -39,6 +39,8 @@ import com.ssafy.mozzi.domain.icon.repository.MyIconRepository;
 import com.ssafy.mozzi.domain.image.dto.DiaryImageResponseDto;
 import com.ssafy.mozzi.domain.image.entity.DiaryImage;
 import com.ssafy.mozzi.domain.image.repository.DiaryImageRepository;
+import com.ssafy.mozzi.domain.wallet.dto.RewardResponseDto;
+import com.ssafy.mozzi.domain.wallet.service.RewardService;
 import com.ssafy.mozzi.global.exception.BusinessException;
 import com.ssafy.mozzi.global.exception.CommonErrorCode;
 import com.ssafy.mozzi.global.response.CursorPage;
@@ -59,6 +61,7 @@ public class DiaryService {
     private final EmoticonRepository emoticonRepository;
     private final MyIconRepository myIconRepository;
     private final DiaryImageRepository diaryImageRepository;
+    private final RewardService rewardService;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
@@ -68,6 +71,7 @@ public class DiaryService {
             EmoticonRepository emoticonRepository,
             MyIconRepository myIconRepository,
             DiaryImageRepository diaryImageRepository,
+            RewardService rewardService,
             ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager transactionManager,
             Clock clock) {
@@ -75,6 +79,7 @@ public class DiaryService {
         this.emoticonRepository = emoticonRepository;
         this.myIconRepository = myIconRepository;
         this.diaryImageRepository = diaryImageRepository;
+        this.rewardService = rewardService;
         this.eventPublisher = eventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.clock = clock;
@@ -117,7 +122,8 @@ public class DiaryService {
         // Emotion search embeds the diary once this commits. Diaries are never edited or
         // deleted, so saving is the only change it needs to hear about.
         eventPublisher.publishEvent(new DiaryContentChangedEvent(diary.getId()));
-        return new DiaryCreateResponseDto(diary.getId(), diary.getRecordDate());
+        RewardResponseDto reward = rewardService.dailyRecord(memberId, diary.getId(), diary.getRecordDate());
+        return new DiaryCreateResponseDto(diary.getId(), diary.getRecordDate(), reward);
     }
 
     /**

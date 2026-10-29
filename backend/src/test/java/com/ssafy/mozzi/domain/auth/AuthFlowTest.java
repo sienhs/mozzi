@@ -90,6 +90,12 @@ class AuthFlowTest {
         assertThat(count("terms_agreement")).isEqualTo(2);
         assertThat(count("member_session")).isEqualTo(1);
         assertThat(count("signup_ticket")).isZero();
+        // The sign-up reward: a wallet with 20 tickets, and the ledger row that paid them.
+        assertThat(jdbcTemplate.queryForObject("select ticket_balance from member_wallet", Integer.class))
+                .isEqualTo(20);
+        assertThat(jdbcTemplate.queryForObject(
+                "select reason || ':' || amount || ':' || reward_key from wallet_ledger", String.class))
+                .isEqualTo("SIGNUP:20:SIGNUP");
 
         signUp(ticket, "다른닉네임")
                 .andExpect(status().isUnauthorized())

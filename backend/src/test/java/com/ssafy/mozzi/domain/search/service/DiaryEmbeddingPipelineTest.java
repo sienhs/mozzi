@@ -32,6 +32,7 @@ import com.ssafy.mozzi.domain.search.repository.DiaryEmbeddingStore;
 import com.ssafy.mozzi.integration.gms.GmsEmbeddingClient;
 import com.ssafy.mozzi.integration.gms.GmsUnavailableException;
 import com.ssafy.mozzi.support.DiaryFixtures;
+import com.ssafy.mozzi.support.GachaFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 /**
@@ -82,6 +83,8 @@ class DiaryEmbeddingPipelineTest {
         fixtures = new DiaryFixtures(jdbcTemplate);
         fixtures.reset();
         me = memberRepository.saveAndFlush(Member.signUp("me@gmail.com", AuthProvider.GOOGLE, "me", "me")).getId();
+        // Writing a diary pays its reward into the wallet sign-up would have opened.
+        new GachaFixtures(jdbcTemplate).wallet(me);
         today = LocalDate.now(clock);
         calm = fixtures.emoticon(Emotion.CALM);
         rest = fixtures.myIcon(me, "휴식", IconCategory.WHAT);

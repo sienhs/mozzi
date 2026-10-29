@@ -40,6 +40,7 @@ import com.ssafy.mozzi.domain.member.entity.Member;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.global.security.AccessTokenProvider;
 import com.ssafy.mozzi.support.DiaryFixtures;
+import com.ssafy.mozzi.support.GachaFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 import tools.jackson.databind.JsonNode;
@@ -140,6 +141,34 @@ class DiaryApiTest {
                 .andExpect(jsonPath("$.fieldErrors").isEmpty())
                 .andExpect(jsonPath("$.traceId").isNotEmpty())
                 .andExpect(jsonPath("$.diaryId").value(first));
+    }
+
+    @Test
+    void theDaysDiaryPaysTenTickets() throws Exception {
+        long diaryId = body(create(me, calm, "null", cooking)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reward.type").value("DAILY_RECORD"))
+                .andExpect(jsonPath("$.reward.tickets").value(10))
+                .andExpect(jsonPath("$.reward.ticketCount").value(10)))
+                .get("diaryId").asLong();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select ref_id || ':' || reward_key from wallet_ledger where reason = 'DAILY_RECORD'", String.class))
+                .isEqualTo(diaryId + ":RECORD:" + today);
+    }
+
+    /** The reward is per date, not per diary: a date already rewarded pays nothing more. */
+    @Test
+    void aDateAlreadyRewardedPaysNothing() throws Exception {
+        jdbcTemplate.update("""
+                insert into wallet_ledger (member_id, currency, amount, reason, reward_key, created_at)
+                values (?, 'TICKET', 10, 'DAILY_RECORD', ?, now())
+                """, me, "RECORD:" + today);
+
+        create(me, calm, "null", cooking)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reward").isEmpty());
+        assertThat(new GachaFixtures(jdbcTemplate).tickets(me)).isZero();
     }
 
     @Test
@@ -432,8 +461,11 @@ class DiaryApiTest {
     }
 
     private Long newMember(String subject) {
-        return memberRepository.saveAndFlush(
+        Long memberId = memberRepository.saveAndFlush(
                 Member.signUp(subject + "@gmail.com", AuthProvider.GOOGLE, subject, subject)).getId();
+        // Writing a diary pays its reward into the wallet sign-up would have opened.
+        new GachaFixtures(jdbcTemplate).wallet(memberId);
+        return memberId;
     }
 
 }

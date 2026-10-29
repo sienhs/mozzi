@@ -33,16 +33,15 @@
 | 감정 검색 | `emotion_search` | 질문·답변 | V6 |
 | | `emotion_search_result` | 답변 근거 기록 | V6 |
 | | `diary_embedding` | 일기 의미 검색용 임베딩 (1:1, 한 줄 일기가 있는 일기만) | V6 |
-| 뽑기 | `gacha_season` | 시즌 | 예정 |
-| | `gacha_tier` | 시즌별 등급 확률·조각 규칙 | 예정 |
-| | `mozzi_card` | 카드 마스터 | 예정 |
-| | `member_card` | 회원 도감 | 예정 |
-| | `gacha_draw` | 뽑기 1회 (1장 / 10장) | 예정 |
-| | `gacha_draw_result` | 뽑기 결과 카드 | 예정 |
-| | `member_wallet` | 뽑기권·조각 잔액 (1:1) | 예정 |
-| | `wallet_ledger` | 뽑기권·조각 입출금 장부 | 예정 |
+| 뽑기 | `gacha_tier` | 등급별 가중치·별조각 규칙 (5행) | V11 |
+| | `mozzi_card` | 카드 마스터 | V11 |
+| | `member_card` | 회원 도감 | V11 |
+| | `gacha_draw` | 뽑기 1회 (1~10장) | V11 |
+| | `gacha_draw_result` | 뽑기 결과 카드 | V11 |
+| | `member_wallet` | 뽑기권·별조각 잔액 (1:1) | V11 |
+| | `wallet_ledger` | 뽑기권·별조각 입출금 장부 | V11 |
 
-`예정` 테이블은 구현하면서 바뀔 수 있다. 마이그레이션을 추가할 때 이 문서도 함께 고친다.
+마이그레이션을 추가할 때 이 문서도 함께 고친다.
 
 ## 다이어그램
 
@@ -67,12 +66,10 @@ erDiagram
     diary ||--o{ emotion_search_result : ""
     diary ||--o| diary_embedding : ""
 
-    gacha_season ||--|{ gacha_tier : ""
-    gacha_season ||--o{ mozzi_card : ""
+    gacha_tier ||--o{ mozzi_card : ""
     member ||--o{ member_card : ""
     mozzi_card ||--o{ member_card : ""
     member ||--o{ gacha_draw : ""
-    gacha_season ||--o{ gacha_draw : ""
     gacha_draw ||--|{ gacha_draw_result : ""
     mozzi_card ||--o{ gacha_draw_result : ""
     member ||--o| member_wallet : ""
@@ -130,16 +127,12 @@ erDiagram
     diary_embedding {
         bigint diary_id PK, FK
     }
-    gacha_season {
-        bigint season_id PK
-    }
     gacha_tier {
-        bigint season_id PK, FK
         varchar tier PK
     }
     mozzi_card {
         bigint card_id PK
-        bigint season_id FK
+        varchar tier
     }
     member_card {
         bigint member_id PK, FK
@@ -148,7 +141,6 @@ erDiagram
     gacha_draw {
         bigint draw_id PK
         bigint member_id FK
-        bigint season_id FK
     }
     gacha_draw_result {
         bigint draw_id PK, FK
@@ -421,46 +413,41 @@ erDiagram
 
 ---
 
-## 모찌 뽑기 (예정)
+## 모찌 뽑기
 
-### gacha_season
-
-| 컬럼 | 타입 | 키 | NULL | 설명 |
-|---|---|---|---|---|
-| season_id | bigint | PK | | |
-| name | varchar(30) | | | `시즌 2 · 과일` |
-| starts_at | timestamptz | | | |
-| ends_at | timestamptz | | O | |
-| is_active | boolean | | | |
+`V11__create_gacha_tables.sql`이 테이블과 `gacha_tier` 5행을 만든다. 카드 데이터는 마이그레이션에 넣지 않는다. 규칙과 처리 순서는 [api/gacha.md](api/gacha.md)에 있다.
 
 ### gacha_tier
 
-시즌별 등급 규칙. `GET /gacha/rates`가 이 테이블을 그대로 내려준다.
+등급 규칙. `GET /gacha/rates`가 이 테이블을 그대로 내려준다.
 
 | 컬럼 | 타입 | 키 | NULL | 설명 |
 |---|---|---|---|---|
-| season_id | bigint | PK, FK | | |
 | tier | varchar(10) | PK | | `COMMON`, `RARE`, `EPIC`, `LEGENDARY`, `MYTHIC` |
-| rate | numeric(6,5) | | | 시즌 합계 1.0 (애플리케이션에서 검증) |
-| duplicate_shards | integer | | | 중복 시 받는 조각 (1, 2, 5, 15, 40) |
-| exchange_cost | integer | | | 이 등급 카드를 교환하는 데 드는 조각 |
+| weight | integer | | | 추첨 가중치. 합 100,000 (45,000 / 30,000 / 17,000 / 7,000 / 1,000) |
+| duplicate_shards | integer | | | 중복 시 받는 별조각 (1, 2, 5, 15, 40) |
+| exchange_cost | integer | | O | 교환에 드는 별조각. `LEGENDARY` 200, `MYTHIC` 400. 나머지는 `null`(교환 불가) |
+
+- 기동할 때 5행인지, 가중치 합이 100,000인지 검사한다. 실패하면 기동을 멈춘다
+- 변경: `gacha_season` 삭제에 따라 `season_id` 삭제, PK = `tier`. `rate numeric(6,5)` → `weight integer`. `exchange_cost` NULL 허용
 
 ### mozzi_card
 
 | 컬럼 | 타입 | 키 | NULL | 설명 |
 |---|---|---|---|---|
 | card_id | bigint | PK | | |
-| season_id | bigint | FK | | |
 | code | varchar(12) | | | `S2-01-04` |
 | series | varchar(20) | | | `과일 모찌` |
 | name | varchar(30) | | | `수박 모찌` |
 | tier | varchar(10) | | | |
 | emotion | varchar(10) | | | `Emotion` |
-| image_key | varchar(100) | | | 공개 S3 키 `cards/mozzi_epic_018.webp` |
-| is_active | boolean | | | |
+| image_key | varchar(100) | | | 공개 S3 키 `cards/{code}_{원본 파일}_{감정 영문}.png`. URL은 `{mozzi.gacha.image-base-url}/{image_key}` |
+| is_active | boolean | | | 뽑기·도감 대상 |
 
 - `uq_mozzi_card_code (code)`
-- `ix_mozzi_card_season_tier (season_id, tier)` — 등급 안에서 카드 추첨
+- `ix_mozzi_card_tier (tier) where is_active` — 등급 안에서 카드 추첨
+- 이미지 버킷: `mozzi-dev-backend-645819131894`
+- 변경: `season_id` 삭제. `ix_mozzi_card_season_tier` → `ix_mozzi_card_tier`
 
 ### member_card
 
@@ -468,9 +455,12 @@ erDiagram
 |---|---|---|---|---|
 | member_id | bigint | PK, FK | | |
 | card_id | bigint | PK, FK | | |
-| owned_count | integer | | | 뽑기로 얻은 횟수 (중복 포함) |
+| owned_count | integer | | | 뽑기·교환으로 얻은 횟수 (중복 포함) |
 | first_acquired_at | timestamptz | | | |
 | seen_at | timestamptz | | O | `null`이면 도감에 NEW 표시 |
+
+- `ix_member_card_member (member_id)` — 보유 목록, 도감
+- PK가 같은 카드를 두 번 insert하는 것을 막는다 (동시성 최종 방어)
 
 ### gacha_draw
 
@@ -480,11 +470,11 @@ erDiagram
 |---|---|---|---|---|
 | draw_id | bigint | PK | | |
 | member_id | bigint | FK | | |
-| season_id | bigint | FK | | |
-| draw_count | integer | | | `1`, `10` |
+| draw_count | integer | | | 1~10 |
 | created_at | timestamptz | | | |
 
 - `ix_gacha_draw_member_created_at (member_id, created_at)`
+- 변경: `season_id` 삭제
 
 ### gacha_draw_result
 
@@ -502,11 +492,12 @@ erDiagram
 | 컬럼 | 타입 | 키 | NULL | 설명 |
 |---|---|---|---|---|
 | member_id | bigint | PK, FK | | |
-| ticket_balance | integer | | | `check (ticket_balance >= 0)` |
-| shard_balance | integer | | | `check (shard_balance >= 0)` |
+| ticket_balance | integer | | | `check (ticket_balance >= 0)`. 상한 없음 |
+| shard_balance | integer | | | `check (shard_balance >= 0)`. 상한 없음 |
 | updated_at | timestamptz | | | |
 
-- 잔액을 바꿀 때는 이 행을 잠그고(`select … for update`) 같은 트랜잭션에서 `wallet_ledger`를 쓴다
+- 가입 트랜잭션에서 뽑기권 20, 별조각 0으로 만든다 (`SIGNUP` 장부와 함께). V11 이전에 가입한 회원은 V11이 같은 지갑과 장부를 만든다
+- 잔액을 바꿀 때는 이 행을 잠그고(`select … for update`) 같은 트랜잭션에서 `wallet_ledger`를 쓴다. 같은 회원의 뽑기·교환·보상 지급이 이 잠금으로 직렬화된다
 
 ### wallet_ledger
 
@@ -518,19 +509,33 @@ erDiagram
 | amount | integer | | | 지급 `+`, 사용 `-` |
 | reason | varchar(20) | | | 아래 표 |
 | ref_id | bigint | | O | `reason`에 따라 가리키는 행 |
-| reward_date | date | | O | `DIARY_REWARD`일 때만. 보상 받은 일기의 `record_date` |
+| reward_key | varchar(40) | | O | 보상 중복 방지 키. 아래 표 |
 | created_at | timestamptz | | | |
 
-| reason | currency | ref_id |
-|---|---|---|
-| `DIARY_REWARD` | TICKET + | diary_id |
-| `DRAW` | TICKET − | draw_id |
-| `DUPLICATE` | SHARD + | draw_id (한 번 뽑기의 조각 합계 1행) |
-| `EXCHANGE` | SHARD − | card_id |
-| `EVENT`, `ADMIN` | 둘 다 | null |
+| reason | currency | ref_id | reward_key |
+|---|---|---|---|
+| `SIGNUP` | TICKET + | null | `SIGNUP` |
+| `DAILY_LOGIN` | TICKET + | null | `LOGIN:{yyyy-MM-dd}` |
+| `DAILY_RECORD` | TICKET + | diary_id | `RECORD:{record_date}` |
+| `DRAW` | TICKET − | draw_id | null |
+| `DUPLICATE` | SHARD + | draw_id | null (한 번 뽑기의 조각 합계 1행) |
+| `EXCHANGE` | SHARD − | card_id | null |
+| `EVENT`, `ADMIN` | 둘 다 | null | 운영자 지정 |
 
-- `uq_wallet_ledger_ref (member_id, currency, reason, ref_id)` — 같은 기록으로 두 번 지급하지 않는다. `ref_id`가 null인 행은 검사에서 빠진다
-- `uq_wallet_ledger_diary_reward (member_id, reward_date) where reason = 'DIARY_REWARD'` — 기록 보상은 날짜당 1번. 일기를 지우고 다시 써도 `diary_id`만 바뀌므로 날짜로 막는다
+- `uq_wallet_ledger_ref (member_id, currency, reason, ref_id)` — `DRAW`·`DUPLICATE`·`EXCHANGE`를 같은 기록으로 두 번 쓰지 않는다. `ref_id`가 null인 행은 검사에서 빠진다
+- `uq_wallet_ledger_reward_key (member_id, reward_key) where reward_key is not null` — 보상은 키당 1번. 지급은 `insert … on conflict (member_id, reward_key) where reward_key is not null do nothing`으로 하고, 0행이면 지급하지 않는다
+- 잔액은 장부 합계와 같아야 한다
+- 변경: `reward_date`와 `uq_wallet_ledger_diary_reward` 삭제 → `reward_key`. `DIARY_REWARD` → `DAILY_RECORD`
+
+### 회원 탈퇴
+
+탈퇴 파기에서 아래 순서로 지운다 (`on delete cascade` 없음).
+
+1. `gacha_draw_result`
+2. `gacha_draw`
+3. `member_card`
+4. `wallet_ledger`
+5. `member_wallet`
 
 ---
 
@@ -538,5 +543,5 @@ erDiagram
 
 | # | 항목 | 현재 안 |
 |---|---|---|
-| 1 | 교환 비용 | 조각은 한 종류, 중복 시 받는 양은 등급별로 확정. 교환 비용은 초안대로 등급별(`gacha_tier.exchange_cost`)인지, 모든 카드 같은 값인지 미정 |
+| 1 | 교환 비용 | 확정: 등급별(`gacha_tier.exchange_cost`). 전설 200, 신화 400, 일반·희귀·영웅은 교환 불가 |
 | 2 | 한 달 애니메이션 (`monthly_animation`) | 2단계. API가 정해지면 추가 |

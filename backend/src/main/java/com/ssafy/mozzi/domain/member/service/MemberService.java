@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.mozzi.domain.auth.exception.AuthErrorCode;
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
+import com.ssafy.mozzi.domain.gacha.service.GachaDataEraser;
 import com.ssafy.mozzi.domain.member.dto.MemberDetailResponseDto;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
@@ -23,6 +24,7 @@ import com.ssafy.mozzi.domain.member.entity.TermsType;
 import com.ssafy.mozzi.domain.member.exception.MemberErrorCode;
 import com.ssafy.mozzi.domain.member.repository.MemberRepository;
 import com.ssafy.mozzi.domain.member.repository.TermsAgreementRepository;
+import com.ssafy.mozzi.domain.wallet.service.WalletService;
 import com.ssafy.mozzi.global.exception.BusinessException;
 import com.ssafy.mozzi.global.exception.CommonErrorCode;
 
@@ -36,22 +38,27 @@ public class MemberService {
     private final TermsAgreementRepository termsAgreementRepository;
     private final MemberSessionService sessionService;
     private final PushDeviceService pushDeviceService;
+    private final WalletService walletService;
+    private final GachaDataEraser gachaDataEraser;
     private final TermsProperties termsProperties;
     private final Clock clock;
 
     public MemberService(MemberRepository memberRepository, TermsAgreementRepository termsAgreementRepository,
-            MemberSessionService sessionService, PushDeviceService pushDeviceService, TermsProperties termsProperties,
-            Clock clock) {
+            MemberSessionService sessionService, PushDeviceService pushDeviceService, WalletService walletService,
+            GachaDataEraser gachaDataEraser, TermsProperties termsProperties, Clock clock) {
         this.memberRepository = memberRepository;
         this.termsAgreementRepository = termsAgreementRepository;
         this.sessionService = sessionService;
         this.pushDeviceService = pushDeviceService;
+        this.walletService = walletService;
+        this.gachaDataEraser = gachaDataEraser;
         this.termsProperties = termsProperties;
         this.clock = clock;
     }
 
     /**
-     * Creates the member with the agreements it submitted.
+     * Creates the member with the agreements it submitted, and its wallet with the sign-up
+     * tickets.
      *
      * <p>Runs inside the sign-up transaction, so a failure here also keeps the sign-up
      * ticket. The nickname check up front is for a friendly answer; two sign-ups racing for
@@ -78,6 +85,7 @@ public class MemberService {
         OffsetDateTime now = OffsetDateTime.now(clock);
         agreedVersions.forEach((type, version) ->
                 termsAgreementRepository.save(new TermsAgreement(member.getId(), type, version, now)));
+        walletService.open(member.getId());
         return member;
     }
 
@@ -89,7 +97,8 @@ public class MemberService {
     }
 
     /**
-     * Ends the session and soft-deletes the member, under the member row lock.
+     * Ends the session, deletes the member's gacha data and soft-deletes the member, under the
+     * member row lock.
      *
      * <p>The same Google account can sign up again right away and gets a new member id, so
      * nothing of this member is reattached.
@@ -100,6 +109,7 @@ public class MemberService {
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "member " + memberId));
         sessionService.endAll(memberId);
         pushDeviceService.deleteAll(memberId);
+        gachaDataEraser.eraseFor(memberId);
         member.withdraw(clock);
     }
 

@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11");
     }
 
     @Test
@@ -41,7 +41,11 @@ class SchemaMigrationTest {
                 "member", "terms_agreement", "push_device",
                 "idempotency_record", "member_session", "signup_ticket",
                 "emoticon", "my_icon", "diary", "diary_icon", "diary_image",
-                "emotion_search", "emotion_search_result", "diary_embedding");
+                "emotion_search", "emotion_search_result", "diary_embedding",
+                "gacha_tier", "mozzi_card", "member_card", "gacha_draw", "gacha_draw_result",
+                "member_wallet", "wallet_ledger");
+        // No seasons: every active card is in one pool.
+        assertThat(tables).doesNotContain("gacha_season");
         // Replaced by member_session in V5; two refresh schemes must not coexist.
         assertThat(tables).doesNotContain("refresh_token");
         // Replaced by member-made icons in V7.
@@ -204,6 +208,58 @@ class SchemaMigrationTest {
         assertThat(definition)
                 .contains("(member_id, category, created_at)")
                 .contains("WHERE (deleted_at IS NULL)");
+    }
+
+    /** The draw odds are read from these rows; the application refuses to start without all five. */
+    @Test
+    void gachaTiersAreSeeded() {
+        List<String> tiers = jdbcTemplate.queryForList(
+                "select tier || ':' || weight || ':' || duplicate_shards || ':' || coalesce(exchange_cost::text, '-') "
+                        + "from gacha_tier order by weight desc", String.class);
+
+        assertThat(tiers).containsExactly(
+                "COMMON:45000:1:-", "RARE:30000:2:-", "EPIC:17000:5:-", "LEGENDARY:7000:15:200", "MYTHIC:1000:40:400");
+    }
+
+    /** A reward is paid once per key; rows without a key (draws, exchanges) are not checked. */
+    @Test
+    void rewardKeyIsUniquePerMember() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_wallet_ledger_reward_key'", String.class);
+
+        assertThat(definition)
+                .contains("UNIQUE")
+                .contains("(member_id, reward_key)")
+                .contains("WHERE (reward_key IS NOT NULL)");
+    }
+
+    @Test
+    void ledgerRowsTiedToADrawOrCardAreUnique() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_wallet_ledger_ref'", String.class);
+
+        assertThat(definition).contains("UNIQUE").contains("(member_id, currency, reason, ref_id)");
+    }
+
+    /** The draw pool is the active cards of one tier. */
+    @Test
+    void cardLookupByTierSkipsInactiveCards() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'ix_mozzi_card_tier'", String.class);
+
+        assertThat(definition).contains("(tier)").contains("WHERE is_active");
+    }
+
+    /** The last line against a negative balance, should a check in Java ever be skipped. */
+    @Test
+    void walletBalancesCannotGoNegative() {
+        List<String> checks = jdbcTemplate.queryForList("""
+                select pg_get_constraintdef(oid) from pg_constraint
+                where conrelid = 'member_wallet'::regclass and contype = 'c'
+                """, String.class);
+
+        assertThat(checks).anyMatch(check -> check.contains("ticket_balance >= 0"))
+                .anyMatch(check -> check.contains("shard_balance >= 0"));
     }
 
 }

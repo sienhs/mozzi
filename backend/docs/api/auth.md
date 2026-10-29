@@ -98,6 +98,8 @@ Request
 
 Response `201` — 토큰 묶음 (`POST /auth/refresh` 응답과 같은 형태)
 
+가입 트랜잭션에서 지갑(뽑기권 20, 별조각 0)과 `SIGNUP` 장부를 만든다. [gacha.md](gacha.md#뽑기권-지급)
+
 | HTTP | code | 처리 |
 |---|---|---|
 | 400 | `INVALID_INPUT` | 닉네임 형식 오류 (`fieldErrors`) |
@@ -153,6 +155,7 @@ SET-01 "haru@gmail.com · Google"은 `email`과 `provider`로 그린다.
 본문 없음. Response `204`.
 
 - 세션을 종료하고 회원을 소프트 삭제한다.
+- 뽑기 데이터(`gacha_draw_result` → `gacha_draw` → `member_card` → `wallet_ledger` → `member_wallet`)를 이 순서로 지운다.
 - 같은 Google 계정으로 바로 다시 가입할 수 있다. 새 회원 ID가 부여되고 이전 데이터는 연결되지 않는다.
 
 ---

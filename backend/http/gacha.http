@@ -1,0 +1,47 @@
+@baseUrl = http://localhost:8080/api/v1
+# Every request needs an access token: take accessToken from POST /auth/google (existing
+# member) or POST /auth/signup (new member). See auth.http.
+@accessToken = paste-access-token-here
+
+# Cards are registered by the server outside the migrations; insert a few rows into
+# mozzi_card locally (at least one active card per tier) before drawing. A tier without an
+# active card answers 503 GACHA_UNAVAILABLE when it is drawn.
+
+### Daily login reward. Expect granted: true once a day, then granted: false.
+POST {{baseUrl}}/rewards/daily-login
+Authorization: Bearer {{accessToken}}
+
+### Gacha home: tickets, star shards, collection progress
+GET {{baseUrl}}/gacha/status
+Authorization: Bearer {{accessToken}}
+
+### Tier rates
+GET {{baseUrl}}/gacha/rates
+Authorization: Bearer {{accessToken}}
+
+### Draw 1 to 10. Expect 201; resending with the same key replays the same result.
+POST {{baseUrl}}/gacha/draws
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{ "count": 10 }
+
+### Collection: every active card, rarest first. ?owned=false for the missing ones.
+GET {{baseUrl}}/gacha/collection
+Authorization: Bearer {{accessToken}}
+
+### Clear the NEW mark. Expect 204; ids not owned are ignored.
+POST {{baseUrl}}/gacha/collection/seen
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "cardIds": [1, 2] }
+
+### Exchange star shards for a legendary (200) or mythic (400) card not owned yet
+POST {{baseUrl}}/gacha/exchanges
+Authorization: Bearer {{accessToken}}
+Idempotency-Key: {{$random.uuid}}
+Content-Type: application/json
+
+{ "cardId": 1 }
