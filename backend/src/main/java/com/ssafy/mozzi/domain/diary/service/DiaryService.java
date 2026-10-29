@@ -16,6 +16,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,7 @@ import com.ssafy.mozzi.domain.wallet.dto.RewardResponseDto;
 import com.ssafy.mozzi.domain.wallet.service.RewardService;
 import com.ssafy.mozzi.global.exception.BusinessException;
 import com.ssafy.mozzi.global.exception.CommonErrorCode;
+import com.ssafy.mozzi.global.idempotency.IdempotencyStore;
 import com.ssafy.mozzi.global.response.CursorPage;
 
 /**
@@ -57,11 +59,14 @@ public class DiaryService {
     /** Name of the partial unique index behind "one diary per day" (V3 migration). */
     static final String ONE_DIARY_PER_DAY = "uq_diary_member_record_date";
 
+    static final String CREATE_ENDPOINT = "POST /diaries";
+
     private final DiaryRepository diaryRepository;
     private final EmoticonRepository emoticonRepository;
     private final MyIconRepository myIconRepository;
     private final DiaryImageRepository diaryImageRepository;
     private final RewardService rewardService;
+    private final IdempotencyStore idempotencyStore;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
@@ -72,6 +77,7 @@ public class DiaryService {
             MyIconRepository myIconRepository,
             DiaryImageRepository diaryImageRepository,
             RewardService rewardService,
+            IdempotencyStore idempotencyStore,
             ApplicationEventPublisher eventPublisher,
             PlatformTransactionManager transactionManager,
             Clock clock) {
@@ -80,24 +86,29 @@ public class DiaryService {
         this.myIconRepository = myIconRepository;
         this.diaryImageRepository = diaryImageRepository;
         this.rewardService = rewardService;
+        this.idempotencyStore = idempotencyStore;
         this.eventPublisher = eventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
 
     /**
-     * Saves today's diary.
+     * Saves today's diary. A resend with the same {@code Idempotency-Key} gets the first
+     * response back, reward included; only a request with another key reaches the
+     * one-diary-per-day check.
      *
-     * <p>Two requests for the same day (a double tap) can both pass the existence check and
-     * race to the insert. The unique index decides the winner; the loser's transaction is
+     * <p>Two requests for the same day with different keys can both pass the existence check
+     * and race to the insert. The unique index decides the winner; the loser's transaction is
      * rolled back, and only then — outside it, because PostgreSQL refuses further statements
      * in a failed transaction — is the winner's id looked up for the 409 body. That is why
      * this method runs its transaction through a template instead of {@code @Transactional}.
      */
-    public DiaryCreateResponseDto create(Long memberId, DiaryCreateRequestDto request) {
+    public DiaryCreateResponseDto create(Long memberId, String idempotencyKey, DiaryCreateRequestDto request) {
         LocalDate today = LocalDate.now(clock);
         try {
-            return transactionTemplate.execute(status -> insert(memberId, today, request));
+            return transactionTemplate.execute(status -> idempotencyStore.run(
+                    memberId, CREATE_ENDPOINT, idempotencyKey, request, HttpStatus.CREATED.value(),
+                    DiaryCreateResponseDto.class, () -> insert(memberId, today, request)));
         } catch (DataIntegrityViolationException e) {
             if (!violates(e, ONE_DIARY_PER_DAY)) {
                 throw e;

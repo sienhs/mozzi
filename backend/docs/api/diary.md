@@ -161,6 +161,9 @@ Response `201`
 | 400 | `INVALID_INPUT` | 50자 초과, `WHAT` 아이콘 없음, 삭제했거나 다른 회원의 아이콘 |
 | 404 | `NOT_FOUND` | 없는 이모티콘 |
 | 409 | `DIARY_ALREADY_EXISTS` | 오늘 일기가 이미 있음. 응답의 `diaryId`로 이동 |
+| 409 | `IDEMPOTENCY_CONFLICT` | 같은 키로 다른 본문 전송 |
+
+같은 `Idempotency-Key`로 재전송하면 첫 응답(`201`, `reward` 포함)을 그대로 돌려준다. 다른 키로 보내야 `DIARY_ALREADY_EXISTS`가 난다.
 
 `WHAT` 아이콘이 없으면 `message`가 "무엇을 했는지 하나 이상 골라 주세요."다. 사용할 수 없는 아이콘이 섞여 있으면 "사용할 수 없는 아이콘이 있어요."다.
 
@@ -353,7 +356,10 @@ Response `202`
 | 400 | `IMAGE_ONLY_TODAY` | 오늘 일기가 아님 |
 | 404 | `NOT_FOUND` | 없거나 다른 회원의 일기 |
 | 409 | `IMAGE_ALREADY_REQUESTED` | 생성 중이거나 이미 완성됨 |
+| 409 | `IDEMPOTENCY_CONFLICT` | 같은 키로 다른 본문 전송 |
 | 429 | `RETRY_LIMIT_EXCEEDED` | 실패 3번 |
+
+같은 `Idempotency-Key`로 재전송하면 첫 응답(`202`, `PENDING`)을 그대로 돌려준다. 그 사이 그림이 끝났어도 `PENDING`이니 상태는 푸시나 `GET /diaries/daily`로 확인한다. 실패 후 다시 그리기는 새 요청이므로 **새 키**를 쓴다. 같은 키를 쓰면 첫 응답만 돌아오고 다시 그리지 않는다. 키는 일기마다 따로 본다.
 
 > 예정: 캐릭터 테이블과 보유 확인 (뽑기로 얻은 캐릭터만 가능, 기본 캐릭터 1개 지급). 그 전까지 `characterId`는 저장만 하고, AI 서버에는 설정값의 기본 캐릭터 이미지·프롬프트를 보낸다.
 

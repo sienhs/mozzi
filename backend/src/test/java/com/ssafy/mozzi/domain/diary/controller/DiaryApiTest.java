@@ -171,6 +171,22 @@ class DiaryApiTest {
         assertThat(new GachaFixtures(jdbcTemplate).tickets(me)).isZero();
     }
 
+    /** A resend gets the save it repeats, reward and all, instead of the one-a-day 409. */
+    @Test
+    void aResendWithTheSameKeyReplaysTheFirstResponse() throws Exception {
+        String key = UUID.randomUUID().toString();
+        JsonNode first = body(create(me, key, calm, "null", cooking).andExpect(status().isCreated()));
+
+        JsonNode second = body(create(me, key, calm, "null", cooking).andExpect(status().isCreated()));
+
+        assertThat(second).isEqualTo(first);
+        assertThat(second.get("reward").get("tickets").asInt()).isEqualTo(10);
+        assertThat(new GachaFixtures(jdbcTemplate).tickets(me)).isEqualTo(10);
+        create(me, key, sad, "null", cooking)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
+
     @Test
     void conflictBodyIsJsonWhateverTheClientAccepts() throws Exception {
         long first = body(create(me, calm, "null", cooking)).get("diaryId").asLong();
@@ -434,8 +450,13 @@ class DiaryApiTest {
     }
 
     private ResultActions create(Long memberId, Long emoticonId, String content, Long... myIconIds) throws Exception {
+        return create(memberId, UUID.randomUUID().toString(), emoticonId, content, myIconIds);
+    }
+
+    private ResultActions create(Long memberId, String key, Long emoticonId, String content, Long... myIconIds)
+            throws Exception {
         return mockMvc.perform(as(memberId, post("/api/v1/diaries"))
-                .header(DiaryController.IDEMPOTENCY_KEY, UUID.randomUUID().toString())
+                .header(DiaryController.IDEMPOTENCY_KEY, key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(createBody(emoticonId, content, myIconIds)));
     }

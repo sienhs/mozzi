@@ -8,6 +8,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ import com.ssafy.mozzi.domain.image.exception.ImageErrorCode;
 import com.ssafy.mozzi.domain.image.repository.DiaryImageRepository;
 import com.ssafy.mozzi.global.exception.BusinessException;
 import com.ssafy.mozzi.global.exception.CommonErrorCode;
+import com.ssafy.mozzi.global.idempotency.IdempotencyStore;
 
 /**
  * Requesting a diary's picture. The picture is made asynchronously after the request
@@ -35,16 +37,19 @@ public class DiaryImageService {
 
     private final DiaryRepository diaryRepository;
     private final DiaryImageRepository diaryImageRepository;
+    private final IdempotencyStore idempotencyStore;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public DiaryImageService(
             DiaryRepository diaryRepository,
             DiaryImageRepository diaryImageRepository,
+            IdempotencyStore idempotencyStore,
             ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.diaryRepository = diaryRepository;
         this.diaryImageRepository = diaryImageRepository;
+        this.idempotencyStore = idempotencyStore;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
@@ -56,9 +61,21 @@ public class DiaryImageService {
      * <p>The diary row is locked first. Two requests for the same diary (a double tap) would
      * otherwise both see "no picture yet" and both start one; with the lock the second waits
      * until the first commits and then finds the picture {@code PENDING}.
+     *
+     * <p>A resend with the same {@code Idempotency-Key} gets the first response back, so it
+     * says {@code PENDING} even once the picture is done. A retry after a failure is a new
+     * request with a new key. The endpoint recorded carries the diary id, since the body hash
+     * alone would not tell two diaries apart.
      */
     @Transactional
-    public DiaryImageCreateResponseDto request(Long memberId, Long diaryId, DiaryImageCreateRequestDto request) {
+    public DiaryImageCreateResponseDto request(
+            Long memberId, Long diaryId, String idempotencyKey, DiaryImageCreateRequestDto request) {
+        return idempotencyStore.run(memberId, "POST /diaries/" + diaryId + "/image", idempotencyKey, request,
+                HttpStatus.ACCEPTED.value(), DiaryImageCreateResponseDto.class,
+                () -> doRequest(memberId, diaryId, request));
+    }
+
+    private DiaryImageCreateResponseDto doRequest(Long memberId, Long diaryId, DiaryImageCreateRequestDto request) {
         Diary diary = diaryRepository.findForUpdate(diaryId, memberId)
                 .orElseThrow(() -> new BusinessException(
                         CommonErrorCode.NOT_FOUND, "diary not found: diaryId=" + diaryId));

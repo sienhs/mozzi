@@ -40,7 +40,7 @@
 - [x] `POST /my-icons` 아이콘 만들기
 - [x] `GET /my-icons` 내 아이콘 목록
 - [x] `DELETE /my-icons/{myIconId}` 아이콘 삭제
-- [x] `POST /diaries` 일기 쓰기 — 멱등 재전송 응답 미구현
+- [x] `POST /diaries` 일기 쓰기
 - [x] `GET /diaries/daily` 하루 일기
 - [x] `GET /diaries/monthly` 한 달 감정 (캘린더)
 - [x] `GET /diaries` 일기 목록
@@ -82,8 +82,8 @@
 
 ### 공통
 
-- [ ] `Idempotency-Key` 재전송 시 첫 응답 재사용 — 뽑기·교환만 구현. 일기 작성은 헤더 검증만
-- [ ] 호출 제한 (`429 RATE_LIMITED`)
+- [x] `Idempotency-Key` 재전송 시 첫 응답 재사용 — 일기 작성, 다시 그리기, 뽑기, 교환. 지난 기록은 매일 04:50 삭제
+- [x] 호출 제한 — 그림 만들기는 당일 일기만(회원당 하루 1장), 실패 시 3번까지 재시도 (`429 RETRY_LIMIT_EXCEEDED`). 감정 검색은 분당 10회 (`429 RATE_LIMITED`). 그 밖의 API에는 걸지 않는다
 
 ## 화면별 API
 

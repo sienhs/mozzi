@@ -52,13 +52,9 @@ public class DiaryController {
         this.diaryService = diaryService;
     }
 
-    /**
-     * {@code Idempotency-Key} is required by the spec and validated here, but replaying the
-     * first response for a repeated key is not implemented yet. Until then a resend after a
-     * successful save gets {@code 409 DIARY_ALREADY_EXISTS} with the diary's id, which the
-     * app handles by opening the diary, and the unique index rules out a duplicate either way.
-     */
-    @Operation(summary = "일기 쓰기", description = "오늘 날짜로 저장한다. 오늘 일기가 이미 있으면 409 와 그 일기의 diaryId 를 준다.")
+    @Operation(summary = "일기 쓰기",
+            description = "오늘 날짜로 저장한다. 오늘 일기가 이미 있으면 409 와 그 일기의 diaryId 를 준다. "
+                    + "같은 Idempotency-Key 재전송은 첫 응답을 그대로 준다.")
     @ApiResponse(responseCode = "201", description = "저장됨")
     @PostMapping
     public ResponseEntity<DiaryCreateResponseDto> create(
@@ -66,7 +62,7 @@ public class DiaryController {
             @Parameter(description = "요청마다 새로 만든 값, 재전송 시에는 같은 값 (최대 64자)")
             @RequestHeader(IDEMPOTENCY_KEY) @NotBlank @Size(max = 64) String idempotencyKey,
             @Valid @RequestBody DiaryCreateRequestDto request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(diaryService.create(memberId, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(diaryService.create(memberId, idempotencyKey, request));
     }
 
     @Operation(summary = "하루 일기", description = "그 날짜에 일기가 없으면 404.")
