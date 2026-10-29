@@ -118,6 +118,8 @@ mozzi:
     # Card images are public assets; a card's URL is this, a slash and its image_key. No
     # trailing slash.
     image-base-url: ${MOZZI_GACHA_IMAGE_BASE_URL:https://mozzi-dev-backend-645819131894.s3.ap-northeast-2.amazonaws.com}
+    # At start-up, register the cards in seed/mozzi_cards.csv whose code is not in mozzi_card yet.
+    seed-cards: true
   ai-queue:
     # Blank outside prod: requests are only logged and no result is consumed. prod requires both.
     request-url: ${SQS_AI_REQUEST_QUEUE_URL:}
