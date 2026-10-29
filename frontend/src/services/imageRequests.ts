@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { todayKey } from '@/constants/date';
-import type { CompanionId } from '@/types/companion';
+import type { Companion } from '@/types/companion';
 import type { DiaryTag } from '@/types/diary';
 import type { ImageRequestBody } from '@/types/server';
 
@@ -12,7 +12,8 @@ export interface ImageRequestSnapshot {
   diaryId: number;
   recordDate: string;
   body: ImageRequestBody;
-  companionId: CompanionId;
+  // 요청할 때 그 감정에 고른 모찌(서버가 그림에 그려 넣는다). 화면의 생성 중 그림에 쓴다.
+  companion: Companion | null;
   imageTags: DiaryTag[];
 }
 type Saved = Record<string, ImageRequestSnapshot>;
@@ -33,7 +34,13 @@ async function read(memberId: number): Promise<Saved> {
   }
   const today = todayKey();
   saved = Object.fromEntries(
-    Object.entries(saved).filter(([, item]) => item?.recordDate === today),
+    Object.entries(saved)
+      .filter(([, item]) => item?.recordDate === today)
+      // 예전 형식(companionId 문자열)은 모찌 정보가 없으니 기본 모찌로 본다.
+      .map(([key, item]) => [
+        key,
+        { ...item, companion: item.companion ?? null },
+      ]),
   );
   memory.set(memberId, saved);
   return saved;

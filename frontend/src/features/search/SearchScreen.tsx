@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Keyboard, Pressable, View } from 'react-native';
 import { Screen, Heading } from '@/components/ui/Screen';
@@ -8,27 +8,41 @@ import { Input } from '@/components/ui/Input';
 import { Icon } from '@/components/ui/Icon';
 import { DiaryCard, DiaryRow } from '@/components/ui/DiaryCard';
 import { Loading, StatePanel } from '@/components/ui/Feedback';
+import { EmotionImage } from '@/components/emotion/Emotion';
+import { emotions } from '@/constants/emotions';
+import { todayKey } from '@/constants/date';
 import { colors } from '@/theme/tokens';
-import { mockSearchService } from '@/mocks/services';
-import { useAppStore } from '@/stores/useAppStore';
+import { apiErrorMessage } from '@/services/authErrors';
+import {
+  SEARCH_QUESTION_MAX,
+  searchApi,
+  searchKeys,
+} from '@/services/searchApi';
+import { useAuthStore } from '@/stores/useAuthStore';
+import {
+  toAppEmotion,
+  toDiaryEntry,
+  toSummaryEntry,
+} from '@/features/diary/serverDiary';
+import type { DiaryEntry } from '@/types/diary';
 
-const suggestions = [
-  '마음이 편했던 날을 보여 줘',
-  '가족과 보낸 날은 언제였어?',
-  '이번 달엔 어떤 기분이 많았어?',
-];
+// 감정 검색 (POST /emotion-search). 서버가 질문을 해석해 기록을 찾고 답을 만든다.
+// 결과는 FOUND(답 + 큰 카드 + 기록 행), EMPTY(기록 없음), STATS_ONLY(감정별 날 수) 중 하나다.
 export function SearchScreen() {
+  const memberId = useAuthStore(state => state.member?.memberId);
   const { question: initialQuestion } = useLocalSearchParams<{
     question?: string;
   }>();
   const [input, setInput] = useState('');
   const [question, setQuestion] = useState('');
   const pending = useRef(false);
-  const search = useMutation({
-    mutationFn: (query: string) =>
-      mockSearchService.search(query, useAppStore.getState().entries),
-    retry: false,
+  const suggestions = useQuery({
+    queryKey: searchKeys.suggestions(memberId ?? 0),
+    queryFn: searchApi.suggestions,
+    enabled: memberId !== undefined,
+    staleTime: 5 * 60_000,
   });
+  const search = useMutation({ mutationFn: searchApi.ask, retry: false });
   const { mutateAsync } = search;
   const ask = useCallback(
     async (value: string) => {
@@ -51,8 +65,19 @@ export function SearchScreen() {
   useEffect(() => {
     if (__DEV__ && initialQuestion) void ask(initialQuestion);
   }, [ask, initialQuestion]);
-  const openEntry = (id: string) =>
-    router.push({ pathname: '/diary/[id]', params: { id } });
+  const openEntry = (entry: DiaryEntry) =>
+    router.push({
+      pathname: '/diary/[id]',
+      params: { id: entry.id, date: entry.date },
+    });
+  const result = search.data;
+  const today = todayKey();
+  const featured = result?.featured
+    ? toDiaryEntry(result.featured, { today })
+    : null;
+  const rows = (result?.diaries ?? [])
+    .filter(item => item.diaryId !== featured?.serverId)
+    .map(item => toSummaryEntry(item, today));
   return (
     <Screen
       tabbed
@@ -66,7 +91,7 @@ export function SearchScreen() {
               placeholder="궁금한 날을 물어보세요"
               value={input}
               onChangeText={setInput}
-              maxLength={150}
+              maxLength={SEARCH_QUESTION_MAX}
               returnKeyType="search"
               onSubmitEditing={() => void ask(input)}
             />
@@ -110,7 +135,19 @@ export function SearchScreen() {
           />
           <View style={{ gap: 8 }}>
             <AppText variant="small">이렇게 물어볼 수 있어요</AppText>
-            {suggestions.map(text => (
+            {suggestions.isPending && memberId !== undefined && (
+              <Loading label="추천 질문을 불러오고 있어요" />
+            )}
+            {suggestions.isError && (
+              <StatePanel
+                compact
+                title="추천 질문을 불러오지 못했어요"
+                description="궁금한 날을 직접 물어볼 수도 있어요."
+                retry={() => void suggestions.refetch()}
+                retryLabel="다시 불러오기"
+              />
+            )}
+            {(suggestions.data ?? []).map(text => (
               <Pressable
                 key={text}
                 accessibilityRole="button"
@@ -157,29 +194,53 @@ export function SearchScreen() {
             <StatePanel
               compact
               title="지금은 답을 찾지 못했어요"
-              description="연결이 잠시 불안정해요. 한 번 더 물어봐 주세요."
+              description={apiErrorMessage(
+                search.error,
+                '연결이 잠시 불안정해요. 한 번 더 물어봐 주세요.',
+              )}
               retry={() => void ask(question)}
             />
-          ) : search.data && !search.data.entries.length ? (
+          ) : result?.resultType === 'EMPTY' ? (
             <StatePanel
               title="찾는 기록이 아직 없어요"
               description={
                 '다른 말로 물어보거나\n기간을 넓혀서 다시 물어보세요.'
               }
             />
+          ) : result?.resultType === 'STATS_ONLY' ? (
+            <>
+              <AppText>{result.answer}</AppText>
+              {result.emotionCounts.map(({ emotion, count }) => (
+                <View
+                  key={emotion}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <EmotionImage emotion={toAppEmotion(emotion)} size={28} />
+                  <AppText style={{ flex: 1 }}>
+                    {emotions[toAppEmotion(emotion)].label}
+                  </AppText>
+                  <AppText variant="label">{count}일</AppText>
+                </View>
+              ))}
+            </>
           ) : (
-            search.data && (
+            result &&
+            featured && (
               <>
-                <AppText>{search.data.answer}</AppText>
+                <AppText>{result.answer}</AppText>
                 <DiaryCard
-                  entry={search.data.entries[0]}
-                  onPress={() => openEntry(search.data.entries[0].id)}
+                  entry={featured}
+                  onPress={() => openEntry(featured)}
                 />
-                {search.data.entries.slice(1).map(entry => (
+                {rows.map(entry => (
                   <DiaryRow
                     key={entry.id}
                     entry={entry}
-                    onPress={() => openEntry(entry.id)}
+                    onPress={() => openEntry(entry)}
                   />
                 ))}
               </>

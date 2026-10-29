@@ -9,6 +9,9 @@ import { queryClient } from '@/services/queryClient';
 import { isDraftLocked, useAppStore } from '@/stores/useAppStore';
 import { useGachaStore } from '@/stores/useGachaStore';
 import { useTagStore } from '@/stores/useTagStore';
+import { mozziKeys } from '@/services/mozziApi';
+import { emptyPicks } from '@/types/companion';
+import { useRewardStore } from '@/stores/useRewardStore';
 import type { HomeResponse } from '@/types/server';
 import {
   createFakeServer,
@@ -46,6 +49,7 @@ beforeEach(async () => {
   store().resetSession();
   useTagStore.getState().resetSession();
   useGachaStore.getState().resetSession();
+  useRewardStore.getState().resetSession();
   await useTagStore.getState().load();
 });
 
@@ -218,16 +222,26 @@ test('a picture request without a response is not called a failure; the home is 
   expect(store().image.status).toBe('idle');
 });
 
-test('a redraw resends the stored scene and the mochi equipped for the chosen mood even after it changes; repeated taps share one request', async () => {
+test('a redraw resends the stored scene and the mochi picked for the chosen mood even after the pick changes; repeated taps share one request', async () => {
   pickDay();
-  const slots = useGachaStore.getState().equippedByEmotion;
-  useGachaStore.setState({
-    equippedByEmotion: { ...slots, calm: 'peach', happy: 'cherry' },
+  const mochi = (cardId: number, name: string) => ({
+    cardId,
+    name,
+    tier: 'epic' as const,
+    imageUrl: `https://cdn.example.test/cards/${cardId}.png`,
+  });
+  queryClient.setQueryData(mozziKeys.picks(MEMBER), {
+    ...emptyPicks(),
+    calm: mochi(202, '사과 모찌'),
+    happy: mochi(201, '수박 모찌'),
   });
   await store().startGeneration(MEMBER);
   await settle();
   server.finish(500, 'FAILED');
-  useGachaStore.setState({ equippedByEmotion: { ...slots, calm: 'grape' } });
+  queryClient.setQueryData(mozziKeys.picks(MEMBER), {
+    ...emptyPicks(),
+    calm: mochi(209, '다른 모찌'),
+  });
   const first = store().sendImage(MEMBER, 500);
   const second = store().sendImage(MEMBER, 500);
   expect(second).toBe(first);
@@ -236,7 +250,7 @@ test('a redraw resends the stored scene and the mochi equipped for the chosen mo
   expect(calls).toHaveLength(2);
   expect(calls[1].body).toEqual(calls[0].body);
   expect(calls[1].key).not.toBe(calls[0].key);
-  expect(store().requests[500]?.companionId).toBe('peach');
+  expect(store().requests[500]?.companion?.name).toBe('사과 모찌');
 });
 
 test('IMAGE_ONLY_TODAY is shown and the home is read again', async () => {
@@ -346,4 +360,23 @@ test('same names in different categories remain distinct; deleting the chosen cu
   expect(store().draft.mainActivityId).toBeNull();
   expect(store().draft.tags.place).toBe(ids[1]);
   expect(await store().startGeneration(MEMBER)).toBeNull();
+});
+
+test('the first diary of the day and the first visit of the day show the tickets the server granted, once each', async () => {
+  server.state.rewardsOn = true;
+  await useRewardStore.getState().checkDailyLogin();
+  await useRewardStore.getState().checkDailyLogin();
+  expect(useRewardStore.getState().queue).toEqual([
+    { type: 'DAILY_LOGIN', tickets: 10, ticketCount: 30 },
+  ]);
+  expect(server.callsTo('POST', '/rewards/daily-login')).toHaveLength(2);
+  useRewardStore.getState().dismiss();
+  pickDay();
+  await store().startGeneration(MEMBER);
+  expect(useRewardStore.getState().queue).toEqual([
+    { type: 'DAILY_RECORD', tickets: 10, ticketCount: 40 },
+  ]);
+  // 로그아웃·계정 전환 때 남은 알림은 버린다.
+  useRewardStore.getState().resetSession();
+  expect(useRewardStore.getState().queue).toEqual([]);
 });

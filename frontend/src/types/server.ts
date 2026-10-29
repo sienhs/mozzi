@@ -43,6 +43,27 @@ export interface HomeResponse {
   canRequestImage: boolean;
   recentDiary: DiaryDetail | null;
 }
+// 목록·검색 결과의 일기 한 줄 (DiarySummary). 아이콘은 오지 않는다.
+export interface DiarySummary {
+  diaryId: number;
+  recordDate: string;
+  emotion: ServerEmotion;
+  content: string | null;
+  image: DiaryImage | null;
+}
+export type SearchResultType = 'FOUND' | 'EMPTY' | 'STATS_ONLY';
+// POST /emotion-search (backend docs/api/emotion-search.md).
+export interface SearchResponse {
+  question: string;
+  resultType: SearchResultType;
+  // EMPTY면 null.
+  answer: string | null;
+  // STATS_ONLY일 때만 감정별 날 수가 온다.
+  emotionCounts: { emotion: ServerEmotion; count: number }[];
+  // 큰 카드 1장. FOUND일 때만 있다.
+  featured: DiaryDetail | null;
+  diaries: DiarySummary[];
+}
 // GET /diaries/monthly의 한 칸. 일기를 쓴 날만 온다(한 줄·그림은 없다).
 export interface MonthlyItem {
   diaryId: number;
@@ -186,6 +207,72 @@ export function parseHome(value: unknown): HomeResponse {
     canRequestImage: value.canRequestImage,
     recentDiary,
   };
+}
+function parseSummary(value: unknown): DiarySummary {
+  if (
+    !isObject(value) ||
+    !isId(value.diaryId) ||
+    !isDate(value.recordDate) ||
+    !oneOf(emotions, value.emotion) ||
+    (value.content !== null && typeof value.content !== 'string')
+  )
+    throw invalidResponse();
+  return {
+    diaryId: value.diaryId,
+    recordDate: value.recordDate,
+    emotion: value.emotion,
+    content: value.content as string | null,
+    image: parseImage(value.image),
+  };
+}
+const resultTypes: SearchResultType[] = ['FOUND', 'EMPTY', 'STATS_ONLY'];
+export function parseSearch(value: unknown): SearchResponse {
+  if (
+    !isObject(value) ||
+    typeof value.question !== 'string' ||
+    !oneOf(resultTypes, value.resultType) ||
+    (value.answer !== null && typeof value.answer !== 'string') ||
+    !Array.isArray(value.diaries)
+  )
+    throw invalidResponse();
+  const stats = isObject(value.stats) ? value.stats : {};
+  const counts = Array.isArray(stats.emotionCounts) ? stats.emotionCounts : [];
+  const emotionCounts = counts.map(item => {
+    if (
+      !isObject(item) ||
+      !oneOf(emotions, item.emotion) ||
+      !Number.isSafeInteger(item.count)
+    )
+      throw invalidResponse();
+    return { emotion: item.emotion, count: item.count as number };
+  });
+  const featured =
+    value.featured === null || value.featured === undefined
+      ? null
+      : parseDiaryDetail(value.featured);
+  // 결과가 있다는데 보여 줄 기록이나 답이 없으면 화면을 그릴 수 없다.
+  if (value.resultType === 'FOUND' && (!featured || !value.answer))
+    throw invalidResponse();
+  if (value.resultType === 'STATS_ONLY' && !value.answer)
+    throw invalidResponse();
+  return {
+    question: value.question,
+    resultType: value.resultType,
+    answer: value.resultType === 'EMPTY' ? null : (value.answer as string),
+    emotionCounts,
+    featured: value.resultType === 'FOUND' ? featured : null,
+    diaries:
+      value.resultType === 'FOUND' ? value.diaries.map(parseSummary) : [],
+  };
+}
+export function parseSuggestions(value: unknown): string[] {
+  if (
+    !isObject(value) ||
+    !Array.isArray(value.suggestions) ||
+    value.suggestions.some(item => typeof item !== 'string' || !item.trim())
+  )
+    throw invalidResponse();
+  return value.suggestions as string[];
 }
 export function parseMonthly(value: unknown, yearMonth: string): MonthlyItem[] {
   if (

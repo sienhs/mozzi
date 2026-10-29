@@ -9,8 +9,8 @@ import { Icon } from '@/components/ui/Icon';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { DiaryArtwork } from '@/components/ui/DiaryCard';
 import { Sheet } from '@/components/ui/Sheet';
-import { LegalDocument } from '@/components/ui/LegalDocument';
-import { legalDocuments, legalTypes, type LegalType } from '@/constants/legal';
+import { LegalDocument, useLegalDocument } from '@/components/ui/LegalDocument';
+import { legalLabels, legalTypes, type LegalType } from '@/constants/legal';
 import { Checkbox } from '@/components/ui/Selection';
 import { colors } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -69,14 +69,22 @@ export function OnboardingScreen() {
   const [document, setDocument] = useState<LegalType | null>(null);
   const meta = useMetaStore(state => state.meta);
   const metaLoading = useMetaStore(state => state.status === 'loading');
-  // 앱에 든 본문 버전과 서버가 요구하는 버전이 같을 때만 그 본문으로 동의를 받는다.
-  const versionOf = (type: LegalType) =>
-    meta?.termsVersions[type] === legalDocuments[type].version
-      ? legalDocuments[type].version
-      : null;
-  const termsReady = legalTypes.every(
-    type => !!legalDocuments[type].body && !!versionOf(type),
-  );
+  // 서버에서 받은 본문의 버전이 가입에 필요한 버전(GET /meta)과 같을 때만 그 본문으로 동의를 받는다.
+  const documents = {
+    TERMS: useLegalDocument('TERMS'),
+    PRIVACY: useLegalDocument('PRIVACY'),
+  };
+  const versionOf = (type: LegalType) => {
+    const version = documents[type].data?.version;
+    return version && meta?.termsVersions[type] === version ? version : null;
+  };
+  const termsReady = legalTypes.every(type => !!versionOf(type));
+  const documentsLoading = legalTypes.some(type => documents[type].isFetching);
+  const documentsFailed = legalTypes.some(type => documents[type].isError);
+  function reloadTerms() {
+    if (!metaLoading) void useMetaStore.getState().load();
+    for (const type of legalTypes) void documents[type].refetch();
+  }
   const isAgreed = (type: LegalType) =>
     !!agreed[type] && agreed[type] === versionOf(type);
   if (status === 'authenticated') return <Redirect href="/home" />;
@@ -151,14 +159,20 @@ export function OnboardingScreen() {
         {!termsReady ? (
           <>
             <AppText variant="small">
-              {!meta
+              {!meta || documentsFailed
                 ? '약관 정보를 불러오지 못했어요. 다시 확인해 주세요.'
-                : '약관이 새로 바뀌었어요. 앱을 최신 버전으로 업데이트한 뒤 가입해 주세요.'}
+                : documentsLoading
+                  ? '약관을 불러오고 있어요.'
+                  : '약관이 새로 바뀌었어요. 잠시 후 다시 확인해 주세요.'}
             </AppText>
             <TextButton
-              label={metaLoading ? '확인하고 있어요' : '약관 다시 확인하기'}
+              label={
+                metaLoading || documentsLoading
+                  ? '확인하고 있어요'
+                  : '약관 다시 확인하기'
+              }
               onPress={() => {
-                if (!metaLoading) void useMetaStore.getState().load();
+                if (!documentsLoading) reloadTerms();
               }}
             />
           </>
@@ -166,11 +180,11 @@ export function OnboardingScreen() {
           legalTypes.map(type => (
             <View key={type}>
               <TextButton
-                label={`${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 보기`}
+                label={`${legalLabels[type]} 보기`}
                 onPress={() => setDocument(type)}
               />
               <Checkbox
-                label={`${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'} 동의 (필수)`}
+                label={`${legalLabels[type]} 동의 (필수)`}
                 checked={isAgreed(type)}
                 onChange={checked => {
                   if (!pending)
@@ -186,7 +200,11 @@ export function OnboardingScreen() {
       </View>
       <Sheet
         visible={document !== null}
-        title={document ? legalDocuments[document].title : ''}
+        title={
+          document
+            ? (documents[document].data?.title ?? legalLabels[document])
+            : ''
+        }
         onClose={() => setDocument(null)}
       >
         {document && <LegalDocument type={document} />}

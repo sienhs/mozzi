@@ -25,30 +25,34 @@ import {
   TierBadge,
   pullCardState,
 } from '@/components/gacha/GachaUI';
+import { ErrorBanner, Loading, StatePanel } from '@/components/ui/Feedback';
 import {
   gachaArt,
   getOpeningClip,
   highestTier,
-  mochiName,
   openingClips,
-  mochiOrder,
-  mochis,
-  season,
   tiers,
   type OpeningClip,
 } from '@/constants/gacha';
 import { colors } from '@/theme/tokens';
-import type { MochiId } from '@/types/gacha';
-import {
-  exchangeCandidate,
-  exchangeCost,
-  useGachaStore,
-} from '@/stores/useGachaStore';
+import type { MochiCard as Card } from '@/types/gacha';
+import { useGachaStore } from '@/stores/useGachaStore';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { gachaApi, gachaKeys } from '@/services/gachaApi';
+import { apiErrorMessage } from '@/services/authErrors';
+import { queryClient } from '@/services/queryClient';
+import { useCollection } from './useGachaQueries';
 
-const isMochi = (id: unknown): id is MochiId =>
-  typeof id === 'string' && id in mochis;
-const openDetail = (id: MochiId) =>
-  router.push({ pathname: '/gacha/mochi/[id]', params: { id } });
+// 화면 경로의 카드 ID.
+const cardIdOf = (id: unknown) => {
+  const value = Number(id);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+};
+const openDetail = (cardId: number) =>
+  router.push({
+    pathname: '/gacha/mochi/[id]',
+    params: { id: String(cardId) },
+  });
 const toCollection = () => router.replace('/gacha/collection');
 const fixed = { minHeight: 54 };
 
@@ -135,7 +139,10 @@ export function OpeningScreen() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    if (count > useGachaStore.getState().tickets) {
+    const memberId = useAuthStore.getState().member?.memberId;
+    const wallet = useGachaStore.getState().wallet;
+    // 잔액을 이미 알면 모자란 요청은 보내지 않는다. 모르면 서버가 판단한다.
+    if (memberId === undefined || (wallet && count > wallet.tickets)) {
       router.back();
       return;
     }
@@ -149,11 +156,13 @@ export function OpeningScreen() {
         if (cancelled) return;
         useGachaStore
           .getState()
-          .pull(count)
+          .pull(memberId, count)
           .then(items => {
             if (cancelled) return;
             if (items.length) {
-              setClip(getOpeningClip(highestTier(items.map(item => item.id))));
+              setClip(
+                getOpeningClip(highestTier(items.map(item => item.card.tier))),
+              );
               setResult('done');
             } else setResult('failed');
           })
@@ -285,9 +294,9 @@ const styles = StyleSheet.create({
 // P-03 새로운 모찌 · 1장.
 export function RevealScreen() {
   const item = useGachaStore(state => state.lastPull[0]);
-  const tickets = useGachaStore(state => state.tickets);
+  const tickets = useGachaStore(state => state.wallet?.tickets ?? 0);
   if (!item) return <Redirect href="/gacha" />;
-  const { tier } = mochis[item.id];
+  const { tier, name } = item.card;
   return (
     <Screen
       action={{ icon: 'close', label: '닫기', onPress: () => router.back() }}
@@ -315,7 +324,7 @@ export function RevealScreen() {
       }
     >
       <View
-        accessibilityLabel={`새로운 모찌, ${tiers[tier].label} ${mochiName(item.id)}`}
+        accessibilityLabel={`새로운 모찌, ${tiers[tier].label} ${name}`}
         style={{
           width: '71.3%',
           maxWidth: 320,
@@ -380,14 +389,14 @@ export function RevealScreen() {
         >
           <Image
             accessible={false}
-            source={mochis[item.id].source}
+            source={{ uri: item.card.imageUrl }}
             resizeMode="contain"
             style={{ width: '100%', height: '100%' }}
           />
         </View>
       </View>
       <AppText variant="title" style={{ textAlign: 'center' }}>
-        {mochiName(item.id)}
+        {name}
       </AppText>
     </Screen>
   );
@@ -425,7 +434,7 @@ export function ResultsScreen() {
             <MochiCard
               key={index}
               state={pullCardState(item)}
-              onPress={() => openDetail(item.id)}
+              onPress={() => openDetail(item.card.cardId)}
             />
           ) : (
             <MochiCard
@@ -442,73 +451,137 @@ export function ResultsScreen() {
   );
 }
 
-// P-06 모찌 도감.
+// 도감 응답을 못 받았을 때. 임의 목록으로 대신하지 않는다.
+function CollectionState({
+  query,
+}: {
+  query: ReturnType<typeof useCollection>;
+}) {
+  return query.isError ? (
+    <StatePanel
+      compact
+      title="도감을 불러오지 못했어요"
+      description="연결 상태를 확인하고 다시 시도해 주세요."
+      retry={() => void query.refetch()}
+      retryLabel="다시 불러오기"
+    />
+  ) : (
+    <Loading label="도감을 불러오고 있어요" />
+  );
+}
+
+// P-06 모찌 도감 (GET /gacha/collection). 없는 카드는 "?" 칸으로 가린다.
 export function CollectionScreen() {
-  const owned = useGachaStore(state => state.owned);
-  const unseen = useGachaStore(state => state.unseen);
-  const shards = useGachaStore(state => state.shards);
+  const collection = useCollection();
   const [filter, setFilter] = useState<'all' | 'missing'>('all');
-  const list = mochiOrder.filter(id => filter === 'all' || !owned.includes(id));
+  const [series, setSeries] = useState<string | null>(null);
+  const data = collection.data;
+  const seriesList = [
+    ...new Set((data?.cards ?? []).map(card => card.series).filter(Boolean)),
+  ];
+  const list = (data?.cards ?? []).filter(
+    card =>
+      (filter === 'all' || !card.owned) && (!series || card.series === series),
+  );
   return (
     <Screen
       title="모찌 도감"
       back
       contentStyle={{ gap: 12 }}
       footer={
-        <Button
-          label={`✦ ${shards}  ·  별조각으로 모찌 만나기`}
-          onPress={() => router.push('/gacha/exchange')}
-          style={fixed}
-        />
+        data && (
+          <Button
+            label={`✦ ${data.shards}  ·  별조각으로 모찌 만나기`}
+            onPress={() => router.push('/gacha/exchange')}
+            style={fixed}
+          />
+        )
       }
     >
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <GachaChip
-          label="전체"
-          width={62}
-          active={filter === 'all'}
-          onPress={() => setFilter('all')}
-        />
-        <GachaChip
-          label="미보유"
-          width={72}
-          active={filter === 'missing'}
-          onPress={() => setFilter('missing')}
-        />
-        <GachaChip label="과일 모찌" width={100} />
-      </View>
-      {list.length ? (
-        <CardGrid>
-          {list.map(id =>
-            owned.includes(id) ? (
-              <MochiCard
-                key={id}
-                state={{ kind: 'owned', id, isNew: unseen.includes(id) }}
-                onPress={() => openDetail(id)}
-              />
-            ) : (
-              <MochiCard key={id} state={{ kind: 'locked', id }} />
-            ),
-          )}
-        </CardGrid>
+      {!data ? (
+        <CollectionState query={collection} />
       ) : (
-        <AppText style={{ color: colors.muted, textAlign: 'center' }}>
-          모든 모찌를 만났어요.
-        </AppText>
+        <>
+          <AppText variant="small">
+            모은 모찌 {data.owned} / {data.total}
+          </AppText>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <GachaChip
+              label="전체"
+              width={62}
+              active={filter === 'all'}
+              onPress={() => setFilter('all')}
+            />
+            <GachaChip
+              label="미보유"
+              width={72}
+              active={filter === 'missing'}
+              onPress={() => setFilter('missing')}
+            />
+            {seriesList.map(name => (
+              <GachaChip
+                key={name}
+                label={name}
+                width={100}
+                active={series === name}
+                onPress={() => setSeries(series === name ? null : name)}
+              />
+            ))}
+          </View>
+          {list.length ? (
+            <CardGrid>
+              {list.map(card =>
+                card.owned ? (
+                  <MochiCard
+                    key={card.cardId}
+                    state={{ kind: 'owned', card, isNew: card.isNew }}
+                    onPress={() => openDetail(card.cardId)}
+                  />
+                ) : (
+                  <MochiCard
+                    key={card.cardId}
+                    state={{ kind: 'locked', card }}
+                  />
+                ),
+              )}
+            </CardGrid>
+          ) : (
+            <AppText style={{ color: colors.muted, textAlign: 'center' }}>
+              모든 모찌를 만났어요.
+            </AppText>
+          )}
+        </>
       )}
     </Screen>
   );
 }
 
-// P-07 모찌 상세.
+// P-07 모찌 상세. 보고 나면 NEW 표시를 지운다(POST /gacha/collection/seen).
 export function MochiDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const owned = useGachaStore(state => state.owned);
+  const cardId = cardIdOf(id);
+  const memberId = useAuthStore(state => state.member?.memberId);
+  const collection = useCollection();
+  const card = collection.data?.cards.find(item => item.cardId === cardId);
+  const unseen = !!card?.owned && card.isNew;
   useEffect(() => {
-    if (isMochi(id)) useGachaStore.getState().markSeen(id);
-  }, [id]);
-  if (!isMochi(id) || !owned.includes(id))
-    return <Redirect href="/gacha/collection" />;
+    if (!unseen || cardId === null || memberId === undefined) return;
+    void gachaApi
+      .seen([cardId])
+      .then(() =>
+        queryClient.invalidateQueries({
+          queryKey: gachaKeys.collection(memberId),
+        }),
+      )
+      .catch(() => undefined);
+  }, [unseen, cardId, memberId]);
+  if (!collection.data)
+    return (
+      <Screen title="모찌 도감" back>
+        <CollectionState query={collection} />
+      </Screen>
+    );
+  if (!card?.owned) return <Redirect href="/gacha/collection" />;
   return (
     <Screen
       title="모찌 도감"
@@ -521,19 +594,19 @@ export function MochiDetailScreen() {
         />
       }
     >
-      <MochiFeature id={id} size={246}>
-        <AppText variant="small">{season}</AppText>
+      <MochiFeature card={card} size={246}>
+        {!!card.series && <AppText variant="small">{card.series}</AppText>}
       </MochiFeature>
     </Screen>
   );
 }
 function MochiFeature({
-  id,
+  card,
   size,
   chip,
   children,
 }: {
-  id: MochiId;
+  card: Card;
   size: number;
   chip?: ReactNode;
   children?: ReactNode;
@@ -548,102 +621,150 @@ function MochiFeature({
         alignItems: 'center',
       }}
     >
-      {chip ?? <TierBadge tier={mochis[id].tier} />}
+      {chip ?? <TierBadge tier={card.tier} />}
       <Image
-        accessibilityLabel={mochiName(id)}
-        source={mochis[id].source}
+        accessibilityLabel={card.name}
+        source={{ uri: card.imageUrl }}
         resizeMode="contain"
         style={{ width: size, height: size }}
       />
-      <AppText variant="heading">{mochiName(id)}</AppText>
+      <AppText variant="heading">{card.name}</AppText>
       {children}
     </View>
   );
 }
 
-// P-08 별조각으로 만나기.
+// P-08 별조각으로 만나기. 전설·신화 중 아직 없는 카드를 교환가 순으로 보여 준다.
 export function ExchangeScreen() {
-  const owned = useGachaStore(state => state.owned);
-  const shards = useGachaStore(state => state.shards);
-  const id = exchangeCandidate(owned);
-  const cost = id ? exchangeCost(id) : 0;
+  const collection = useCollection();
+  const data = collection.data;
+  const candidates = (data?.cards ?? [])
+    .filter(card => !card.owned && card.exchangeCost !== null)
+    .sort(
+      (a, b) =>
+        a.exchangeCost! - b.exchangeCost! || a.code.localeCompare(b.code),
+    );
   return (
     <Screen title="별조각으로 만나기" back contentStyle={{ gap: 12 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <AppText variant="small">내 별조각</AppText>
-        <BalanceChip label={`✦ ${shards}`} compact />
-      </View>
-      {id ? (
+      {!data ? (
+        <CollectionState query={collection} />
+      ) : (
         <>
           <View
             style={{
-              backgroundColor: colors.white,
-              borderRadius: 20,
-              padding: 16,
               flexDirection: 'row',
               alignItems: 'center',
-              gap: 16,
+              justifyContent: 'space-between',
             }}
           >
-            <Image
-              accessibilityLabel={mochiName(id)}
-              source={mochis[id].source}
-              resizeMode="contain"
-              style={{ width: 100, height: 100 }}
-            />
-            <View style={{ flex: 1, gap: 8, alignItems: 'flex-start' }}>
-              <TierBadge tier={mochis[id].tier} />
-              <AppText variant="label">{mochiName(id)}</AppText>
-              <AppText variant="small">필요한 별조각 {cost}</AppText>
-            </View>
+            <AppText variant="small">내 별조각</AppText>
+            <BalanceChip label={`✦ ${data.shards}`} compact />
           </View>
-          <Button
-            label={
-              shards < cost
-                ? '별조각이 부족해요'
-                : `${mochiName(id)} 교환   ✦ ${cost}`
-            }
-            disabled={shards < cost}
-            onPress={() =>
-              router.push({
-                pathname: '/gacha/exchange-confirm',
-                params: { id },
-              })
-            }
-            style={fixed}
-          />
+          {candidates.length ? (
+            candidates.map(card => (
+              <View
+                key={card.cardId}
+                style={{
+                  backgroundColor: colors.white,
+                  borderRadius: 20,
+                  padding: 16,
+                  gap: 12,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 16,
+                  }}
+                >
+                  <Image
+                    accessibilityLabel={card.name}
+                    source={{ uri: card.imageUrl }}
+                    resizeMode="contain"
+                    style={{ width: 100, height: 100 }}
+                  />
+                  <View style={{ flex: 1, gap: 8, alignItems: 'flex-start' }}>
+                    <TierBadge tier={card.tier} />
+                    <AppText variant="label">{card.name}</AppText>
+                    <AppText variant="small">
+                      필요한 별조각 {card.exchangeCost}
+                    </AppText>
+                  </View>
+                </View>
+                <Button
+                  label={
+                    data.shards < card.exchangeCost!
+                      ? '별조각이 부족해요'
+                      : `${card.name} 교환   ✦ ${card.exchangeCost}`
+                  }
+                  disabled={data.shards < card.exchangeCost!}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/gacha/exchange-confirm',
+                      params: { id: String(card.cardId) },
+                    })
+                  }
+                  style={fixed}
+                />
+              </View>
+            ))
+          ) : (
+            <AppText style={{ color: colors.muted, textAlign: 'center' }}>
+              교환할 수 있는 모찌를 모두 만났어요.
+            </AppText>
+          )}
         </>
-      ) : (
-        <AppText style={{ color: colors.muted, textAlign: 'center' }}>
-          모든 모찌를 만났어요.
-        </AppText>
       )}
     </Screen>
   );
 }
 
-// P-09 교환 확인.
+// P-09 교환 확인 (POST /gacha/exchanges).
 export function ExchangeConfirmScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const shards = useGachaStore(state => state.shards);
-  const owned = useGachaStore(state => state.owned);
+  const cardId = cardIdOf(id);
+  const memberId = useAuthStore(state => state.member?.memberId);
+  const collection = useCollection();
+  const card = collection.data?.cards.find(item => item.cardId === cardId);
   const [busy, setBusy] = useState(false);
-  // Judge ownership on entry only; the exchange adds the mochi before we move on.
-  const [ownedOnEntry] = useState(() => isMochi(id) && owned.includes(id));
-  if (!isMochi(id) || ownedOnEntry)
+  const [error, setError] = useState('');
+  // 교환이 끝나면 카드가 보유로 바뀐다. 그때는 완료 화면으로 가는 중이니 도감으로 되돌리지 않는다.
+  const [done, setDone] = useState(false);
+  if (!collection.data)
+    return (
+      <Screen title="별조각 교환" back>
+        <CollectionState query={collection} />
+      </Screen>
+    );
+  if (!card || card.exchangeCost === null || (card.owned && !done))
     return <Redirect href="/gacha/collection" />;
-  const cost = exchangeCost(id);
+  const shards = collection.data.shards;
+  const cost = card.exchangeCost;
   const rows: [string, string][] = [
     ['보유 별조각', String(shards)],
     ['사용할 별조각', `−${cost}`],
     ['교환 후', String(shards - cost)],
   ];
+  async function exchange() {
+    if (memberId === undefined || cardId === null) return;
+    setBusy(true);
+    setError('');
+    try {
+      await useGachaStore.getState().exchange(memberId, cardId);
+      setDone(true);
+      router.replace({
+        pathname: '/gacha/exchanged',
+        params: { id: String(cardId) },
+      });
+    } catch (failure) {
+      setError(
+        apiErrorMessage(failure, '교환하지 못했어요. 다시 시도해 주세요.'),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Screen
       title="별조각 교환"
@@ -651,23 +772,12 @@ export function ExchangeConfirmScreen() {
       contentStyle={{ gap: 12 }}
       footer={
         <>
+          {!!error && <ErrorBanner message={error} />}
           <Button
             label="교환하기"
             loading={busy}
             disabled={shards < cost}
-            onPress={() => {
-              setBusy(true);
-              void useGachaStore
-                .getState()
-                .exchange(id)
-                .then(() =>
-                  router.replace({
-                    pathname: '/gacha/exchanged',
-                    params: { id },
-                  }),
-                )
-                .finally(() => setBusy(false));
-            }}
+            onPress={() => void exchange()}
             style={fixed}
           />
           <Button
@@ -680,7 +790,7 @@ export function ExchangeConfirmScreen() {
         </>
       }
     >
-      <MochiFeature id={id} size={220} />
+      <MochiFeature card={card} size={220} />
       <View
         style={{
           backgroundColor: colors.gachaCream,
@@ -706,8 +816,16 @@ export function ExchangeConfirmScreen() {
 // P-13 교환 완료.
 export function ExchangedScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const shards = useGachaStore(state => state.shards);
-  if (!isMochi(id)) return <Redirect href="/gacha/collection" />;
+  const cardId = cardIdOf(id);
+  const exchanged = useGachaStore(state => state.lastExchange);
+  const collection = useCollection();
+  const card =
+    exchanged?.cardId === cardId
+      ? exchanged
+      : collection.data?.cards.find(item => item.cardId === cardId);
+  const shards = collection.data?.shards;
+  if (cardId === null || (!card && collection.data))
+    return <Redirect href="/gacha/collection" />;
   const backToCollection = () => router.dismissTo('/gacha/collection');
   return (
     <Screen
@@ -718,44 +836,54 @@ export function ExchangedScreen() {
         <Button label="도감으로" onPress={backToCollection} style={fixed} />
       }
     >
-      <MochiFeature
-        id={id}
-        size={220}
-        chip={
-          <View
-            style={{
-              width: 110,
-              paddingVertical: 5,
-              borderRadius: 12,
-              alignItems: 'center',
-              backgroundColor: colors.sageSoft,
-            }}
-          >
-            <AppText variant="caption" style={{ color: colors.gachaSageInk }}>
-              새로운 만남
-            </AppText>
-          </View>
-        }
-      />
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <AppText variant="small">남은 별조각</AppText>
-        <AppText variant="label" style={{ color: colors.primary }}>
-          ✦ {shards}
-        </AppText>
-      </View>
+      {card ? (
+        <MochiFeature
+          card={card}
+          size={220}
+          chip={
+            <View
+              style={{
+                width: 110,
+                paddingVertical: 5,
+                borderRadius: 12,
+                alignItems: 'center',
+                backgroundColor: colors.sageSoft,
+              }}
+            >
+              <AppText variant="caption" style={{ color: colors.gachaSageInk }}>
+                새로운 만남
+              </AppText>
+            </View>
+          }
+        />
+      ) : (
+        <CollectionState query={collection} />
+      )}
+      {shards !== undefined && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <AppText variant="small">남은 별조각</AppText>
+          <AppText variant="label" style={{ color: colors.primary }}>
+            ✦ {shards}
+          </AppText>
+        </View>
+      )}
     </Screen>
   );
 }
 
 // P-11 요청 실패.
+// 서버가 실패를 알려 줬으면 뽑기권은 쓰이지 않았다. 응답을 받지 못했으면 단정하지 않고,
+// 다시 시도할 때 같은 키로 보내 이미 처리된 뽑기면 그 결과를 받는다.
 export function GachaFailedScreen() {
   const params = useLocalSearchParams<{ count?: string }>();
+  const error = useGachaStore(state => state.drawError);
+  const unknown = useGachaStore(state => state.drawUnknown);
   return (
     <Screen
       title="모찌 뽑기"
@@ -799,8 +927,15 @@ export function GachaFailedScreen() {
         />
         <AppText variant="heading">다시 시도해 주세요</AppText>
         <AppText style={{ color: colors.muted, textAlign: 'center' }}>
-          {'뽑기권은 사용되지 않았어요.\n연결을 확인하고 다시 시도해 주세요.'}
+          {unknown
+            ? '뽑기 결과를 확인하지 못했어요. 다시 시도하면 같은 뽑기로 확인하고, 뽑기권은 한 번만 써요.'
+            : '뽑기권은 사용되지 않았어요.'}
         </AppText>
+        {!!error && !unknown && (
+          <AppText variant="small" style={{ textAlign: 'center' }}>
+            {error}
+          </AppText>
+        )}
       </View>
     </Screen>
   );

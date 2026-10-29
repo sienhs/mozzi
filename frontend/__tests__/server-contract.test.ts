@@ -4,7 +4,13 @@ import {
   msUntilNextSeoulDay,
   pollDelay,
 } from '@/features/diary/useDiaryQueries';
-import { parseHome, parseMonthly, type DiaryDetail } from '@/types/server';
+import {
+  parseHome,
+  parseMonthly,
+  parseSearch,
+  parseSuggestions,
+  type DiaryDetail,
+} from '@/types/server';
 
 const TODAY = '2026-10-26';
 const diary = (patch: Partial<DiaryDetail> = {}): DiaryDetail => ({
@@ -147,6 +153,68 @@ test('picture polling slows down over time and the day rolls over at Seoul midni
   expect(msUntilNextSeoulDay(new Date('2026-10-26T12:00:00Z'))).toBe(
     3 * 3_600_000,
   );
+});
+
+test('search responses are checked per result type', () => {
+  const base = {
+    searchId: 3001,
+    question: '마음이 편했던 날을 보여 줘',
+    interpretedFilter: { from: null, to: null, emotions: [], keyword: null },
+  };
+  const found = parseSearch({
+    ...base,
+    resultType: 'FOUND',
+    answer: '평온 모찌를 고른 날이 1일 있었어요.',
+    stats: { matchedCount: 1, emotionCounts: null },
+    featured: diary(),
+    diaries: [
+      {
+        diaryId: 102,
+        recordDate: TODAY,
+        emoticonId: 2,
+        emotion: 'CALM',
+        content: null,
+        image: null,
+      },
+    ],
+  });
+  expect(found.featured?.diaryId).toBe(102);
+  expect(found.diaries).toHaveLength(1);
+  expect(
+    parseSearch({
+      ...base,
+      resultType: 'STATS_ONLY',
+      answer: '평온이 가장 많았어요.',
+      stats: {
+        matchedCount: 5,
+        emotionCounts: [{ emotion: 'CALM', count: 5 }],
+      },
+      featured: null,
+      diaries: [],
+    }).emotionCounts,
+  ).toEqual([{ emotion: 'CALM', count: 5 }]);
+  expect(
+    parseSearch({
+      ...base,
+      resultType: 'EMPTY',
+      answer: null,
+      stats: { matchedCount: 0, emotionCounts: null },
+      featured: null,
+      diaries: [],
+    }).answer,
+  ).toBeNull();
+  // 결과가 있다는데 큰 카드나 답이 없으면 그릴 수 없다.
+  expect(() =>
+    parseSearch({
+      ...base,
+      resultType: 'FOUND',
+      answer: '있어요',
+      featured: null,
+      diaries: [],
+    }),
+  ).toThrow();
+  expect(() => parseSuggestions({ suggestions: ['', '질문'] })).toThrow();
+  expect(parseSuggestions({ suggestions: ['질문'] })).toEqual(['질문']);
 });
 
 test('monthly calendar responses must belong to the requested month', () => {

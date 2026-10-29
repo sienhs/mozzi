@@ -7,7 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { queryClient } from '@/services/queryClient';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { Screen } from '@/components/ui/Screen';
@@ -16,6 +16,8 @@ import { colors, fonts } from '@/theme/tokens';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { SPLASH_MIN_MS, Splash } from '@/components/ui/Splash';
 import { useMetaStore } from '@/stores/useMetaStore';
+import { useRewardStore } from '@/stores/useRewardStore';
+import { RewardSheet } from '@/features/reward/RewardSheet';
 import {
   ForceUpdateScreen,
   MetaErrorScreen,
@@ -37,6 +39,16 @@ export default function RootLayout() {
   useEffect(() => {
     void useMetaStore.getState().load();
   }, []);
+  // 매일 접속 보상: 로그인한 상태로 앱이 켜지거나 다시 활성화될 때 서버에 묻는다(그날 한 번만 지급).
+  const signedIn = status === 'authenticated';
+  useEffect(() => {
+    if (!signedIn) return;
+    void useRewardStore.getState().checkDailyLogin();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') void useRewardStore.getState().checkDailyLogin();
+    });
+    return () => subscription.remove();
+  }, [signedIn]);
   const [loaded, fontError] = useFonts({
     [fonts.pen]: require('../../assets/fonts/OwnglyphParkDahyun.ttf'),
   });
@@ -81,6 +93,7 @@ export default function RootLayout() {
         ) : (
           <>
             <RecommendedUpdateSheet />
+            {signedIn && <RewardSheet />}
             <Stack
               screenOptions={{
                 headerShown: false,

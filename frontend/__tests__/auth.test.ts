@@ -8,10 +8,8 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useAppStore } from '@/stores/useAppStore';
 import { useGachaStore } from '@/stores/useGachaStore';
 import { useTagStore } from '@/stores/useTagStore';
-import { mockGachaService } from '@/mocks/services';
 import { diaryApi, diaryKeys } from '@/services/diaryApi';
 import { queryClient } from '@/services/queryClient';
-import type { PullItem } from '@/types/gacha';
 import { normalizeApiUrl } from '@/services/authConfig';
 import { validNickname, type AuthTokens } from '@/types/auth';
 
@@ -390,18 +388,46 @@ test('refresh rejection ends the session and stops repeated retries', async () =
   expect(authSession.current()).toBeNull();
 });
 
-test('account switch discards an older gacha response without changing the new balance', async () => {
-  const gate = deferred<PullItem[]>();
-  const spy = jest
-    .spyOn(mockGachaService, 'pull')
-    .mockReturnValueOnce(gate.promise);
-  const old = useGachaStore.getState().pull(1);
+test('account switch discards an older draw response without showing it to the new account', async () => {
+  const gate = deferred<void>();
+  api.defaults.adapter = async config => {
+    await gate.promise;
+    return response(
+      config,
+      {
+        drawId: 1,
+        results: [
+          {
+            card: {
+              cardId: 203,
+              code: 'S2-02-01',
+              name: '천도복숭아 모찌',
+              tier: 'LEGENDARY',
+              emotion: 'HAPPY',
+              series: '과일 모찌',
+              imageUrl: 'https://cdn.example.test/cards/S2-02-01.png',
+              owned: true,
+              ownedCount: 1,
+              isNew: true,
+              exchangeCost: 200,
+            },
+            firstAcquired: true,
+            shardsGained: 0,
+          },
+        ],
+        ticketCount: 22,
+        shardCount: 0,
+        collection: { owned: 1, total: 5 },
+      },
+      201,
+    );
+  };
+  const old = useGachaStore.getState().pull(7, 1);
   useGachaStore.getState().resetSession();
-  gate.resolve([{ id: 'peach', isNew: true, shards: 0 }]);
+  gate.resolve();
   expect(await old).toEqual([]);
-  expect(useGachaStore.getState().tickets).toBe(23);
-  expect(useGachaStore.getState().owned).not.toContain('peach');
-  spy.mockRestore();
+  expect(useGachaStore.getState().wallet).toBeNull();
+  expect(useGachaStore.getState().lastPull).toEqual([]);
 });
 
 test('a late home or picture response from the previous account never reaches the next account', async () => {
@@ -436,7 +462,7 @@ test('a late home or picture response from the previous account never reaches th
           whoMyIconId: null,
           whatMyIconId: 3,
         },
-        companionId: 'default',
+        companion: null,
         imageTags: [],
       },
     },

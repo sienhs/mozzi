@@ -9,70 +9,57 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Sheet } from '@/components/ui/Sheet';
 import { OwnedCompanionCard } from '@/components/mypage/CompanionUI';
-import { mochiCategories } from '@/constants/companions';
+import { Loading, StatePanel } from '@/components/ui/Feedback';
 import { emotions, isEmotion } from '@/constants/emotions';
 import { EmotionSlotPicker } from '@/components/mypage/EmotionSlotPicker';
 import type { Emotion } from '@/types/diary';
 import { tierOrder, tiers } from '@/constants/gacha';
 import { colors } from '@/theme/tokens';
-import { useGachaStore } from '@/stores/useGachaStore';
-import type {
-  CompanionId,
-  CompanionSort,
-  MochiCategory,
-} from '@/types/companion';
+import { useOwnedMozzis } from '@/features/gacha/useGachaQueries';
+import type { CompanionSort, OwnedMozzi } from '@/types/companion';
 import type { Tier } from '@/types/gacha';
-import { filterOwnedCompanions, ownedCompanionIds } from './ownedCompanions';
 
 const sortLabels: Record<CompanionSort, string> = {
   recent: '최근 획득순',
   oldest: '오래된 획득순',
   name: '이름순',
 };
+// 보유 모찌 (GET /members/me/mozzis). 카드마다 감정이 하나라, 고른 감정의 카드만 그 감정에 장착할 수 있다.
+// 거르기·정렬은 서버가 한다.
 export function OwnedCompanionsScreen() {
-  const owned = useGachaStore(state => state.owned);
-  const acquiredAt = useGachaStore(state => state.acquiredAt);
   const params = useLocalSearchParams<{ emotion?: string }>();
   const [emotion, setEmotion] = useState<Emotion>(
     isEmotion(params.emotion) ? params.emotion : 'happy',
   );
-  const equippedId = useGachaStore(state => state.equippedByEmotion[emotion]);
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<MochiCategory | null>(null);
   const [tier, setTier] = useState<Tier | null>(null);
   const [sort, setSort] = useState<CompanionSort>('recent');
-  const [sheet, setSheet] = useState<'category' | 'tier' | 'sort' | null>(null);
-  const [pendingCategory, setPendingCategory] = useState<MochiCategory | null>(
-    null,
-  );
+  const [sheet, setSheet] = useState<'tier' | 'sort' | null>(null);
   const [pendingTier, setPendingTier] = useState<Tier | null>(null);
   const [pendingSort, setPendingSort] = useState<CompanionSort>('recent');
-  const ids = useMemo(
-    () =>
-      filterOwnedCompanions({ owned, acquiredAt, query, category, tier, sort }),
-    [owned, acquiredAt, query, category, tier, sort],
+  const filters = useMemo(
+    () => ({ emotion, tier, name: query.trim(), sort }),
+    [emotion, tier, query, sort],
   );
-  const total = ownedCompanionIds(owned).length;
+  const owned = useOwnedMozzis(filters);
+  const list = owned.data ?? [];
   const select = useCallback(
-    (id: CompanionId) =>
-      router.push({ pathname: '/mypage/mochi/[id]', params: { id, emotion } }),
-    [emotion],
+    (mozzi: OwnedMozzi) =>
+      router.push({
+        pathname: '/mypage/mochi/[id]',
+        params: { id: String(mozzi.cardId), emotion: mozzi.emotion },
+      }),
+    [],
   );
   const renderItem = useCallback(
-    ({ item }: { item: CompanionId }) => (
+    ({ item }: { item: OwnedMozzi }) => (
       <View style={styles.cell}>
-        <OwnedCompanionCard
-          id={item}
-          equipped={item === equippedId}
-          onSelect={select}
-        />
+        <OwnedCompanionCard mozzi={item} onSelect={select} />
       </View>
     ),
-    [equippedId, select],
+    [select],
   );
-  const categoryLabel =
-    mochiCategories.find(item => item.id === category)?.label ?? '전체';
   return (
     <Screen
       back
@@ -89,11 +76,10 @@ export function OwnedCompanionsScreen() {
       scrollable={false}
     >
       <FlatList
-        data={ids}
+        data={list}
         numColumns={3}
-        keyExtractor={id => id}
+        keyExtractor={item => String(item.cardId)}
         renderItem={renderItem}
-        extraData={equippedId}
         initialNumToRender={12}
         maxToRenderPerBatch={12}
         windowSize={5}
@@ -111,6 +97,9 @@ export function OwnedCompanionsScreen() {
               {emotions[emotion].label}에 함께할 모찌
             </AppText>
             <EmotionSlotPicker value={emotion} onChange={setEmotion} />
+            <AppText variant="caption">
+              고르지 않은 감정은 기본 모찌가 함께해요.
+            </AppText>
             <View style={{ position: 'relative' }}>
               <Input
                 accessibilityLabel="모찌 이름 검색"
@@ -125,14 +114,6 @@ export function OwnedCompanionsScreen() {
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <FilterButton
-                label={category ? categoryLabel : '카테고리 · 전체'}
-                active={!!category}
-                onPress={() => {
-                  setPendingCategory(category);
-                  setSheet('category');
-                }}
-              />
-              <FilterButton
                 label={tier ? tiers[tier].label : '등급 · 전체'}
                 iconColor={tier ? tiers[tier].color : colors.gachaGoldInk}
                 active={!!tier}
@@ -146,7 +127,9 @@ export function OwnedCompanionsScreen() {
             <View style={styles.listHeading}>
               <AppText variant="small" style={{ color: colors.ink, flex: 1 }}>
                 보유 모찌{' '}
-                <AppText style={{ color: colors.primary }}>{total}종</AppText>
+                <AppText style={{ color: colors.primary }}>
+                  {owned.data ? `${list.length}종` : '-'}
+                </AppText>
               </AppText>
               <Pressable
                 accessibilityRole="button"
@@ -163,39 +146,43 @@ export function OwnedCompanionsScreen() {
                 <ChevronDown size={16} color={colors.ink} />
               </Pressable>
             </View>
-            {owned.some(id => !acquiredAt[id]) && (
-              <AppText variant="caption">
-                획득일이 없는 모찌는 마지막에 이름순으로 표시돼요.
-              </AppText>
-            )}
           </View>
         }
         ListEmptyComponent={
-          <View style={{ gap: 16, paddingVertical: 48 }}>
-            <AppText style={{ textAlign: 'center' }}>
-              조건에 맞는 모찌가 없어요.
-            </AppText>
-            <Button
-              label="검색·필터 초기화"
-              variant="secondary"
-              onPress={() => {
-                setQuery('');
-                setCategory(null);
-                setTier(null);
-              }}
+          owned.isError ? (
+            <StatePanel
+              compact
+              title="보유 모찌를 불러오지 못했어요"
+              description="연결 상태를 확인하고 다시 시도해 주세요."
+              retry={() => void owned.refetch()}
+              retryLabel="다시 불러오기"
             />
-          </View>
+          ) : owned.isPending ? (
+            <Loading label="보유 모찌를 불러오고 있어요" />
+          ) : !query.trim() && !tier ? (
+            <AppText style={{ textAlign: 'center', paddingVertical: 48 }}>
+              {emotions[emotion].label} 모찌를 아직 만나지 못했어요.
+            </AppText>
+          ) : (
+            <View style={{ gap: 16, paddingVertical: 48 }}>
+              <AppText style={{ textAlign: 'center' }}>
+                조건에 맞는 모찌가 없어요.
+              </AppText>
+              <Button
+                label="검색·필터 초기화"
+                variant="secondary"
+                onPress={() => {
+                  setQuery('');
+                  setTier(null);
+                }}
+              />
+            </View>
+          )
         }
       />
       <Sheet
         visible={!!sheet}
-        title={
-          sheet === 'category'
-            ? '카테고리 선택'
-            : sheet === 'tier'
-              ? '등급 선택'
-              : '정렬 선택'
-        }
+        title={sheet === 'tier' ? '등급 선택' : '정렬 선택'}
         onClose={() => setSheet(null)}
       >
         <Pressable
@@ -212,19 +199,7 @@ export function OwnedCompanionsScreen() {
         >
           <X color={colors.ink} size={24} />
         </Pressable>
-        {sheet === 'category' ? (
-          <View style={styles.categoryGrid}>
-            {[{ id: null, label: '전체' }, ...mochiCategories].map(item => (
-              <Choice
-                key={item.id ?? 'all'}
-                label={item.label}
-                selected={pendingCategory === item.id}
-                onPress={() => setPendingCategory(item.id)}
-                grid
-              />
-            ))}
-          </View>
-        ) : sheet === 'tier' ? (
+        {sheet === 'tier' ? (
           <View style={{ gap: 8 }}>
             <Choice
               label="전체"
@@ -256,7 +231,6 @@ export function OwnedCompanionsScreen() {
         <Button
           label="적용하기"
           onPress={() => {
-            if (sheet === 'category') setCategory(pendingCategory);
             if (sheet === 'tier') setTier(pendingTier);
             if (sheet === 'sort') setSort(pendingSort);
             setSheet(null);
@@ -310,13 +284,11 @@ function Choice({
   selected,
   onPress,
   color,
-  grid,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   color?: string;
-  grid?: boolean;
 }) {
   return (
     <Pressable
@@ -326,7 +298,6 @@ function Choice({
       onPress={onPress}
       style={[
         styles.choice,
-        grid && { width: '31%' },
         selected && {
           backgroundColor: colors.sageSoft,
           borderColor: colors.sage,
@@ -364,7 +335,6 @@ const styles = StyleSheet.create({
     gap: 2,
     minHeight: 48,
   },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   choice: {
     paddingVertical: 12,
     paddingHorizontal: 8,

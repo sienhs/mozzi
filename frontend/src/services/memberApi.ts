@@ -19,3 +19,7 @@ export async function getMember(): Promise<AuthMember> {
     nickname: data.nickname,
   };
 }
+// DELETE /members/me. 서버가 세션을 끝내고 회원과 기록·뽑기 데이터를 지운다. 되돌릴 수 없다.
+export async function deleteMember(): Promise<void> {
+  await api.delete('/members/me');
+}

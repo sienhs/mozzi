@@ -7,14 +7,29 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { LegalDocument } from '@/components/ui/LegalDocument';
 import { ConfirmModal, Sheet } from '@/components/ui/Sheet';
+import { ErrorBanner } from '@/components/ui/Feedback';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { colors } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { apiErrorMessage } from '@/services/authErrors';
 
 export function SettingsScreen() {
   const profile = useAuthStore(state => state.member);
   const [logout, setLogout] = useState(false);
+  const [withdraw, setWithdraw] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
+  const pending = useAuthStore(state => state.pending);
   const [panel, setPanel] = useState('');
+  async function confirmWithdraw() {
+    setWithdrawError('');
+    try {
+      await useAuthStore.getState().withdraw();
+    } catch (error) {
+      setWithdrawError(
+        apiErrorMessage(error, '탈퇴하지 못했어요. 다시 시도해 주세요.'),
+      );
+    }
+  }
   return (
     <Screen title="설정" back contentStyle={{ gap: 24 }}>
       <Pressable
@@ -58,7 +73,10 @@ export function SettingsScreen() {
         <SettingsRow
           label="회원 탈퇴"
           muted
-          onPress={() => setPanel('회원 탈퇴')}
+          onPress={() => {
+            setWithdrawError('');
+            setWithdraw(true);
+          }}
           chevron={false}
         />
       </View>
@@ -73,6 +91,31 @@ export function SettingsScreen() {
           void useAuthStore.getState().signOut();
         }}
       />
+      <Sheet
+        visible={withdraw}
+        title="탈퇴할까요?"
+        onClose={() => {
+          if (!pending) setWithdraw(false);
+        }}
+      >
+        <AppText style={{ textAlign: 'center', color: colors.muted }}>
+          {
+            '남긴 기록과 그림, 모은 모찌가 모두 지워져요.\n지운 내용은 되돌릴 수 없어요.'
+          }
+        </AppText>
+        {!!withdrawError && <ErrorBanner message={withdrawError} />}
+        <Button
+          label="탈퇴하기"
+          loading={pending}
+          onPress={() => void confirmWithdraw()}
+        />
+        <Button
+          label="취소"
+          variant="secondary"
+          disabled={pending}
+          onPress={() => setWithdraw(false)}
+        />
+      </Sheet>
       <Sheet
         visible={!!panel}
         title={panel === '프로필' ? '모찌가 부를 이름' : panel}
@@ -92,20 +135,7 @@ export function SettingsScreen() {
             <LegalDocument type={panel === '이용약관' ? 'TERMS' : 'PRIVACY'} />
             <Button label="확인" onPress={() => setPanel('')} />
           </>
-        ) : (
-          <>
-            <AppText style={{ textAlign: 'center', color: colors.muted }}>
-              {panel === '회원 탈퇴'
-                ? '회원 탈퇴 기능을 연결하고 있어요. 준비가 완료되면 안내해 드릴게요.'
-                : `${panel}은 정식 서비스 시작 전에 안내해 드릴게요.`}
-            </AppText>
-            <Button
-              label="확인"
-              variant="secondary"
-              onPress={() => setPanel('')}
-            />
-          </>
-        )}
+        ) : null}
       </Sheet>
       {__DEV__ && (
         <SettingsRow

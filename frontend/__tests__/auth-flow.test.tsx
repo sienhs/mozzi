@@ -17,6 +17,7 @@ import { getMember } from '@/services/memberApi';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useMetaStore } from '@/stores/useMetaStore';
 import { fetchMeta } from '@/services/metaApi';
+import { fetchLegal } from '@/services/legalApi';
 import { api } from '@/services/api';
 import { queryClient } from '@/services/queryClient';
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios';
@@ -163,18 +164,30 @@ async function openOnboarding() {
   return app;
 }
 
-test('a server terms version that differs from the bundled text blocks consent instead of sending another version', async () => {
+test('signup shows the terms text from the server', async () => {
+  await openOnboarding();
+  await fireEvent.press(screen.getByRole('button', { name: '이용약관 보기' }));
+  expect(screen.getByText('본문')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+});
+
+test('a server document version that differs from the required one blocks consent until it is checked again', async () => {
   jest.mocked(fetchMeta).mockResolvedValue(meta('2.0'));
   await openOnboarding();
   expect(
-    screen.getByText(
-      '약관이 새로 바뀌었어요. 앱을 최신 버전으로 업데이트한 뒤 가입해 주세요.',
-    ),
+    screen.getByText('약관이 새로 바뀌었어요. 잠시 후 다시 확인해 주세요.'),
   ).toBeOnTheScreen();
   expect(
     screen.queryByRole('checkbox', { name: '이용약관 동의 (필수)' }),
   ).toBeNull();
   expect(screen.getByRole('button', { name: '시작하기' })).toBeDisabled();
+  const calls = jest.mocked(fetchLegal).mock.calls.length;
+  await fireEvent.press(
+    screen.getByRole('button', { name: '약관 다시 확인하기' }),
+  );
+  await waitFor(() =>
+    expect(jest.mocked(fetchLegal).mock.calls.length).toBeGreaterThan(calls),
+  );
   expect(authTransport.signup).not.toHaveBeenCalled();
 });
 

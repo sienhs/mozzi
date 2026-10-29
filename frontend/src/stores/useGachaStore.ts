@@ -1,148 +1,119 @@
 import { create } from 'zustand';
-import type { MochiId, PullItem } from '@/types/gacha';
-import { mochiOrder, mochis, tiers } from '@/constants/gacha';
-import { mockEquipmentService, mockGachaService } from '@/mocks/services';
-import { defaultEmotionEquipment, type CompanionId } from '@/types/companion';
-import type { Emotion } from '@/types/diary';
+import type { GachaWallet, MochiCard, PullItem } from '@/types/gacha';
+import { gachaApi, gachaKeys } from '@/services/gachaApi';
+import { mozziKeys } from '@/services/mozziApi';
+import { apiErrorMessage, isUnknownOutcome } from '@/services/authErrors';
+import { queryClient } from '@/services/queryClient';
+import { createRequestKey } from '@/utils/requestKey';
 
-// Figma demo values (P-01: 뽑기권 23 · 별조각 140). The server will own these later.
-const initialOwned: MochiId[] = [
-  'grape',
-  'cherry',
-  'blueberry',
-  'apple',
-  'mango',
-];
+// 뽑기 흐름의 화면 상태. 잔액·도감은 서버(GET /gacha/status, /gacha/collection)가 정하고,
+// 여기에는 방금 뽑은 결과와 연출 중인 별조각만 둔다.
 export const initialGachaState = () => ({
   session: 0,
-  tickets: 23,
-  shards: 140,
-  owned: [...initialOwned],
-  unseen: [] as MochiId[],
+  // 서버 잔액. 받기 전에는 null.
+  wallet: null as GachaWallet | null,
   lastPull: [] as PullItem[],
+  // 1장 뽑기의 중복은 홈에서 별조각이 칩으로 날아가는 연출(P-12)이 끝나야 잔액에 더해 보인다.
   pendingDuplicate: null as PullItem | null,
   pulling: false,
-  acquiredAt: {} as Partial<Record<MochiId, string>>,
-  equippedByEmotion: defaultEmotionEquipment(),
-  equipping: false,
-  equipmentError: '',
-  equipmentVersion: 0,
+  // 실패한 뽑기를 다시 시도할 때 같은 키를 쓴다. 서버가 이미 처리했으면 그 결과를 돌려준다.
+  draw: null as { count: number; key: string } | null,
+  drawError: '',
+  // 응답을 받지 못해 서버가 처리했는지 모르는 실패.
+  drawUnknown: false,
+  lastExchange: null as MochiCard | null,
 });
 interface GachaState extends ReturnType<typeof initialGachaState> {
   resetSession: () => void;
-  pull: (count: number) => Promise<PullItem[]>;
+  setWallet: (wallet: GachaWallet) => void;
+  pull: (memberId: number, count: number) => Promise<PullItem[]>;
   applyDuplicate: () => void;
-  markSeen: (id: MochiId) => void;
-  exchange: (id: MochiId) => Promise<void>;
-  equip: (emotion: Emotion, id: CompanionId) => Promise<boolean>;
-  resetEquipment: () => void;
+  exchange: (memberId: number, cardId: number) => Promise<MochiCard>;
 }
-export const exchangeCost = (id: MochiId) =>
-  tiers[mochis[id].tier].exchangeCost;
-// Cheapest mochi the user hasn't met yet (Figma P-08 shows a single candidate).
-export const exchangeCandidate = (owned: MochiId[]) =>
-  mochiOrder
-    .filter(id => !owned.includes(id))
-    .sort((a, b) => exchangeCost(a) - exchangeCost(b))[0];
+const refresh = (memberId: number) => {
+  void queryClient.invalidateQueries({ queryKey: gachaKeys.all(memberId) });
+  void queryClient.invalidateQueries({ queryKey: mozziKeys.all(memberId) });
+};
+let exchangeKey: { cardId: number; key: string } | null = null;
 
 export const useGachaStore = create<GachaState>((set, get) => ({
   ...initialGachaState(),
-  resetSession: () =>
-    set(state => ({
-      ...initialGachaState(),
-      session: state.session + 1,
-      equipmentVersion: state.equipmentVersion + 1,
-    })),
-  pull: async count => {
-    const { tickets, owned, pulling, session } = get();
-    if (pulling || count < 1 || count > tickets) return [];
-    set({ pulling: true });
+  resetSession: () => {
+    exchangeKey = null;
+    set(state => ({ ...initialGachaState(), session: state.session + 1 }));
+  },
+  setWallet: ({ tickets, shards }) => {
+    const pending = get().pendingDuplicate;
+    set({ wallet: { tickets, shards: shards - (pending?.shards ?? 0) } });
+  },
+  pull: async (memberId, count) => {
+    const { pulling, session } = get();
+    if (pulling || count < 1 || count > 10) return [];
+    const previous = get().draw;
+    const draw =
+      previous?.count === count ? previous : { count, key: createRequestKey() };
+    set({ pulling: true, draw, drawError: '', drawUnknown: false });
     try {
-      const items = await mockGachaService.pull(count, owned);
+      const result = await gachaApi.draw(count, draw.key);
       if (get().session !== session) return [];
-      const fresh = items.filter(item => item.isNew).map(item => item.id);
-      // A single duplicate is shown as shards flying to the chip on Home (P-12),
-      // so its shards land only when that animation finishes.
-      const deferred = count === 1 && !items[0].isNew ? items[0] : null;
-      const earned = deferred
-        ? 0
-        : items.reduce((sum, item) => sum + item.shards, 0);
-      set(state => ({
-        tickets: state.tickets - count,
-        shards: state.shards + earned,
-        owned: [...state.owned, ...fresh],
-        unseen: [...state.unseen, ...fresh],
-        lastPull: items,
+      const deferred =
+        count === 1 && !result.items[0].isNew ? result.items[0] : null;
+      set({
+        draw: null,
+        lastPull: result.items,
         pendingDuplicate: deferred,
-        acquiredAt: {
-          ...state.acquiredAt,
-          ...Object.fromEntries(
-            fresh.map(id => [id, new Date().toISOString()]),
-          ),
+        wallet: {
+          tickets: result.tickets,
+          shards: result.shards - (deferred?.shards ?? 0),
         },
-      }));
-      return items;
+      });
+      queryClient.setQueryData(gachaKeys.status(memberId), {
+        tickets: result.tickets,
+        shards: result.shards,
+        collection: result.collection,
+      });
+      refresh(memberId);
+      return result.items;
+    } catch (error) {
+      if (get().session === session)
+        set({
+          drawError: apiErrorMessage(
+            error,
+            '뽑기를 시작하지 못했어요. 다시 시도해 주세요.',
+          ),
+          drawUnknown: isUnknownOutcome(error),
+        });
+      throw error;
     } finally {
       if (get().session === session) set({ pulling: false });
     }
   },
   applyDuplicate: () =>
     set(state =>
-      state.pendingDuplicate
+      state.pendingDuplicate && state.wallet
         ? {
-            shards: state.shards + state.pendingDuplicate.shards,
+            wallet: {
+              ...state.wallet,
+              shards: state.wallet.shards + state.pendingDuplicate.shards,
+            },
             pendingDuplicate: null,
           }
-        : {},
+        : { pendingDuplicate: null },
     ),
-  markSeen: id =>
-    set(state => ({ unseen: state.unseen.filter(item => item !== id) })),
-  exchange: async id => {
+  exchange: async (memberId, cardId) => {
     const session = get().session;
-    const cost = exchangeCost(id);
-    if (get().owned.includes(id) || get().shards < cost) return;
-    await mockGachaService.exchange(id);
-    if (get().session !== session) return;
-    set(state => ({
-      shards: state.shards - cost,
-      owned: [...state.owned, id],
-      unseen: [...state.unseen, id],
-      acquiredAt: { ...state.acquiredAt, [id]: new Date().toISOString() },
-    }));
-  },
-  equip: async (emotion, id) => {
-    const state = get();
-    if (state.equipping || state.equippedByEmotion[emotion] === id)
-      return false;
-    if (id !== 'default' && !state.owned.includes(id)) {
-      set({ equipmentError: '보유한 모찌만 장착할 수 있어요.' });
-      return false;
-    }
-    const version = state.equipmentVersion;
-    set({ equipping: true, equipmentError: '' });
-    try {
-      await mockEquipmentService.equip(emotion, id);
-      if (get().equipmentVersion !== version) return false;
-      set(current => ({
-        equippedByEmotion: { ...current.equippedByEmotion, [emotion]: id },
+    if (exchangeKey?.cardId !== cardId)
+      exchangeKey = { cardId, key: createRequestKey() };
+    const result = await gachaApi.exchange(cardId, exchangeKey.key);
+    exchangeKey = null;
+    if (get().session === session)
+      set(state => ({
+        lastExchange: result.card,
+        wallet: state.wallet
+          ? { ...state.wallet, shards: result.shards }
+          : state.wallet,
       }));
-      return true;
-    } catch (error) {
-      if (get().equipmentVersion === version)
-        set({
-          equipmentError:
-            error instanceof Error ? error.message : '장착하지 못했어요.',
-        });
-      return false;
-    } finally {
-      if (get().equipmentVersion === version) set({ equipping: false });
-    }
+    refresh(memberId);
+    return result.card;
   },
-  resetEquipment: () =>
-    set(state => ({
-      equippedByEmotion: defaultEmotionEquipment(),
-      equipping: false,
-      equipmentError: '',
-      equipmentVersion: state.equipmentVersion + 1,
-    })),
 }));

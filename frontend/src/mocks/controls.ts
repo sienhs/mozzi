@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 // 아직 서버 API가 없는 기능의 Mock 실패 스위치. 일기·태그·그림은 실제 API를 쓰므로 여기 없다.
-export type MockOperation = 'login' | 'search' | 'gacha' | 'equip';
+export type MockOperation = 'login';
 interface MockControls {
   failures: Partial<Record<MockOperation, boolean>>;
   failNext: (operation: MockOperation) => void;

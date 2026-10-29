@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Image, Pressable, View } from 'react-native';
-import type { MochiId, PullItem, Tier } from '@/types/gacha';
-import { mochis, tiers } from '@/constants/gacha';
+import type { MochiCard as Card, PullItem, Tier } from '@/types/gacha';
+import { tiers } from '@/constants/gacha';
 import { colors, fonts } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
 
@@ -110,9 +110,10 @@ export function GachaChip({
   );
 }
 type CardState =
-  | { kind: 'owned'; id: MochiId; isNew?: boolean; shards?: number }
+  | { kind: 'owned'; card: Card; isNew?: boolean; shards?: number }
   | { kind: 'sealed' }
-  | { kind: 'locked'; id: MochiId };
+  // 아직 없는 카드. 도감에서는 이름·그림을 가린다.
+  | { kind: 'locked'; card: Card };
 // Figma "Gacha V2 / Collection card": 108 × 142 in a 3-column grid.
 export function MochiCard({
   state,
@@ -121,7 +122,7 @@ export function MochiCard({
   state: CardState;
   onPress?: () => void;
 }) {
-  const tier = state.kind === 'sealed' ? null : mochis[state.id].tier;
+  const tier = state.kind === 'sealed' ? null : state.card.tier;
   const owned = state.kind === 'owned';
   const borderColor = owned
     ? tiers[tier!].color
@@ -133,7 +134,7 @@ export function MochiCard({
       ? '열어보기'
       : state.kind === 'locked'
         ? '아직 못 만난 모찌'
-        : `${mochis[state.id].name} ${tiers[tier!].label}`;
+        : `${state.card.name} ${tiers[tier!].label}`;
   return (
     <Pressable
       accessibilityRole="button"
@@ -171,7 +172,7 @@ export function MochiCard({
       {owned ? (
         <Image
           accessible={false}
-          source={mochis[state.id].source}
+          source={{ uri: state.card.imageUrl }}
           resizeMode="contain"
           style={{ width: 80, height: 80, borderRadius: 12 }}
         />
@@ -187,7 +188,7 @@ export function MochiCard({
           ? '열어보기'
           : state.kind === 'locked'
             ? '???'
-            : mochis[state.id].name}
+            : state.card.name}
       </AppText>
       <AppText
         variant="caption"
@@ -206,7 +207,7 @@ export function MochiCard({
 }
 export const pullCardState = (item: PullItem): CardState => ({
   kind: 'owned',
-  id: item.id,
+  card: item.card,
   isNew: item.isNew,
   shards: item.shards,
 });

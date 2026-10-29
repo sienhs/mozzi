@@ -110,3 +110,13 @@ jest.mock('@/services/metaApi', () => ({
     latestVersion: '1.0.0',
   })),
 }));
+// 약관 본문(GET /legal/*). 버전은 위 메타와 같은 1.0이다.
+jest.mock('@/services/legalApi', () => ({
+  ...jest.requireActual('@/services/legalApi'),
+  fetchLegal: jest.fn(async type => ({
+    type,
+    version: '1.0',
+    title: type === 'TERMS' ? '이용약관' : '개인정보 처리방침',
+    body: `# ${type === 'TERMS' ? '이용약관' : '개인정보 처리방침'}\n\n본문`,
+  })),
+}));
