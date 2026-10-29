@@ -19,7 +19,7 @@
 | 도메인 | 테이블 | 역할 | 상태 |
 |---|---|---|---|
 | 회원 | `member` | 회원 | V1, V4 |
-| | `member_setting` | 기록 알림 설정 (1:1) | V1 |
+| | ~~`member_setting`~~ | 기록 알림 설정. V10에서 삭제 | V1, V10 |
 | | `terms_agreement` | 약관 동의 이력 | V1 |
 | | `push_device` | 기기별 FCM 토큰 | V1 |
 | 인증 | `member_session` | 로그인 세션 (회원당 1개) | V5 |
@@ -50,7 +50,6 @@
 
 ```mermaid
 erDiagram
-    member ||--o| member_setting : ""
     member ||--o{ terms_agreement : ""
     member ||--o{ push_device : ""
     member ||--o| member_session : ""
@@ -81,9 +80,6 @@ erDiagram
 
     member {
         bigint member_id PK
-    }
-    member_setting {
-        bigint member_id PK, FK
     }
     terms_agreement {
         bigint terms_agreement_id PK
@@ -191,16 +187,6 @@ erDiagram
 
 - `uq_member_active_provider_subject (provider, provider_subject) where deleted_at is null` — 탈퇴 후 같은 Google 계정으로 재가입 가능
 - `uq_member_active_nickname (lower(nickname)) where deleted_at is null` — 대소문자 무시 중복 검사
-
-### member_setting
-
-| 컬럼 | 타입 | 키 | NULL | 설명 |
-|---|---|---|---|---|
-| member_id | bigint | PK, FK | | |
-| reminder_enabled | boolean | | | 기본 `true` |
-| reminder_time | time | | | 기본 `21:00` |
-| timezone | varchar(40) | | | 기본 `Asia/Seoul` |
-| updated_at | timestamptz | | | |
 
 ### terms_agreement
 

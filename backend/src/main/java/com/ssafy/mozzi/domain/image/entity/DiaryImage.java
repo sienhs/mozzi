@@ -100,6 +100,20 @@ public class DiaryImage extends BaseTimeEntity {
         apply(selection);
     }
 
+    /**
+     * Draws again whatever the picture ended as, for the temporary test API
+     * (S15P31D102-132). A finished picture is overwritten. The failure count is left as it is.
+     *
+     * @throws IllegalStateException while a request is pending; its result could not be told
+     *                               apart from the new one's
+     */
+    public void redrawForTest(Selection selection) {
+        if (status == ImageStatus.PENDING) {
+            throw new IllegalStateException("cannot redraw while pending");
+        }
+        apply(selection);
+    }
+
     public boolean canRetry() {
         return status == ImageStatus.FAILED && failureCount < MAX_FAILURES;
     }

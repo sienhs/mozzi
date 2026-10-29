@@ -51,7 +51,7 @@ public class MemberService {
     }
 
     /**
-     * Creates the member with its default settings and the agreements it submitted.
+     * Creates the member with the agreements it submitted.
      *
      * <p>Runs inside the sign-up transaction, so a failure here also keeps the sign-up
      * ticket. The nickname check up front is for a friendly answer; two sign-ups racing for
@@ -76,7 +76,6 @@ public class MemberService {
         }
 
         OffsetDateTime now = OffsetDateTime.now(clock);
-        memberRepository.insertDefaultSetting(member.getId(), now);
         agreedVersions.forEach((type, version) ->
                 termsAgreementRepository.save(new TermsAgreement(member.getId(), type, version, now)));
         return member;

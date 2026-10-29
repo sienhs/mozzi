@@ -72,7 +72,7 @@ class AuthFlowTest {
     }
 
     @Test
-    void signupCreatesTheMemberWithSettingsTermsAndSessionAndUsesUpTheTicket() throws Exception {
+    void signupCreatesTheMemberWithTermsAndSessionAndUsesUpTheTicket() throws Exception {
         String ticket = signupTicket("id-a", "sub-a", "a@gmail.com");
 
         String body = signUp(ticket, "하루")
@@ -85,8 +85,8 @@ class AuthFlowTest {
         mockMvc.perform(get("/api/v1/members/me").header(HttpHeaders.AUTHORIZATION, bearer(body)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("a@gmail.com"))
-                .andExpect(jsonPath("$.nickname").value("하루"));
-        assertThat(count("member_setting")).isEqualTo(1);
+                .andExpect(jsonPath("$.nickname").value("하루"))
+                .andExpect(jsonPath("$.provider").value("GOOGLE"));
         assertThat(count("terms_agreement")).isEqualTo(2);
         assertThat(count("member_session")).isEqualTo(1);
         assertThat(count("signup_ticket")).isZero();

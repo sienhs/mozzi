@@ -16,10 +16,10 @@
 
 - 2~10자, 완성형 한글·영문·숫자만. 공백·기호·자모·이모지는 거절한다 (지우지 않고 400).
 - 영문 대소문자는 구분하지 않고 중복 검사한다 (`Alice`와 `alice`는 중복).
-- 가입할 때 정하고, 이후 설정에서 바꿀 수 있다 (`PATCH /members/me`).
+- 가입할 때 정하고, 이후에는 바꿀 수 없다.
 - 탈퇴한 회원의 닉네임은 다른 사람이 쓸 수 있다.
 
-A-02 입력칸 아래 문구: "2~10자, 나중에 설정에서 바꿀 수 있어요"
+A-02 입력칸 아래 문구: "2~10자, 가입 후에는 바꿀 수 없어요"
 
 ## 토큰
 
@@ -148,21 +148,6 @@ Response `200`
 
 SET-01 "haru@gmail.com · Google"은 `email`과 `provider`로 그린다.
 
-## `PATCH /members/me` — 닉네임 변경
-
-Request
-
-```json
-{ "nickname": "모찌랑" }
-```
-
-Response `200` — `GET /members/me`와 같은 본문.
-
-| HTTP | code | 처리 |
-|---|---|---|
-| 400 | `INVALID_INPUT` | 닉네임 형식 오류 (`fieldErrors`) |
-| 409 | `NICKNAME_DUPLICATED` | 닉네임 재입력 |
-
 ## `DELETE /members/me` — 회원 탈퇴
 
 본문 없음. Response `204`.
@@ -171,17 +156,6 @@ Response `200` — `GET /members/me`와 같은 본문.
 - 같은 Google 계정으로 바로 다시 가입할 수 있다. 새 회원 ID가 부여되고 이전 데이터는 연결되지 않는다.
 
 ---
-
-## `GET /members/me/settings` · `PATCH /members/me/settings` — 기록 알림 (SET-01)
-
-Response `200` / PATCH Request (바꿀 필드만)
-
-```json
-{ "reminderEnabled": true, "reminderTime": "21:00" }
-```
-
-PATCH Response `200` — 변경 후 전체 설정.
-"그림 저장 위치(앨범)"는 기기 설정이라 서버에 두지 않는다.
 
 ## `PUT /members/me/push-tokens` — 푸시 토큰 등록
 
@@ -197,7 +171,7 @@ PATCH Response `200` — 변경 후 전체 설정.
 | `platform` | `ANDROID`, `IOS` |
 | `deviceId` | 앱이 처음 실행될 때 만들어 계속 쓰는 UUID. 최대 64자 |
 
-Response `204`. 기록 알림과 "그림 완성" 알림에 쓴다.
+Response `204`. "그림 완성" 알림에 쓴다.
 
 - 푸시는 **마지막으로 등록한 기기 하나**에만 간다. 회원당 세션이 하나라서 다른 기기는 이미 로그아웃된 상태이기 때문이다. 다른 기기의 토큰은 등록할 때 비활성화된다.
 - 다른 회원이 같은 토큰으로 등록하면(한 폰에서 계정을 바꾼 경우) 이전 회원 쪽 토큰은 비활성화된다.

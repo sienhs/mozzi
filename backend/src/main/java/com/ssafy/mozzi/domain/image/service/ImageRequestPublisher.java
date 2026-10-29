@@ -15,8 +15,8 @@ public interface ImageRequestPublisher {
      * it needs is in here.
      *
      * @param userId    the member the diary belongs to
-     * @param date      the diary's day, {@code YYYY-MM-DD}; always today, since pictures can
-     *                  only be requested on the day
+     * @param date      the diary's day, {@code YYYY-MM-DD}; today, since pictures can only
+     *                  be requested on the day, except through the test API
      * @param emotion   the diary's emotion code, such as {@code CALM}
      * @param characterImageUrl {@code "DEFAULT"} until the character image is set up
      * @param timeOfDay English, or {@code ""}
@@ -24,6 +24,8 @@ public interface ImageRequestPublisher {
      * @param where     English, or {@code ""}
      * @param who       English, or {@code ""}
      * @param what      English
+     * @param test      from the temporary test API; the AI server then uploads to
+     *                  {@code test/diary/{userId}/{diaryId}/} instead of {@code diary/...}
      */
     record Message(
             Long diaryId,
@@ -36,7 +38,8 @@ public interface ImageRequestPublisher {
             String weather,
             String where,
             String who,
-            String what) {
+            String what,
+            boolean test) {
     }
 
 }

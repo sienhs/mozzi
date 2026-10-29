@@ -26,6 +26,12 @@ public final class PublicEndpoints {
             "POST " + WebConfig.API_PREFIX + "/auth/refresh",
             // Read at start-up, before sign-up: terms versions and the update check.
             "GET " + WebConfig.API_PREFIX + "/meta",
+            // Terms, read before sign-up: as JSON for the app (LegalDocumentController) and as
+            // pages for browsers and the store listing (LegalPageController).
+            "GET " + WebConfig.API_PREFIX + "/legal/terms",
+            "GET " + WebConfig.API_PREFIX + "/legal/privacy",
+            "GET /legal/terms",
+            "GET /legal/privacy",
             // Kubernetes probes (deployment.yaml) and the bare health check.
             "GET /actuator/health",
             "GET /actuator/health/liveness",

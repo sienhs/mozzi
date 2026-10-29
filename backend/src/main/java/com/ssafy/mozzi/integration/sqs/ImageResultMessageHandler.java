@@ -11,7 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * Applies one {@code ai-response} message:
- * {@code {"diaryId", "userId", "status": "SUCCEEDED" | "FAILED", "imageUrl", "errorCode", "errorMessage"}}.
+ * {@code {"diaryId", "userId", "status": "SUCCEEDED" | "FAILED", "imageUrl", "errorCode", "errorMessage", "test"}}.
  *
  * <p>{@code errorCode} is logged for a failure. {@code errorMessage} is not: it is the AI
  * server's own text and may repeat the prompt, which holds what the member wrote. The member
@@ -57,7 +57,9 @@ class ImageResultMessageHandler {
             log.warn("image result without userId dropped: diaryId={}", diaryId.asLong());
             return true;
         }
-        log.info("image pipeline: step=result-received diaryId={} status={}", diaryId.asLong(), status);
+        // Echoed by the AI server for test-API pictures; only logged, the result applies the same way.
+        log.info("image pipeline: step=result-received diaryId={} status={} test={}",
+                diaryId.asLong(), status, message.path("test").asBoolean(false));
         switch (status) {
             case "SUCCEEDED" -> {
                 if (imageUrl == null || imageUrl.isBlank()) {

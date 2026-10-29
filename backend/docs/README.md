@@ -25,12 +25,13 @@
 - [x] `POST /auth/signup` 회원 가입 — 닉네임 2~10자 미반영 (현재 2~12자)
 - [x] `POST /auth/refresh` 토큰 재발급
 - [x] `POST /auth/logout` 로그아웃
-- [x] `GET /members/me` 내 정보 — `provider` 미구현
-- [ ] `PATCH /members/me` 닉네임 변경
+- [x] `GET /members/me` 내 정보
+- [x] ~~`PATCH /members/me` 닉네임 변경~~ — 제공하지 않음. 닉네임은 가입 후 바꿀 수 없다
 - [x] `DELETE /members/me` 회원 탈퇴
-- [ ] `GET /members/me/settings` 알림 설정 조회
-- [ ] `PATCH /members/me/settings` 알림 설정 변경
-- [ ] `PUT /members/me/push-tokens` 푸시 토큰 등록
+- [x] ~~`GET · PATCH /members/me/settings` 알림 설정~~ — 기록 알림을 제공하지 않아 V10에서 `member_setting` 삭제
+- [x] `PUT /members/me/push-tokens` 푸시 토큰 등록
+- [x] `GET /legal/terms` · `GET /legal/privacy` 약관 본문 JSON(마크다운) — 인증 없음
+- [x] `/legal/terms` · `/legal/privacy` 약관 HTML 페이지 — `/api/v1` 밖, 인증 없음. 스토어 등록용
 
 ### 일기 · 아이콘 (S15P31D102-110에서 재설계)
 
@@ -49,6 +50,7 @@
 ### 그림 생성
 
 - [x] `POST /diaries/{diaryId}/image` 그림 만들기 — 당일 일기만. 캐릭터 테이블 전까지 기본 캐릭터 사용
+- [x] `POST /diaries/{diaryId}/image/test` [테스트·임시] 제한 없이 그림 만들기 — 테스트 후 삭제
 - [x] GMS 번역 → SQS `ai-request` 발행, `ai-response` 수신 — 실제 AWS 큐로는 아직 검증 안 함 (테스트는 큐 없이 실행)
 - [x] 그림 결과 FCM 푸시 (성공·실패) — SSE는 제거. 실제 Firebase 키로는 아직 검증 안 함
 
@@ -94,7 +96,7 @@
 | 지난 일기 모아 보기 | `GET /diaries` (감정·기간 필터) |
 | S-01 감정 검색 시작 | `GET /emotion-search/suggestions` |
 | S-02 답변, E-04 빈 결과, E-05 실패 | `POST /emotion-search` |
-| SET-01 설정 | `GET /members/me`, `PATCH /members/me`, `GET · PATCH /members/me/settings` |
+| SET-01 설정 | `GET /members/me`, `GET /legal/terms` · `GET /legal/privacy` |
 | SET-02 로그아웃 확인 | `POST /auth/logout` |
 | 회원 탈퇴 | `DELETE /members/me` |
 | P-01 뽑기 홈 | `GET /gacha/status` |

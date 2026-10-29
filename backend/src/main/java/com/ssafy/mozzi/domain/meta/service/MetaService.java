@@ -2,6 +2,7 @@ package com.ssafy.mozzi.domain.meta.service;
 
 import org.springframework.stereotype.Service;
 
+import com.ssafy.mozzi.domain.legal.service.LegalDocuments;
 import com.ssafy.mozzi.domain.member.service.TermsProperties;
 import com.ssafy.mozzi.domain.meta.dto.MetaResponseDto;
 
@@ -25,6 +26,7 @@ public class MetaService {
     public MetaResponseDto get() {
         return new MetaResponseDto(
                 termsProperties.currentVersions(),
+                LegalDocuments.paths(),
                 appVersionProperties.minSupportedVersion(),
                 appVersionProperties.latestVersion());
     }

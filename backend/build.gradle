@@ -44,6 +44,10 @@ dependencies {
 		exclude group: 'com.google.cloud', module: 'google-cloud-firestore'
 		exclude group: 'com.google.cloud', module: 'google-cloud-storage'
 	}
+	// Renders docs/legal into the public terms pages (LegalDocuments). The documents use
+	// tables, which need the GFM extension.
+	implementation 'org.commonmark:commonmark:0.24.0'
+	implementation 'org.commonmark:commonmark-ext-gfm-tables:0.24.0'
 	// spring-boot-starter-flyway only brings flyway-core. Flyway 10 split database support
 	// into per-database modules, so without this it cannot talk to PostgreSQL at all.
 	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
@@ -83,6 +87,15 @@ tasks.named('test') {
 	// Run tests in the timezone the server runs in (see Dockerfile). CI containers default
 	// to UTC, where any assertion about "today" would pass locally and fail in the pipeline.
 	systemProperty 'user.timezone', 'Asia/Seoul'
+}
+
+// The terms pages are served from docs/legal, the one copy the policy review edits, so the
+// served text cannot drift from it.
+tasks.named('processResources', ProcessResources) {
+	from('../docs/legal') {
+		include 'TERMS.md', 'PRIVACY.md'
+		into 'legal'
+	}
 }
 
 tasks.named('bootJar') {

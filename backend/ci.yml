@@ -22,6 +22,8 @@
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - backend/**/*
+        - docs/legal/TERMS.md
+        - docs/legal/PRIVACY.md
         - .editorconfig
         - .gitattributes
 
@@ -63,6 +65,8 @@ backend:test:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
         - backend/**/*
+        - docs/legal/TERMS.md
+        - docs/legal/PRIVACY.md
         - infra/k8s/backend/**/*
 
 backend:package:

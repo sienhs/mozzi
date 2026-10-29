@@ -81,8 +81,9 @@ public class ImageRequestDispatcher {
 
             step = "queue";
             started = System.nanoTime();
-            publisher.publish(messageFor(request, english));
-            log.info("image pipeline: step=queued diaryId={} millis={}", diaryId, millisSince(started));
+            publisher.publish(messageFor(request, english, event.test()));
+            log.info("image pipeline: step=queued diaryId={} test={} millis={}",
+                    diaryId, event.test(), millisSince(started));
         } catch (InappropriatePromptException e) {
             log.info("image pipeline: step=blocked diaryId={}", diaryId);
             resultService.reject(diaryId);
@@ -120,7 +121,8 @@ public class ImageRequestDispatcher {
         return (System.nanoTime() - startedNanos) / 1_000_000;
     }
 
-    private ImageRequestPublisher.Message messageFor(Request request, PromptTranslator.Translation english) {
+    private ImageRequestPublisher.Message messageFor(
+            Request request, PromptTranslator.Translation english, boolean test) {
         Diary diary = request.diary();
         DiaryImage image = request.image();
         TimeOfDay timeOfDay = image.getTimeOfDay();
@@ -137,7 +139,8 @@ public class ImageRequestDispatcher {
                 weather.english(),
                 nullToEmpty(english.where()),
                 nullToEmpty(english.who()),
-                english.what());
+                english.what(),
+                test);
     }
 
     private record Request(Diary diary, DiaryImage image) {

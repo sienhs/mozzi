@@ -351,6 +351,21 @@ Response `202`
 
 > 예정: 캐릭터 테이블과 보유 확인 (뽑기로 얻은 캐릭터만 가능, 기본 캐릭터 1개 지급). 그 전까지 `characterId`는 저장만 하고, AI 서버에는 설정값의 기본 캐릭터 이미지·프롬프트를 보낸다.
 
+### `POST /diaries/{diaryId}/image/test` — [테스트·임시] 제한 없이 그림 만들기
+
+그림 테스트용 임시 API(S15P31D102-132)다. 테스트가 끝나면 지운다. prod에도 열려 있다.
+
+헤더·요청·응답·푸시는 `POST /diaries/{diaryId}/image`와 같고, 제한만 없다.
+
+| 현재 그림 상태 | 결과 |
+|---|---|
+| 없음 · `SUCCEEDED` · `FAILED`(실패 횟수 무관) | `202`. 지난 날짜의 일기도 된다. 완성된 그림은 새 그림으로 덮어쓴다 |
+| `PENDING` | `409 IMAGE_ALREADY_REQUESTED` (결과가 일기 ID로만 연결되어 동시에 둘은 안 된다) |
+
+- 다른 회원의 일기는 `404 NOT_FOUND`이고, 결과의 `userId`가 일기 주인과 다르면 버리는 것도 진짜 API와 같다.
+- 테이블은 진짜 API와 같이 쓴다. 실패하면 실패 횟수가 올라가므로, 같은 일기를 진짜 API로 다시 그리면 `429`가 날 수 있다.
+- `ai-request`에 `"test": true`를 실어 보낸다. AI 서버는 `test/diary/{userId}/{diaryId}/`에 저장한다.
+
 ### 그림 결과 푸시 (FCM)
 
 그림이 끝나면(`SUCCEEDED` 또는 `FAILED`) 일기 주인의 기기로 푸시를 한 번 보낸다. 기기는 [`PUT /members/me/push-tokens`](auth.md#put-membersmepush-tokens--푸시-토큰-등록)로 등록한 것 중 활성인 것(마지막에 로그인한 기기)이다.
@@ -407,12 +422,14 @@ AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담�
   "weather": "on a rainy day",
   "where": "at home",
   "who": "with mom",
-  "what": "cooking"
+  "what": "cooking",
+  "test": false
 }
 ```
 
 - `userId`는 일기 주인의 회원 ID다.
-- `date`는 오늘 날짜(`YYYY-MM-DD`)다. 그림은 그날 일기에만 요청할 수 있어서 일기 날짜와 같다.
+- `date`는 일기 날짜(`YYYY-MM-DD`)다. 그림은 그날 일기에만 요청할 수 있어서 오늘이다. 테스트 API는 지난 날짜일 수 있다.
+- `test`는 테스트 API로 요청했으면 `true`다. AI 서버는 `true`면 `test/diary/{userId}/{diaryId}/`에, 아니면 `diary/{userId}/{diaryId}/`에 저장한다.
 - `emotion`은 일기의 감정 코드다 (`HAPPY`, `CALM`, `NEUTRAL`, `SAD`, `ANGRY`).
 - `what`만 항상 값이 있다. 나머지 선택 값은 없으면 `null`이 아니라 `""`로 보낸다.
 - `characterImageUrl`은 캐릭터 이미지가 없으면 `"DEFAULT"`다. AI 서버는 기본 캐릭터로 그린다. 이때 `characterPrompt`는 `""`다 (AI 서버가 기본 캐릭터의 설명을 자체로 갖고 있다).
@@ -429,7 +446,8 @@ AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담�
   "status": "SUCCEEDED",
   "imageUrl": "https://{bucket}.s3.ap-northeast-2.amazonaws.com/diary/12/102/6f1c2a9e1b2c.png",
   "errorCode": null,
-  "errorMessage": null
+  "errorMessage": null,
+  "test": false
 }
 ```
 
@@ -441,6 +459,7 @@ AI 서버는 DB를 읽지 않으므로 필요한 값을 모두 메시지에 담�
 | `imageUrl` | `SUCCEEDED`면 필수. AI 서버가 S3에 올린 공개 URL을 그대로 `diary_image.image_url`에 저장한다 |
 | `errorCode` | `FAILED`일 때. 서버 로그에만 남긴다 |
 | `errorMessage` | `FAILED`일 때. 사용자 입력이 섞일 수 있어 로그에도 남기지 않는다. 사용자에게는 서버가 정한 실패 문구를 푸시로 보낸다 |
+| `test` | 선택. 요청의 `test`를 그대로 돌려준다. 서버는 로그에만 남기고, 없으면 `false`로 본다 |
 
 - 서버는 `ai-response`를 롱 폴링(20초)으로 계속 받는다. 처리한 메시지만 지운다.
 - 결과는 그 일기의 **현재 요청**에 반영한다. SQS가 같은 결과를 두 번 보내도 한 번만 반영된다.

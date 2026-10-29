@@ -50,6 +50,7 @@ Response `200`
 ```json
 {
   "termsVersions": { "TERMS": "1.0", "PRIVACY": "1.0" },
+  "termsPaths": { "TERMS": "/legal/terms", "PRIVACY": "/legal/privacy" },
   "minSupportedVersion": "1.0.0",
   "latestVersion": "1.0.0"
 }
@@ -58,6 +59,7 @@ Response `200`
 | 필드 | 설명 |
 |---|---|
 | `termsVersions` | 문서별 현재 버전. 회원가입 때 아래처럼 바꿔서 보낸다 |
+| `termsPaths` | 문서별 HTML 페이지 경로. 서버 주소 뒤에 붙여 브라우저로 연다(`/api/v1` 아래가 아니다). 인증 없음. 앱이 직접 그릴 때는 [`GET /legal/terms` · `GET /legal/privacy`](#get-legalterms--get-legalprivacy--약관-본문)의 JSON을 쓴다 |
 | `minSupportedVersion` | 앱 버전이 이보다 낮으면 업데이트 안내 화면으로 막고 스토어로 보낸다 (강제 업데이트) |
 | `latestVersion` | 앱 버전이 이보다 낮으면 업데이트를 권하되 계속 쓸 수 있다 |
 
@@ -75,3 +77,29 @@ Response `200`
 - 버전은 `major.minor.patch` 형식이고 앞자리 0은 쓰지 않는다(`01.0.0` 불가). 세 자리를 각각 숫자로 비교한다(`1.10.0` > `1.9.0`). 강제 업데이트 확인을 먼저 한다.
 - 서버 설정 `mozzi.app.*`(환경변수 `MOZZI_APP_MIN_SUPPORTED_VERSION`, `MOZZI_APP_LATEST_VERSION`)으로 바꾼다. 최소 버전이 최신 버전보다 높으면 서버가 뜨지 않는다.
 - 강제 업데이트는 이 확인 로직을 넣고 출시한 앱에만 효과가 있다.
+
+## `GET /legal/terms` · `GET /legal/privacy` — 약관 본문
+
+인증: 없음. 가입 전에도 읽는다. 앱 내장본(`assets/legal/*.json`)과 같은 모양에 `type`, `version`을 더했다.
+
+Response `200`
+
+```json
+{
+  "type": "TERMS",
+  "version": "1.0",
+  "title": "이용약관",
+  "body": "# 이용약관\n\n이 이용약관은 ..."
+}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `type` | `TERMS` 이용약관 · `PRIVACY` 개인정보 처리방침 |
+| `version` | 가입 때 `agreedTerms`로 보낼 버전. `GET /meta`의 `termsVersions`와 같다 |
+| `title` | 문서 제목 |
+| `body` | 마크다운 원문. 제목(`# `)부터 들어 있고, 개인정보 처리방침에는 표가 있다 |
+
+- 원본은 `docs/legal/TERMS.md`, `PRIVACY.md`다. 서버가 시작할 때 읽으므로 문구를 고치면 배포해야 바뀐다.
+- `Cache-Control: public, max-age=3600`. 배포 후 최대 1시간은 이전 문구가 보일 수 있다.
+- 같은 본문을 브라우저용 HTML 페이지로도 연다: `/legal/terms`, `/legal/privacy` (`/api/v1` 없이). Google Play의 개인정보 처리방침 URL로 쓴다.

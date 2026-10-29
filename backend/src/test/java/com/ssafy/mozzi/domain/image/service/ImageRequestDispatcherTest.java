@@ -55,7 +55,16 @@ class ImageRequestDispatcherTest {
         assertThat(translated).containsExactly(new PromptTranslator.Source("우리집", "엄마", "요리"));
         assertThat(sent).containsExactly(new ImageRequestPublisher.Message(
                 10L, 12L, "2026-10-28", "CALM", "https://cdn.test/mozzi.webp", "a round mochi",
-                "in the evening", "on a rainy day", "EN(우리집)", "EN(엄마)", "EN(요리)"));
+                "in the evening", "on a rainy day", "EN(우리집)", "EN(엄마)", "EN(요리)", false));
+    }
+
+    @Test
+    void aTestApiRequestIsMarkedForTheAiServer() {
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
+
+        dispatcher.dispatch(new ImageGenerationRequestedEvent(10L, true));
+
+        assertThat(sent.get(0).test()).isTrue();
     }
 
     @Test
