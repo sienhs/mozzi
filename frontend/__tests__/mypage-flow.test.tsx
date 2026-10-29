@@ -254,6 +254,55 @@ test('emotion chosen on mypage is carried through the owned list to the pick', a
   expect(server.state.picks.get('HAPPY')).toBeUndefined();
 }, 30000);
 
+test('the picture test page redraws a chosen past diary with the chosen scene through the test API', async () => {
+  const diaryId = server.addDiary(
+    '2026-10-20',
+    'CALM',
+    '공원에서 천천히 걸었어',
+    [
+      ['산책', 'WHAT'],
+      ['공원', 'WHERE'],
+      ['가족', 'WHO'],
+    ],
+    'SUCCEEDED',
+  );
+  const app = await openApp('/mypage');
+  await fireEvent.press(
+    screen.getByRole('button', { name: '그림 테스트 페이지로 이동' }),
+  );
+  await advance(0);
+  expect(app.getPathname()).toBe('/mypage/image-test');
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 20일 화요일 일기 테스트' }),
+  );
+  await advance(0);
+  expect(screen.getByText('지금 그림: 완성')).toBeOnTheScreen();
+  expect(
+    screen.getByRole('button', { name: '테스트 그림 만들기' }),
+  ).toBeDisabled();
+  await fireEvent.press(screen.getByRole('radio', { name: '산책' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '공원' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '비' }));
+  await fireEvent.press(screen.getByRole('radio', { name: '저녁' }));
+  await fireEvent.press(
+    screen.getByRole('button', { name: '테스트 그림 만들기' }),
+  );
+  await advance(0);
+  const [request] = server.callsTo('POST', `/diaries/${diaryId}/image/test`);
+  expect(request.key).toBeTruthy();
+  expect(request.body).toMatchObject({
+    weather: 'RAINY',
+    timeOfDay: 'EVENING',
+    whoMyIconId: null,
+  });
+  expect(request.body.whatMyIconId).toBeGreaterThan(0);
+  expect(request.body.whereMyIconId).toBeGreaterThan(0);
+  expect(screen.getByText('지금 그림: 그리는 중')).toBeOnTheScreen();
+  expect(
+    screen.getByRole('button', { name: '테스트 그림 만들기' }),
+  ).toBeDisabled();
+}, 30000);
+
 test('an unowned card cannot be equipped and unauthenticated users cannot open mypage', async () => {
   server.state.owned.delete(204);
   await openApp('/mypage/mochi/204');

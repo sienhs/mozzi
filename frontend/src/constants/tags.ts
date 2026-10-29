@@ -1,8 +1,9 @@
 import type { DiaryTag, PresetTag, TagCategory } from '@/types/diary';
 
-// 기본 태그 목록 (일기 생성 개편 설계 §5-1 제안). 최종 목록·표시명은 기획·디자인에서 정한다.
-// CONTRACT: B2 — 서버 GET /meta가 생기면 이 상수 대신 서버 값을 쓰고, 상수는 실패 시 대체값으로 남긴다.
-// 지금 AI 규칙(prompt_rules.yaml v1)에 없는 태그도 들어 있다. 프롬프트 규칙 추가는 AI 쪽 요청(AI-1)이다.
+// 기본 태그는 누구나 쓰는 것만 둔다. 나머지는 사용자가 내 태그(POST /my-icons)로 만든다.
+// 서버에는 기본 태그가 없어 기본 태그를 고르면 같은 이름의 내 아이콘을 만들고, 그것도 카테고리당 9개 한도에 센다.
+// 그래서 기본 태그가 많을수록 사용자가 만들 수 있는 칸이 줄어든다.
+// 날씨는 서버 그림 요청의 weather 값(맑음·흐림·비·눈)과 같은 것만 둔다.
 const catalog: Record<TagCategory, [code: string, label: string][]> = {
   activity: [
     ['STUDYING', '공부'],
@@ -10,58 +11,28 @@ const catalog: Record<TagCategory, [code: string, label: string][]> = {
     ['EXERCISE', '운동'],
     ['WALK', '산책'],
     ['RESTING', '휴식'],
-    ['NAP', '낮잠'],
     ['EATING', '식사'],
     ['COOKING', '요리'],
-    ['BAKING', '베이킹'],
-    ['CLEANING', '청소'],
-    ['LAUNDRY', '빨래'],
-    ['SHOPPING', '쇼핑'],
     ['READING', '독서'],
-    ['WRITING', '글쓰기'],
-    ['DRAWING', '그림 그리기'],
-    ['MUSIC', '음악 듣기'],
-    ['MOVIE', '영화 보기'],
-    ['GAMING', '게임'],
-    ['PHOTO', '사진 찍기'],
-    ['CHATTING', '수다 떨기'],
-    ['GARDENING', '식물 가꾸기'],
-    ['SHOW', '공연·전시'],
-    ['HIKING', '등산'],
-    ['TRAVELING', '여행'],
-    ['COMMUTE', '출퇴근·이동'],
   ],
   place: [
     ['HOME', '집'],
-    ['CAFE', '카페'],
     ['OFFICE', '회사'],
     ['SCHOOL', '학교'],
-    ['LIBRARY', '도서관'],
-    ['RESTAURANT', '식당'],
+    ['CAFE', '카페'],
     ['PARK', '공원'],
-    ['NEIGHBORHOOD', '동네'],
-    ['BEACH', '바다'],
-    ['MOUNTAIN', '산'],
-    ['TRAVEL_SPOT', '여행지'],
   ],
   companion: [
-    ['FRIEND', '친구'],
     ['FAMILY', '가족'],
+    ['FRIEND', '친구'],
     ['PARTNER', '연인'],
     ['COWORKER', '동료'],
-    ['CHILD', '아이'],
-    ['PUPPY', '강아지'],
-    ['KITTEN', '고양이'],
-    ['BUNNY', '토끼'],
-    ['HAMSTER', '햄스터'],
   ],
   weather: [
     ['SUNNY', '맑음'],
     ['CLOUDY', '흐림'],
     ['RAINY', '비'],
     ['SNOWY', '눈'],
-    ['WINDY', '바람'],
-    ['FOGGY', '안개'],
   ],
 };
 

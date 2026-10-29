@@ -4,7 +4,10 @@ import {
   parseDiaryDetail,
   parseHome,
   parseMonthly,
+  parseSummary,
   type DiaryDetail,
+  type DiarySummary,
+  type TimeOfDay,
   type HomeResponse,
   type ImageRequestBody,
   type MonthlyItem,
@@ -35,6 +38,7 @@ export const diaryKeys = {
     ['diary', memberId, 'daily', date] as const,
   monthly: (memberId: number, yearMonth: string) =>
     ['diary', memberId, 'monthly', yearMonth] as const,
+  recent: (memberId: number) => ['diary', memberId, 'recent'] as const,
 };
 
 export class DiaryExistsError extends AuthError {
@@ -137,6 +141,23 @@ export const diaryApi = {
       if (errorCode(error) === 'NOT_FOUND') return null;
       throw error;
     }
+  },
+  // GET /diaries (최신순 첫 페이지). 그림 테스트 화면에서 일기를 고를 때 쓴다.
+  async recent(size = 20): Promise<DiarySummary[]> {
+    const { data } = await api.get('/diaries', { params: { size } });
+    if (!Array.isArray(data?.items)) throw invalidResponse();
+    return data.items.map(parseSummary);
+  },
+  // [테스트·임시] POST /diaries/{id}/image/test (S15P31D102-132). 날짜·완성 여부·실패 횟수를 보지 않고
+  // 다시 그린다. 서버는 키 형식만 검사하고 재전송을 첫 응답으로 돌려주지 않는다.
+  async requestImageTest(
+    diaryId: number,
+    body: ImageRequestBody & { timeOfDay: TimeOfDay | null },
+    requestKey: string,
+  ): Promise<void> {
+    await api.post(`/diaries/${diaryId}/image/test`, body, {
+      headers: { 'Idempotency-Key': requestKey },
+    });
   },
   // GET /diaries/monthly. 캘린더용으로 일기를 쓴 날의 감정만 준다. yearMonth는 YYYY-MM.
   async monthly(yearMonth: string): Promise<MonthlyItem[]> {

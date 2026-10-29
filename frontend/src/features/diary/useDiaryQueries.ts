@@ -151,6 +151,8 @@ export function useDiary(date: string | undefined) {
     : null;
   return {
     entry,
+    // 서버 응답 그대로 (아이콘 ID가 필요한 화면용).
+    detail: query.data ?? null,
     notFound: query.isSuccess && query.data === null,
     isPending: query.isPending,
     isError: query.isError,

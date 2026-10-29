@@ -391,6 +391,23 @@ export function createFakeServer(today: string) {
       }
       return ok(config, { diaryId, recordDate: state.today, reward }, 201);
     }
+    // [테스트·임시] 제한 없이 다시 그린다. 생성 중이면 409, 나머지는 덮어쓴다.
+    const test = url.match(/^\/diaries\/(\d+)\/image\/test$/);
+    if (method === 'POST' && test) {
+      const diaryId = Number(test[1]);
+      if (!call.key) fail(config, 400, 'INVALID_INPUT');
+      if (!state.diaries.some(item => item.diaryId === diaryId))
+        fail(config, 404, 'NOT_FOUND');
+      const current = state.images.get(diaryId);
+      if (current?.status === 'PENDING')
+        fail(config, 409, 'IMAGE_ALREADY_REQUESTED');
+      state.images.set(diaryId, {
+        status: 'PENDING',
+        failures: current?.failures ?? 0,
+        body: call.body,
+      });
+      return ok(config, { diaryId, imageStatus: 'PENDING' }, 202);
+    }
     const image = url.match(/^\/diaries\/(\d+)\/image$/);
     if (method === 'POST' && image) {
       const diaryId = Number(image[1]);
@@ -528,6 +545,23 @@ export function createFakeServer(today: string) {
         }),
       });
     }
+    if (method === 'GET' && url === '/diaries')
+      return ok(config, {
+        items: [...state.diaries]
+          .sort((a, b) => b.recordDate.localeCompare(a.recordDate))
+          .map(item => {
+            const full = detail(item.diaryId);
+            return {
+              diaryId: full.diaryId,
+              recordDate: full.recordDate,
+              emoticonId: full.emoticonId,
+              emotion: full.emotion,
+              content: full.content,
+              image: full.image,
+            };
+          }),
+        nextCursor: null,
+      });
     if (method === 'GET' && url === '/diaries/monthly') {
       const yearMonth = call.params?.yearMonth ?? '';
       if (!/^\d{4}-\d{2}$/.test(yearMonth)) fail(config, 400, 'INVALID_INPUT');

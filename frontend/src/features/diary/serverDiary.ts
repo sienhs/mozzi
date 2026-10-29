@@ -32,7 +32,7 @@ export const toServerEmotion = (emotion: Emotion) =>
   emotion.toUpperCase() as ServerEmotion;
 export const fallbackTitle = (emotion: Emotion) =>
   `${emotions[emotion].label} 모찌와 남긴 하루`;
-// 서버 날씨는 맑음·흐림·비·눈뿐이다. 바람·안개는 대응 값이 없어 '입력 안 함'으로 보낸다.
+// 서버 날씨는 맑음·흐림·비·눈뿐이다. 그 밖의 값은 '입력 안 함'으로 보낸다.
 const weathers: ServerWeather[] = ['SUNNY', 'CLOUDY', 'RAINY', 'SNOWY'];
 export const toServerWeather = (code: string | null): ServerWeather =>
   weathers.includes(code as ServerWeather) ? (code as ServerWeather) : 'NONE';

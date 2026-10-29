@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
 import {
   CompanionArtwork,
   CompanionNotice,
@@ -187,6 +188,12 @@ export function MyPageScreen() {
           <Loading label="보유 모찌를 불러오고 있어요" />
         )}
       </View>
+      {/* [테스트·임시] 그림 테스트 API(S15P31D102-132)가 열려 있는 동안만 둔다. */}
+      <Button
+        label="그림 테스트 페이지로 이동"
+        variant="secondary"
+        onPress={() => router.push('/mypage/image-test')}
+      />
     </Screen>
   );
 }
