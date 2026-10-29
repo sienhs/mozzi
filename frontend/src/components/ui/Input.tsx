@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
     borderRadius: radii.input,
   },
   memo: {
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.paperEdge,
     borderRadius: radii.input,
     backgroundColor: colors.white,
     gap: 12,

@@ -4,14 +4,14 @@ import { ChevronRight } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
-import { Button } from '@/components/ui/Button';
 import {
   CompanionArtwork,
   CompanionNotice,
-  EquippedBadge,
   MyPageTitle,
 } from '@/components/mypage/CompanionUI';
 import { companions } from '@/constants/companions';
+import { emotionOrder, emotions } from '@/constants/emotions';
+import { EmotionImage } from '@/components/emotion/Emotion';
 import { colors } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useGachaStore } from '@/stores/useGachaStore';
@@ -19,7 +19,7 @@ import { filterOwnedCompanions } from './ownedCompanions';
 
 export function MyPageScreen() {
   const profile = useAuthStore(state => state.member);
-  const equippedId = useGachaStore(state => state.equippedId);
+  const equippedByEmotion = useGachaStore(state => state.equippedByEmotion);
   const owned = useGachaStore(state => state.owned);
   const acquiredAt = useGachaStore(state => state.acquiredAt);
   const { equipped } = useLocalSearchParams<{ equipped?: string }>();
@@ -33,21 +33,24 @@ export function MyPageScreen() {
     }, 3000);
     return () => clearTimeout(timer);
   }, [equipped]);
-  const current = companions[equippedId];
   const recentIds = filterOwnedCompanions({ owned, acquiredAt }).slice(0, 4);
   return (
     <Screen
       tabbed
       title="마이페이지"
-      titleContent={<MyPageTitle back={false}>마이페이지</MyPageTitle>}
+      titleContent={
+        <View style={{ paddingLeft: 48 }}>
+          <MyPageTitle back={false}>마이페이지</MyPageTitle>
+        </View>
+      }
+      action={{
+        icon: 'settings',
+        label: '설정',
+        onPress: () => router.push('/settings'),
+      }}
       contentStyle={{ gap: 20 }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="설정으로 이동"
-        onPress={() => router.push('/settings')}
-        style={styles.profile}
-      >
+      <View style={styles.profile}>
         <View style={styles.avatar}>
           <Image
             source={companions.default.source}
@@ -60,30 +63,50 @@ export function MyPageScreen() {
           <AppText variant="heading">{profile?.nickname ?? '모찌'} 님</AppText>
           <AppText variant="small">오늘도 좋은 하루 보내세요!</AppText>
         </View>
-        <ChevronRight size={20} color={colors.muted} />
-      </Pressable>
+      </View>
       {showSuccess && <CompanionNotice success />}
       <View style={{ gap: 10 }}>
-        <AppText variant="heading">지금 함께하는 모찌 🌱</AppText>
-        <View style={styles.hero}>
-          <EquippedBadge />
-          <View style={{ width: '85%', alignSelf: 'center' }}>
-            <CompanionArtwork id={equippedId} />
-          </View>
-          <View style={{ alignItems: 'center', gap: 2 }}>
-            <AppText variant="title" style={{ textAlign: 'center' }}>
-              {current.name}
-            </AppText>
-            <AppText variant="small" style={{ textAlign: 'center' }}>
-              {current.description}
-            </AppText>
-          </View>
-          <Button
-            label="내 모찌 변경하기"
-            variant="secondary"
-            style={styles.changeButton}
-            onPress={() => router.push('/mypage/owned')}
-          />
+        <AppText variant="heading">감정별 함께하는 모찌 🌱</AppText>
+        <AppText variant="small">감정마다 함께할 모찌를 골라 주세요.</AppText>
+        <View style={styles.equipmentPanel}>
+          {emotionOrder.map((emotion, index) => {
+            const id = equippedByEmotion[emotion];
+            return (
+              <Pressable
+                key={emotion}
+                accessibilityRole="button"
+                accessibilityLabel={`${emotions[emotion].label} 모찌 변경하기`}
+                onPress={() =>
+                  router.push({
+                    pathname: '/mypage/owned',
+                    params: { emotion },
+                  })
+                }
+                style={[
+                  styles.equipmentRow,
+                  index < emotionOrder.length - 1 && {
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.paperEdge,
+                  },
+                ]}
+              >
+                <View
+                  style={{
+                    backgroundColor: emotions[emotion].color,
+                    borderRadius: 22,
+                    padding: 6,
+                  }}
+                >
+                  <EmotionImage emotion={emotion} companionId={id} size={64} />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <AppText variant="label">{emotions[emotion].label}</AppText>
+                  <AppText variant="small">{companions[id].name}</AppText>
+                </View>
+                <ChevronRight size={20} color={colors.muted} />
+              </Pressable>
+            );
+          })}
         </View>
       </View>
       <CompanionNotice />
@@ -95,7 +118,9 @@ export function MyPageScreen() {
               <View
                 style={[
                   styles.preview,
-                  id === equippedId && { borderColor: colors.primary },
+                  Object.values(equippedByEmotion).includes(id) && {
+                    borderColor: colors.primary,
+                  },
                 ]}
               >
                 <CompanionArtwork id={id} />
@@ -103,7 +128,7 @@ export function MyPageScreen() {
               <AppText variant="caption" style={{ textAlign: 'center' }}>
                 {companions[id].name}
               </AppText>
-              {id === equippedId && (
+              {Object.values(equippedByEmotion).includes(id) && (
                 <AppText
                   variant="caption"
                   style={{ textAlign: 'center', color: colors.primary }}
@@ -131,18 +156,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.white,
+    backgroundColor: colors.peachPaper,
     borderRadius: 20,
-    padding: 14,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.paperEdge,
   },
-  avatar: { borderRadius: 36, backgroundColor: colors.gachaCream, padding: 4 },
-  hero: {
-    padding: 16,
-    gap: 12,
+  avatar: {
+    borderRadius: 36,
+    backgroundColor: colors.paper,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: colors.paperEdge,
+  },
+  equipmentPanel: {
+    backgroundColor: colors.paper,
+    paddingHorizontal: 14,
     borderRadius: 24,
-    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.paperEdge,
+    boxShadow: '0 4px 14px rgba(91, 65, 39, 0.04)',
   },
-  changeButton: { borderWidth: 1.5, borderColor: colors.primary },
+  equipmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 12,
+  },
   preview: {
     borderRadius: 14,
     backgroundColor: colors.white,

@@ -47,7 +47,7 @@ export function CompanionNotice({ success = false }: { success?: boolean }) {
       <AppText variant="small" style={{ flex: 1, color: colors.ink }}>
         {success
           ? '장착 완료!'
-          : '새로 작성하는 일기부터 적용돼요.\n선택한 모찌가 함께해요!'}
+          : '새로 작성하는 일기부터 적용돼요.\n감정별로 선택한 모찌가 함께해요!'}
       </AppText>
     </View>
   );
@@ -66,7 +66,13 @@ export const OwnedCompanionCard = memo(function OwnedCompanionCard({
       accessibilityRole="button"
       accessibilityLabel={`${companions[id].name}${equipped ? ', 장착 중' : ''}`}
       onPress={() => onSelect(id)}
-      style={[styles.ownedCard, equipped && { borderColor: colors.primary }]}
+      style={[
+        styles.ownedCard,
+        equipped && {
+          borderColor: colors.primary,
+          backgroundColor: colors.peachPaper,
+        },
+      ]}
     >
       {equipped && (
         <View pointerEvents="none" style={styles.ownedBadge}>
@@ -118,6 +124,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    borderWidth: 1,
+    borderColor: '#D4DDCA',
   },
   ownedCard: {
     flex: 1,
@@ -125,9 +133,9 @@ const styles = StyleSheet.create({
     padding: 8,
     gap: 6,
     borderRadius: 18,
-    backgroundColor: colors.white,
+    backgroundColor: colors.paper,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.paperEdge,
     justifyContent: 'flex-end',
   },
   ownedBadge: { position: 'absolute', top: 8, right: 8, zIndex: 1 },

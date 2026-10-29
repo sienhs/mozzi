@@ -32,7 +32,7 @@ export function EmotionPicker({
   value: Emotion | null;
   onChange: (value: Emotion) => void;
 }) {
-  const equippedId = useGachaStore(state => state.equippedId);
+  const equippedByEmotion = useGachaStore(state => state.equippedByEmotion);
   return (
     <View style={styles.grid}>
       {[emotionOrder.slice(0, 3), emotionOrder.slice(3)].map(
@@ -58,7 +58,7 @@ export function EmotionPicker({
                   <EmotionImage
                     emotion={emotion}
                     size={64}
-                    companionId={equippedId}
+                    companionId={equippedByEmotion[emotion]}
                   />
                   <AppText variant="small" style={{ color: colors.ink }}>
                     {selected ? '✓ ' : ''}

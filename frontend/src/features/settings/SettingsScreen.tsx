@@ -40,19 +40,6 @@ export function SettingsScreen() {
         <Icon name="chevronRight" color={colors.muted} />
       </Pressable>
       <View>
-        <AppText variant="caption">기록</AppText>
-        <SettingsRow
-          label="기록 알림"
-          value="오후 9:00"
-          onPress={() => setPanel('기록 알림')}
-        />
-        <SettingsRow
-          label="그림 저장 위치"
-          value="앨범"
-          onPress={() => setPanel('그림 저장 위치')}
-        />
-      </View>
-      <View>
         <AppText variant="caption">정보</AppText>
         <SettingsRow label="이용약관" onPress={() => setPanel('이용약관')} />
         <SettingsRow
@@ -95,7 +82,9 @@ export function SettingsScreen() {
           <>
             <AppText variant="label">{profile?.nickname}</AppText>
             <AppText>{profile?.email}</AppText>
-            <AppText variant="small">닉네임 변경 기능은 준비 중이에요.</AppText>
+            <AppText variant="small">
+              닉네임은 가입 후 변경할 수 없어요.
+            </AppText>
             <Button label="확인" onPress={() => setPanel('')} />
           </>
         ) : panel === '이용약관' || panel === '개인정보 처리방침' ? (
@@ -106,13 +95,9 @@ export function SettingsScreen() {
         ) : (
           <>
             <AppText style={{ textAlign: 'center', color: colors.muted }}>
-              {panel === '기록 알림'
-                ? '기록 알림은 준비 중이에요.'
-                : panel === '그림 저장 위치'
-                  ? '그림은 앱의 기록실에서 볼 수 있어요.\n앨범 저장은 준비 중이에요.'
-                  : panel === '회원 탈퇴'
-                    ? '회원 탈퇴 기능을 연결하고 있어요. 준비가 완료되면 안내해 드릴게요.'
-                    : `${panel}은 정식 서비스 시작 전에 안내해 드릴게요.`}
+              {panel === '회원 탈퇴'
+                ? '회원 탈퇴 기능을 연결하고 있어요. 준비가 완료되면 안내해 드릴게요.'
+                : `${panel}은 정식 서비스 시작 전에 안내해 드릴게요.`}
             </AppText>
             <Button
               label="확인"

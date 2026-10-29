@@ -1,6 +1,5 @@
 import type { ImageSourcePropType } from 'react-native';
 import type { MochiId, Tier } from '@/types/gacha';
-import { colors } from '@/theme/tokens';
 
 // Figma 05 · P-05 "등급별 획득 확률" (시즌 2 · 과일 / 1회 뽑기 기준).
 export const tierOrder: Tier[] = ['common', 'rare', 'epic', 'legend', 'myth'];
@@ -21,40 +20,40 @@ export const tiers: Record<
     odds: 45,
     duplicateShards: 1,
     exchangeCost: 10,
-    color: colors.muted,
-    badge: colors.gachaCream,
+    color: '#596273',
+    badge: '#EDF0F4',
   },
   rare: {
     label: '희귀',
     odds: 30,
     duplicateShards: 2,
     exchangeCost: 20,
-    color: colors.gachaBlue,
-    badge: colors.gachaBlueSoft,
+    color: '#1764D1',
+    badge: '#E8F1FF',
   },
   epic: {
     label: '영웅',
     odds: 17,
     duplicateShards: 5,
     exchangeCost: 50,
-    color: colors.gachaViolet,
-    badge: colors.gachaVioletSoft,
+    color: '#8535CD',
+    badge: '#F3E8FF',
   },
   legend: {
     label: '전설',
     odds: 6.5,
     duplicateShards: 15,
     exchangeCost: 150,
-    color: colors.gachaGoldInk,
-    badge: colors.gachaCream,
+    color: '#B95600',
+    badge: '#FFF0D6',
   },
   myth: {
     label: '신화',
     odds: 1.5,
     duplicateShards: 40,
     exchangeCost: 400,
-    color: colors.gachaRose,
-    badge: colors.gachaRoseSoft,
+    color: '#D22364',
+    badge: '#FFE5EF',
   },
 };
 export const season = '시즌 2 · 과일';

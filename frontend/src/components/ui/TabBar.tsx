@@ -28,12 +28,12 @@ export function TabBar({ state, navigateToTab, insets }: BottomTabBarProps) {
       accessibilityRole="tablist"
       style={{
         flexDirection: 'row',
-        backgroundColor: colors.white,
+        backgroundColor: colors.paper,
         borderTopWidth: 1,
         borderTopColor: colors.line,
         paddingTop: 8,
         paddingBottom: Math.max(insets.bottom, 20),
-        paddingHorizontal: 20,
+        paddingHorizontal: 12,
       }}
     >
       {state.routes.map((route, index) => {
@@ -56,6 +56,9 @@ export function TabBar({ state, navigateToTab, insets }: BottomTabBarProps) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 2,
+              paddingVertical: 6,
+              borderRadius: 18,
+              backgroundColor: focused ? colors.peachPaper : 'transparent',
             }}
           >
             {tab.icon ? (
@@ -68,7 +71,10 @@ export function TabBar({ state, navigateToTab, insets }: BottomTabBarProps) {
             ) : (
               <Icon name="profile" size={24} color={color} />
             )}
-            <AppText variant="caption" style={{ color, textAlign: 'center' }}>
+            <AppText
+              variant="caption"
+              style={{ color, textAlign: 'center', fontSize: 15 }}
+            >
               {tab.label}
             </AppText>
           </Pressable>

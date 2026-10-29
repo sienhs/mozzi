@@ -104,6 +104,7 @@ export function SearchScreen() {
       {!question ? (
         <>
           <Heading
+            eyebrow="모찌와 찾는 기억"
             title={'지난 마음을 물어보세요'}
             description="남긴 기록에서 모찌가 찾아 드려요."
           />
@@ -115,14 +116,22 @@ export function SearchScreen() {
                 accessibilityRole="button"
                 onPress={() => void ask(text)}
                 style={{
-                  backgroundColor: colors.white,
+                  backgroundColor: colors.paper,
                   borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: colors.paperEdge,
+                  borderLeftWidth: 4,
+                  borderLeftColor: colors.sage,
                   paddingHorizontal: 16,
                   paddingVertical: 14,
                   minHeight: 52,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
                 }}
               >
-                <AppText>{text}</AppText>
+                <AppText style={{ flex: 1 }}>{text}</AppText>
+                <Icon name="chevronRight" size={18} color={colors.sage} />
               </Pressable>
             ))}
           </View>

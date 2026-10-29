@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import type { MochiId, PullItem } from '@/types/gacha';
 import { mochiOrder, mochis, tiers } from '@/constants/gacha';
 import { mockEquipmentService, mockGachaService } from '@/mocks/services';
-import type { CompanionId } from '@/types/companion';
+import { defaultEmotionEquipment, type CompanionId } from '@/types/companion';
+import type { Emotion } from '@/types/diary';
 
 // Figma demo values (P-01: 뽑기권 23 · 별조각 140). The server will own these later.
 const initialOwned: MochiId[] = [
@@ -22,7 +23,7 @@ export const initialGachaState = () => ({
   pendingDuplicate: null as PullItem | null,
   pulling: false,
   acquiredAt: {} as Partial<Record<MochiId, string>>,
-  equippedId: 'default' as CompanionId,
+  equippedByEmotion: defaultEmotionEquipment(),
   equipping: false,
   equipmentError: '',
   equipmentVersion: 0,
@@ -33,7 +34,7 @@ interface GachaState extends ReturnType<typeof initialGachaState> {
   applyDuplicate: () => void;
   markSeen: (id: MochiId) => void;
   exchange: (id: MochiId) => Promise<void>;
-  equip: (id: CompanionId) => Promise<boolean>;
+  equip: (emotion: Emotion, id: CompanionId) => Promise<boolean>;
   resetEquipment: () => void;
 }
 export const exchangeCost = (id: MochiId) =>
@@ -109,9 +110,10 @@ export const useGachaStore = create<GachaState>((set, get) => ({
       acquiredAt: { ...state.acquiredAt, [id]: new Date().toISOString() },
     }));
   },
-  equip: async id => {
+  equip: async (emotion, id) => {
     const state = get();
-    if (state.equipping || state.equippedId === id) return false;
+    if (state.equipping || state.equippedByEmotion[emotion] === id)
+      return false;
     if (id !== 'default' && !state.owned.includes(id)) {
       set({ equipmentError: '보유한 모찌만 장착할 수 있어요.' });
       return false;
@@ -119,9 +121,11 @@ export const useGachaStore = create<GachaState>((set, get) => ({
     const version = state.equipmentVersion;
     set({ equipping: true, equipmentError: '' });
     try {
-      await mockEquipmentService.equip(id);
+      await mockEquipmentService.equip(emotion, id);
       if (get().equipmentVersion !== version) return false;
-      set({ equippedId: id });
+      set(current => ({
+        equippedByEmotion: { ...current.equippedByEmotion, [emotion]: id },
+      }));
       return true;
     } catch (error) {
       if (get().equipmentVersion === version)
@@ -136,7 +140,7 @@ export const useGachaStore = create<GachaState>((set, get) => ({
   },
   resetEquipment: () =>
     set(state => ({
-      equippedId: 'default',
+      equippedByEmotion: defaultEmotionEquipment(),
       equipping: false,
       equipmentError: '',
       equipmentVersion: state.equipmentVersion + 1,

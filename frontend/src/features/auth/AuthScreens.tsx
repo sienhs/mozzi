@@ -44,6 +44,7 @@ export function WelcomeScreen() {
     >
       <Heading
         display
+        eyebrow="하루 한 장, 마음 한 조각"
         title="오늘의 모찌"
         description={
           '하루를 한 장의 그림으로 남겨요.\n모찌가 오늘의 장면을 그려 줄게요.'
