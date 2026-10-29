@@ -290,9 +290,9 @@ erDiagram
 | updated_at | timestamptz | | | |
 | deleted_at | timestamptz | | O | 소프트 삭제 |
 
-- `ix_my_icon_member_category (member_id, category, created_at) where deleted_at is null` — 카테고리별 목록, 9개 제한 개수 세기
+- `ix_my_icon_member_category (member_id, category, created_at) where deleted_at is null` — 카테고리별 목록, 30개 제한 개수 세기
 - V9 변경: `icon_id` 삭제, `icon` 테이블 삭제 (아이콘이 글자만 쓰는 방식으로 바뀜)
-- 카테고리당 9개 제한은 애플리케이션이 센다. 동시에 두 개를 만들어 10개가 되지 않도록 `member` 행을 잠그고(`select … for update`) 센다
+- 카테고리당 30개 제한은 애플리케이션이 센다. 동시에 두 개를 만들어 31개가 되지 않도록 `member` 행을 잠그고(`select … for update`) 센다
 
 ### diary
 

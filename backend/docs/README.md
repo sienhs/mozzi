@@ -41,6 +41,7 @@
 - [x] `GET /my-icons` 내 아이콘 목록
 - [x] `DELETE /my-icons/{myIconId}` 아이콘 삭제
 - [x] `POST /diaries` 일기 쓰기
+- [x] `PATCH /diaries/{diaryId}/content` 한 줄 일기 추가 — 비어 있는 일기에 한 번만
 - [x] `GET /diaries/daily` 하루 일기
 - [x] `GET /diaries/monthly` 한 달 감정 (캘린더)
 - [x] `GET /diaries` 일기 목록

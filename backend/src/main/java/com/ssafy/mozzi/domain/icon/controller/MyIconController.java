@@ -35,7 +35,7 @@ public class MyIconController {
         this.myIconService = myIconService;
     }
 
-    @Operation(summary = "아이콘 만들기", description = "카테고리마다 9개까지. 넘으면 409.")
+    @Operation(summary = "아이콘 만들기", description = "카테고리마다 30개까지. 넘으면 409.")
     @ApiResponse(responseCode = "201", description = "만들어짐")
     @PostMapping
     public ResponseEntity<MyIconResponseDto> create(

@@ -9,12 +9,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ssafy.mozzi.domain.diary.dto.DiaryContentRequestDto;
+import com.ssafy.mozzi.domain.diary.dto.DiaryContentResponseDto;
 import com.ssafy.mozzi.domain.diary.dto.DiaryCreateRequestDto;
 import com.ssafy.mozzi.domain.diary.dto.DiaryCreateResponseDto;
 import com.ssafy.mozzi.domain.diary.dto.DiaryDailyRequestDto;
@@ -37,7 +41,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * Diaries are written once and not edited or deleted: a day's record stays as it was.
+ * Diaries are written once and not edited or deleted: a day's record stays as it was. The
+ * one exception is a one-line diary left out when saving, which can be added once later.
  */
 @Tag(name = "일기")
 @RestController
@@ -63,6 +68,16 @@ public class DiaryController {
             @RequestHeader(IDEMPOTENCY_KEY) @NotBlank @Size(max = 64) String idempotencyKey,
             @Valid @RequestBody DiaryCreateRequestDto request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(diaryService.create(memberId, idempotencyKey, request));
+    }
+
+    @Operation(summary = "한 줄 일기 추가",
+            description = "한 줄 일기 없이 저장한 일기에 한 번만 추가한다. 이미 다른 내용이 있으면 409. "
+                    + "같은 내용 재전송은 200.")
+    @PatchMapping("/{diaryId}/content")
+    public DiaryContentResponseDto writeContent(
+            @CurrentMember Long memberId, @PathVariable Long diaryId,
+            @Valid @RequestBody DiaryContentRequestDto request) {
+        return diaryService.writeContent(memberId, diaryId, request);
     }
 
     @Operation(summary = "하루 일기", description = "그 날짜에 일기가 없으면 404.")

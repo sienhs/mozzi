@@ -22,6 +22,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.ssafy.mozzi.domain.diary.dto.DiaryContentRequestDto;
+import com.ssafy.mozzi.domain.diary.dto.DiaryContentResponseDto;
 import com.ssafy.mozzi.domain.diary.dto.DiaryCreateRequestDto;
 import com.ssafy.mozzi.domain.diary.dto.DiaryCreateResponseDto;
 import com.ssafy.mozzi.domain.diary.dto.DiaryDetailResponseDto;
@@ -30,6 +32,7 @@ import com.ssafy.mozzi.domain.diary.dto.DiarySearchRequestDto;
 import com.ssafy.mozzi.domain.diary.dto.DiarySummaryResponseDto;
 import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.exception.DiaryAlreadyExistsException;
+import com.ssafy.mozzi.domain.diary.exception.DiaryErrorCode;
 import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
 import com.ssafy.mozzi.domain.emoticon.entity.Emoticon;
 import com.ssafy.mozzi.domain.emoticon.repository.EmoticonRepository;
@@ -130,11 +133,33 @@ public class DiaryService {
         List<MyIcon> myIcons = iconsFor(memberId, request.myIconIds());
 
         Diary diary = diaryRepository.save(Diary.create(memberId, today, emoticon, request.content(), myIcons));
-        // Emotion search embeds the diary once this commits. Diaries are never edited or
-        // deleted, so saving is the only change it needs to hear about.
+        // Emotion search embeds the diary once this commits.
         eventPublisher.publishEvent(new DiaryContentChangedEvent(diary.getId()));
         RewardResponseDto reward = rewardService.dailyRecord(memberId, diary.getId(), diary.getRecordDate());
         return new DiaryCreateResponseDto(diary.getId(), diary.getRecordDate(), reward);
+    }
+
+    /**
+     * {@code PATCH /diaries/{diaryId}/content}: adds the one-line diary to a diary saved
+     * without one. A one-line diary already written is not replaced, but a resend of the same
+     * text succeeds again, so a retry after a lost response is safe.
+     *
+     * @throws BusinessException {@code 404 NOT_FOUND} for a missing or someone else's diary,
+     *                           {@code 409 DIARY_CONTENT_ALREADY_WRITTEN} when it already
+     *                           has a different one-line diary
+     */
+    @Transactional
+    public DiaryContentResponseDto writeContent(Long memberId, Long diaryId, DiaryContentRequestDto request) {
+        Diary diary = diaryRepository.findForUpdate(diaryId, memberId)
+                .orElseThrow(() -> new BusinessException(
+                        CommonErrorCode.NOT_FOUND, "diary not found: diaryId=" + diaryId));
+        if (diary.getContent() == null) {
+            diary.writeContent(request.content());
+            eventPublisher.publishEvent(new DiaryContentChangedEvent(diary.getId()));
+        } else if (!diary.getContent().equals(request.content())) {
+            throw new BusinessException(DiaryErrorCode.DIARY_CONTENT_ALREADY_WRITTEN, "content already written: diaryId=" + diaryId);
+        }
+        return new DiaryContentResponseDto(diary.getId(), diary.getContent());
     }
 
     /**

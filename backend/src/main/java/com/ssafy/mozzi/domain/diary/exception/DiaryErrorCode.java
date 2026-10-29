@@ -5,11 +5,12 @@ import org.springframework.http.HttpStatus;
 import com.ssafy.mozzi.global.exception.ErrorCode;
 
 /**
- * Codes from {@code POST /diaries}.
+ * Codes from {@code POST /diaries} and {@code PATCH /diaries/{diaryId}/content}.
  */
 public enum DiaryErrorCode implements ErrorCode {
 
-    DIARY_ALREADY_EXISTS(HttpStatus.CONFLICT, "오늘은 이미 기록을 남겼어요.");
+    DIARY_ALREADY_EXISTS(HttpStatus.CONFLICT, "오늘은 이미 기록을 남겼어요."),
+    DIARY_CONTENT_ALREADY_WRITTEN(HttpStatus.CONFLICT, "이미 한 줄 일기를 남겼어요.");
 
     private final HttpStatus status;
     private final String message;

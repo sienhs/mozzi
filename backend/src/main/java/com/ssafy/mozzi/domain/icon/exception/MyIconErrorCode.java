@@ -6,7 +6,7 @@ import com.ssafy.mozzi.global.exception.ErrorCode;
 
 public enum MyIconErrorCode implements ErrorCode {
 
-    MY_ICON_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "아이콘은 카테고리마다 9개까지 만들 수 있어요.");
+    MY_ICON_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "아이콘은 카테고리마다 30개까지 만들 수 있어요.");
 
     private final HttpStatus status;
     private final String message;

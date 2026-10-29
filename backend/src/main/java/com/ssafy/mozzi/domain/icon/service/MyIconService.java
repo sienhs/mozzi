@@ -39,8 +39,8 @@ public class MyIconService {
     /**
      * Makes an icon, at most {@link MyIcon#MAX_PER_CATEGORY} per category.
      *
-     * <p>The limit is a count, which no index can enforce, so two requests at eight icons
-     * would both see room and make ten. Locking the member row first makes the second
+     * <p>The limit is a count, which no index can enforce, so two requests at twenty-nine icons
+     * would both see room and make thirty-one. Locking the member row first makes the second
      * request wait for the first to commit and then count its icon too.
      */
     @Transactional

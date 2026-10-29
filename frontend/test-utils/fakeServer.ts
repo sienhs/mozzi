@@ -347,7 +347,7 @@ export function createFakeServer(today: string) {
       });
     if (method === 'POST' && url === '/my-icons') {
       const { name, category } = call.body;
-      if (state.icons.filter(item => item.category === category).length >= 9)
+      if (state.icons.filter(item => item.category === category).length >= 30)
         fail(config, 409, 'MY_ICON_LIMIT_EXCEEDED');
       return ok(config, icon(name, category), 201);
     }

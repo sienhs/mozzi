@@ -91,11 +91,13 @@ test('normalization and duplicate matching operate within the selected category'
   expect(checkCustomTag('열한글자가넘는긴태그예요', library).kind).toBe(
     'error',
   );
-  // 서버 한도: 카테고리마다 9개. 기본 태그용으로 만든(목록에 안 보이는) 아이콘도 센다.
-  const full = Array.from({ length: 9 }, (_, i) => custom('c' + i, '태그' + i));
+  // 서버 한도: 카테고리마다 30개. 기본 태그용으로 만든(목록에 안 보이는) 아이콘도 센다.
+  const full = Array.from({ length: 30 }, (_, i) =>
+    custom('c' + i, '태그' + i),
+  );
   expect(checkCustomTag('새 태그', full).kind).toBe('error');
   expect(checkCustomTag('새 태그', full, 'place').kind).toBe('create');
-  expect(checkCustomTag('새 태그', [], 'activity', 9).kind).toBe('error');
+  expect(checkCustomTag('새 태그', [], 'activity', 30).kind).toBe('error');
 });
 test('generation requires an explicit activity from the selected list even if only one was picked', () => {
   const draft = {
