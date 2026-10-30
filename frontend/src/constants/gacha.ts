@@ -15,80 +15,60 @@ export const tiers: Record<
 };
 export const gachaArt = {
   room: require('../../assets/gacha/jar-night-room.png'),
-  // P-02 개봉 연출 영상 (Vidu Q3 Pro로 생성, 소리 없음, 720×1080 · 24fps · 5.04초).
-  openingVideo: require('../../assets/gacha/opening-myth.mp4'),
-  // 영상의 첫 프레임: 영상이 준비되기 전과 동작 줄이기에서 보여 준다.
-  openingPoster: require('../../assets/gacha/opening-first-frame.jpg'),
   mochi: require('../../assets/gacha/mochi-malang-default.png'),
   error: require('../../assets/gacha/mochi-malang-error.png'),
   frame: require('../../assets/gacha/reward-card-frame.png'),
   star: require('../../assets/gacha/reward-star.png'),
 };
 
+// P-02 개봉 연출. 세로 1080×1920, 무음, 이미 1.5배속으로 만든 영상이라 재생 속도는 1.0이다.
+// 앞 3초(intro) 뒤 한 번의 입력을 기다리고, 남은 11초(continuation)를 잇는다.
+// intro와 시작·대기 이미지는 세 등급이 같은 파일이라 하나만 둔다.
 export interface OpeningClip {
-  source: number;
-  poster: ImageSourcePropType;
-  duration: number;
-  startAt: number;
-  flashAt: number;
-  beats: readonly {
-    at: number;
-    strength: 'light' | 'medium' | 'heavy';
-  }[];
+  intro: number;
+  continuation: number;
+  // 영상이 준비되기 전에 보여 준다(intro의 첫 프레임).
+  start: ImageSourcePropType;
+  // 입력을 기다리는 동안, continuation 첫 프레임이 뜨기 전까지 보여 준다.
+  touch: ImageSourcePropType;
+  // 마지막 장면. 결과로 넘어갈 때와 재생 실패 시 보여 준다.
+  end: ImageSourcePropType;
 }
+export const OPENING_INTRO_SECONDS = 3;
+export const OPENING_CONTINUATION_SECONDS = 11;
+// 영상 밖 여백. 9:16이 아닌 화면에서 장면 가장자리의 따뜻한 갈색과 이어지게 한다.
+export const OPENING_BACKDROP = '#B98A72';
 
-// 로컬 영상의 실제 프레임 기준(초). 기본 파일의 기존 이름은 그대로 보존한다.
-// 새 영상도 같은 닫힌 병 이미지에서 시작하므로 포스터를 공유한다.
+const shared = {
+  intro: require('../../assets/gacha/opening/intro.mp4'),
+  start: require('../../assets/gacha/opening/start.png'),
+  touch: require('../../assets/gacha/opening/touch.png'),
+};
 export const openingClips = {
-  basic: {
-    source: gachaArt.openingVideo,
-    poster: gachaArt.openingPoster,
-    duration: 5.04,
-    startAt: 0,
-    flashAt: 4.6,
-    beats: [
-      { at: 1.5, strength: 'light' },
-      { at: 3.0, strength: 'medium' },
-      { at: 3.38, strength: 'heavy' },
-    ],
+  base: {
+    ...shared,
+    continuation: require('../../assets/gacha/opening/base-continuation.mp4'),
+    end: require('../../assets/gacha/opening/base-end.png'),
   },
+  // 서류에서 황금빛 줄기, 눈 확대 장면에서 금빛 반사와 섬광.
   legend: {
-    source: require('../../assets/gacha/opening-legend.mp4'),
-    poster: gachaArt.openingPoster,
-    duration: 6.04,
-    startAt: 0,
-    // 금빛 분출과 후광을 보여 준 뒤 결과로 이동한다.
-    flashAt: 5.65,
-    beats: [
-      { at: 1.65, strength: 'light' },
-      { at: 3.8, strength: 'medium' },
-      { at: 4.12, strength: 'heavy' },
-    ],
+    ...shared,
+    continuation: require('../../assets/gacha/opening/legend-continuation.mp4'),
+    end: require('../../assets/gacha/opening/legend-end.png'),
   },
+  // 서류에서 붉은빛, 눈 확대 장면에서 붉은 섬광.
   myth: {
-    source: require('../../assets/gacha/opening-mythic.mp4'),
-    poster: gachaArt.openingPoster,
-    duration: 7.04,
-    startAt: 0,
-    // 은하 전조뿐 아니라 개봉 후 오로라·궤도 고리도 충분히 보여 준다.
-    flashAt: 6.65,
-    beats: [
-      { at: 2.4, strength: 'light' },
-      { at: 3.85, strength: 'medium' },
-      { at: 5.2, strength: 'heavy' },
-    ],
+    ...shared,
+    continuation: require('../../assets/gacha/opening/myth-continuation.mp4'),
+    end: require('../../assets/gacha/opening/myth-end.png'),
   },
 } as const satisfies Record<string, OpeningClip>;
 
-// API 연결 후에도 확정된 결과의 최고 등급만 전달하면 같은 재생 경로를 쓴다.
+// 서버가 확정한 결과의 최고 등급으로 고른다. 일반·희귀·영웅은 기본 연출을 처음부터 전부 재생한다.
 export function getOpeningClip(tier: Tier): OpeningClip {
   if (tier === 'legend') return openingClips.legend;
   if (tier === 'myth') return openingClips.myth;
-  // 기존 일반·희귀의 빠른 개봉은 유지하고, 영웅은 기본 영상을 전부 재생한다.
-  return {
-    ...openingClips.basic,
-    startAt: tier === 'common' || tier === 'rare' ? 3 : 0,
-  };
+  return openingClips.base;
 }
 
 export const highestTier = (list: Tier[]): Tier =>

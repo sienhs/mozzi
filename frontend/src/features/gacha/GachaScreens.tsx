@@ -2,15 +2,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   Animated,
+  AppState,
+  Easing,
   Image,
   Platform,
-  Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useEventListener } from 'expo';
 import * as Haptics from 'expo-haptics';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,6 +38,8 @@ import {
   gachaArt,
   getOpeningClip,
   highestTier,
+  OPENING_BACKDROP,
+  OPENING_INTRO_SECONDS,
   openingClips,
   tiers,
   tierOrder,
@@ -60,39 +64,77 @@ const openDetail = (cardId: number) =>
     pathname: '/gacha/mochi/[id]',
     params: { id: String(cardId) },
   });
-const toCollection = () => router.replace('/gacha/collection');
 const fixed = { minHeight: 54 };
 
-// P-02 개봉: 뽑기 요청이 끝나면 개봉 영상을 틀고, 빛이 터지는 순간 하얗게 번쩍이며 결과로 넘어간다.
-// 화면 아무 곳이나 '건너뛰기'를 누르면 결과가 온 뒤 바로 넘어간다.
+type OpeningPhase =
+  'loading' | 'intro' | 'awaitingInteraction' | 'continuation' | 'completed';
+// 옆으로 이만큼(논리 단위) 끌면 손을 떼기 전에 바로 잇는다.
+const DRAG_TO_CONTINUE = 36;
+// 탭으로 볼 손가락 이동 한도.
+const TAP_SLOP = 10;
+// 재생 위치가 이 시간 동안 나아가지 않으면 재생 오류로 보고 결과로 넘어간다.
+// 입력 대기와 백그라운드에서는 세지 않는다.
+const STALL_MS = 8000;
+const setupOpeningPlayer = (video: VideoPlayer) => {
+  video.muted = true;
+  video.loop = false;
+  // 영상 자체가 이미 1.5배속이라 다시 빠르게 틀지 않는다.
+  video.playbackRate = 1;
+  video.timeUpdateEventInterval = 0.25;
+};
+
+// P-02 개봉: 뽑기 결과가 확정되면 최고 등급의 연출을 튼다. 앞 3초(intro)가 끝나면
+// 한 번의 탭이나 옆 드래그를 기다렸다가 남은 11초(continuation)를 끝까지 틀고 결과로 간다.
+// 화면 입력은 영상만 잇고, 결과로 바로 가는 것은 오른쪽 위 '건너뛰기'뿐이다. 어느 쪽도 다시 뽑지 않는다.
 export function OpeningScreen() {
   const params = useLocalSearchParams<{ count?: string }>();
   const count = Math.max(
     1,
     Math.min(10, Math.floor(Number(params.count) || 1)),
   );
+  const { width, height } = useWindowDimensions();
   const [result, setResult] = useState<'pending' | 'done' | 'failed'>(
     'pending',
   );
-  const [flash] = useState(() => new Animated.Value(0));
-  const [clip, setClip] = useState<OpeningClip>(openingClips.basic);
-  // 결과를 받기 전에는 영상을 로드하지 않는다. 확정된 최고 등급 영상만 준비한다.
-  const player = useVideoPlayer(null, video => {
-    video.muted = true;
-    video.loop = false;
-    video.timeUpdateEventInterval = 0.05;
+  const [clip, setClip] = useState<OpeningClip>(openingClips.base);
+  const [phase, setPhaseState] = useState<OpeningPhase>('loading');
+  // 각 영상의 첫 프레임이 실제로 그려졌는지. 그 전까지는 같은 장면의 정지 이미지로 덮는다.
+  const [introShown, setIntroShown] = useState(false);
+  const [continuationShown, setContinuationShown] = useState(false);
+  const [continuationMoving, setContinuationMoving] = useState(false);
+  // 소스 교체가 끝난 영상. 그 뒤에야 VideoView를 붙이고, 붙은 다음(effect)에 재생한다.
+  // 웹 VideoView는 소스가 바뀐 채 다시 그려지면 영상을 새로 불러와 진행 중인 play()를 끊고,
+  // 웹 플레이어의 교체는 이미 붙은 영상을 바로 재생하기 때문이다.
+  const [sourced, setSourced] = useState({
+    intro: false,
+    continuation: false,
   });
+  // 결과를 받기 전에는 영상을 로드하지 않는다. 두 플레이어를 함께 준비해 입력 직후 바로 잇는다.
+  const intro = useVideoPlayer(null, setupOpeningPlayer);
+  const continuation = useVideoPlayer(null, setupOpeningPlayer);
+  // 이벤트 처리기와 타이머는 렌더를 기다리지 않고 지금 단계를 읽어야 해서 ref에 함께 둔다.
+  // 입력을 받는 순간 여기서 단계가 바뀌므로, 같은 틱의 연속 탭·드래그 뒤 손 떼기는 모두 막힌다.
+  const phaseRef = useRef<OpeningPhase>('loading');
+  const outcome = useRef<'pending' | 'done' | 'failed'>('pending');
   const started = useRef(false);
+  const loadStarted = useRef(false);
+  const loaded = useRef({ intro: false, continuation: false });
+  const continuationStarted = useRef(false);
   const finished = useRef(false);
-  const begun = useRef(false);
   const mounted = useRef(true);
   const reduceMotion = useRef(false);
-  const beatsDone = useRef(new Set<number>());
-  const sourceLoaded = useRef(false);
+  const foreground = useRef(AppState.currentState !== 'background');
+  const touchFrom = useRef<{ x: number; y: number } | null>(null);
+  const watching = useRef(false);
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTime = useRef(-1);
 
-  // 영상 재생 중 결과 화면으로 넘어간다. 한 번만 실행된다.
+  const setPhase = (next: OpeningPhase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  };
   const go = () => {
-    if (result === 'failed') {
+    if (outcome.current === 'failed') {
       router.replace({
         pathname: '/gacha/failed',
         params: { count: String(count) },
@@ -105,42 +147,103 @@ export function OpeningScreen() {
     // A single duplicate goes home, where its shards fly to the chip (P-12).
     else router.back();
   };
-  const finish = () => {
-    if (result === 'pending' || finished.current) return;
-    finished.current = true;
-    player.pause();
-    if (result === 'failed' || reduceMotion.current) {
-      go();
-      return;
-    }
-    Animated.timing(flash, {
-      toValue: 1,
-      duration: 140,
-      useNativeDriver: true,
-    }).start(() => {
-      if (mounted.current) go();
-    });
+  const stopWatch = () => {
+    watching.current = false;
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    stallTimer.current = null;
   };
-  // 영상이 재생 준비가 된 뒤에 시작점으로 옮기고 튼다(준비 전에 옮기면 무시될 수 있다).
-  const begin = () => {
+  // 재생·준비 중에만 멈춤을 감시한다. 위치가 나아갈 때마다 다시 센다.
+  const watch = () => {
+    stopWatch();
+    watching.current = true;
+    lastTime.current = -1;
+    if (foreground.current) stallTimer.current = setTimeout(stalled, STALL_MS);
+  };
+  // 결과 화면으로 한 번만 이동한다. 재생을 마쳤거나 실패하면 마지막 장면을 덮어 둔다.
+  const finish = (showEnd: boolean) => {
+    if (finished.current || !mounted.current) return;
+    finished.current = true;
+    stopWatch();
+    intro.pause();
+    continuation.pause();
+    if (showEnd) setPhase('completed');
+    go();
+  };
+  const startIntro = () => {
     if (
-      !sourceLoaded.current ||
-      player.status !== 'readyToPlay' ||
-      begun.current ||
+      phaseRef.current !== 'loading' ||
+      !loaded.current.intro ||
       finished.current ||
-      !mounted.current
+      !foreground.current
     )
       return;
-    begun.current = true;
-    // currentTime을 직접 쓰지 않는 건 React 컴파일러 규칙 때문. 처음(0초)에서 앞으로 옮긴다.
-    if (clip.startAt > 0) player.seekBy(clip.startAt);
-    player.play();
+    setPhase('intro');
+    intro.play();
+    watch();
   };
+  const introEnded = () => {
+    if (phaseRef.current !== 'intro' || finished.current) return;
+    stopWatch();
+    intro.pause();
+    setPhase('awaitingInteraction');
+  };
+  const playContinuation = () => {
+    if (
+      phaseRef.current !== 'continuation' ||
+      continuationStarted.current ||
+      !loaded.current.continuation ||
+      finished.current ||
+      !foreground.current
+    )
+      return;
+    continuationStarted.current = true;
+    continuation.play();
+    watch();
+  };
+  // 결과가 확정된 뒤에만 건너뛴다. 영상만 멈추고 같은 결과로 이동하며, 다시 뽑지 않는다.
+  const skip = () => {
+    if (outcome.current === 'done') finish(false);
+  };
+  // 탭·드래그·접근성 동작이 모두 이 함수 하나로 이어진다.
+  const proceed = () => {
+    if (phaseRef.current !== 'awaitingInteraction') return;
+    setPhase('continuation');
+    if (Platform.OS !== 'web')
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+        () => undefined,
+      );
+    // 아직 준비 중이면 대기 이미지를 둔 채 준비되는 즉시 튼다.
+    watch();
+    playContinuation();
+  };
+  // intro 종료 이벤트만 놓쳤으면 입력 대기로 간다. 그 밖의 멈춤은 정지 이미지를 두고 결과로 간다.
+  const stalled = () => {
+    stallTimer.current = null;
+    if (!mounted.current || finished.current) return;
+    if (
+      phaseRef.current === 'intro' &&
+      intro.currentTime >= OPENING_INTRO_SECONDS - 0.25
+    )
+      introEnded();
+    else finish(true);
+  };
+  const progressed = (currentTime: number) => {
+    if (!watching.current || currentTime <= lastTime.current) return;
+    watch();
+    lastTime.current = currentTime;
+  };
+
   useEffect(() => {
     mounted.current = true;
+    // Strict Mode의 effect 재실행으로 지운 감시 타이머를 되살린다.
+    if (watching.current && !stallTimer.current && foreground.current)
+      stallTimer.current = setTimeout(stalled, STALL_MS);
     return () => {
       mounted.current = false;
+      if (stallTimer.current) clearTimeout(stallTimer.current);
+      stallTimer.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -153,150 +256,344 @@ export function OpeningScreen() {
       router.back();
       return;
     }
-    let cancelled = false;
+    // 이 effect는 한 번만 요청을 보낸다. Strict Mode의 정리 단계에서 응답을 버리지 않도록
+    // 취소 여부는 effect 지역 변수가 아니라 mounted로 판단한다.
+    const settle = (next: 'done' | 'failed') => {
+      outcome.current = next;
+      if (mounted.current) setResult(next);
+    };
     void AccessibilityInfo.isReduceMotionEnabled()
       .then(reduce => {
         reduceMotion.current = reduce;
       })
       .catch(() => undefined)
       .finally(() => {
-        if (cancelled) return;
+        if (!mounted.current) return;
         useGachaStore
           .getState()
           .pull(memberId, count)
           .then(items => {
-            if (cancelled) return;
-            if (items.length) {
+            if (items.length)
               setClip(
                 getOpeningClip(highestTier(items.map(item => item.card.tier))),
               );
-              setResult('done');
-            } else setResult('failed');
+            settle(items.length ? 'done' : 'failed');
           })
-          .catch(() => {
-            if (!cancelled) setResult('failed');
-          });
+          .catch(() => settle('failed'));
       });
-    return () => {
-      cancelled = true;
-    };
   }, [count]);
 
-  // 한 묶음에 영상은 한 번만 재생한다. 실패/동작 줄이기는 영상 없이 결과로 이동한다.
+  // 한 묶음에 연출은 한 번만 재생한다. 실패·동작 줄이기는 영상 없이 결과로 이동한다.
   useEffect(() => {
-    if (result === 'pending') return;
+    if (result === 'pending' || loadStarted.current) return;
+    loadStarted.current = true;
     if (result === 'failed' || reduceMotion.current) {
-      finish();
+      finish(false);
       return;
     }
-    let cancelled = false;
-    // 비동기 교체 완료와 재생 가능 상태를 둘 다 확인해 이전/빈 소스 재생을 막는다.
-    void player
-      .replaceAsync(clip.source)
-      .then(() => {
-        if (cancelled || !mounted.current || finished.current) return;
-        sourceLoaded.current = true;
-        begin();
-      })
-      .catch(() => {
-        if (!cancelled && mounted.current) finish();
-      });
-    // 재생 오류나 종료 이벤트 누락 시에도 뽑기 결과를 잃지 않는다.
-    const fallback = setTimeout(
-      finish,
-      (clip.duration - clip.startAt + 3) * 1000,
-    );
-    return () => {
-      cancelled = true;
-      clearTimeout(fallback);
-    };
+    watch();
+    const load = (key: 'intro' | 'continuation') =>
+      (key === 'intro' ? intro : continuation)
+        .replaceAsync(clip[key])
+        .then(() => {
+          if (mounted.current && !finished.current)
+            setSourced(value => ({ ...value, [key]: true }));
+        })
+        .catch(() => finish(true));
+    void load('intro');
+    void load('continuation');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result, clip]);
 
-  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    if (!begun.current || finished.current) return;
-    for (const beat of clip.beats) {
-      if (
-        beat.at >= clip.startAt &&
-        currentTime >= beat.at &&
-        !beatsDone.current.has(beat.at)
-      ) {
-        beatsDone.current.add(beat.at);
-        pulse(beat.strength);
+  // VideoView가 붙은 뒤에 튼다. 준비 전에 불러도 세 플랫폼 모두 준비되는 대로 재생한다.
+  useEffect(() => {
+    if (finished.current) return;
+    loaded.current = sourced;
+    startIntro();
+    playContinuation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourced]);
+
+  // 백그라운드에서는 멈추고, 돌아오면 그 단계와 위치에서 잇는다. 입력 대기는 그대로 기다린다.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'background') {
+        foreground.current = false;
+        if (stallTimer.current) clearTimeout(stallTimer.current);
+        stallTimer.current = null;
+        intro.pause();
+        continuation.pause();
+        return;
       }
-    }
-    if (currentTime >= clip.flashAt) finish();
+      if (state !== 'active' || foreground.current) return;
+      foreground.current = true;
+      if (!mounted.current || finished.current) return;
+      const current = phaseRef.current;
+      if (current === 'loading') {
+        watch();
+        startIntro();
+      } else if (current === 'intro') {
+        intro.play();
+        watch();
+      } else if (current === 'continuation') {
+        watch();
+        if (continuationStarted.current) continuation.play();
+        else playContinuation();
+      }
+    });
+    return () => subscription.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEventListener(intro, 'statusChange', ({ status }) => {
+    if (status === 'error' && outcome.current === 'done') finish(true);
   });
-  useEventListener(player, 'playToEnd', finish);
-  useEventListener(player, 'statusChange', ({ status }) => {
-    if (status === 'readyToPlay' && result === 'done') begin();
-    if (status === 'error') finish();
+  useEventListener(intro, 'timeUpdate', ({ currentTime }) => {
+    if (phaseRef.current !== 'intro') return;
+    progressed(currentTime);
+    if (currentTime > 0.1) setIntroShown(true);
+  });
+  useEventListener(intro, 'playToEnd', introEnded);
+  useEventListener(continuation, 'statusChange', ({ status }) => {
+    if (status === 'error' && outcome.current === 'done') finish(true);
+  });
+  useEventListener(continuation, 'timeUpdate', ({ currentTime }) => {
+    if (phaseRef.current !== 'continuation') return;
+    progressed(currentTime);
+    // 첫 프레임 콜백을 못 받은 플랫폼에서도 영상이 흐르기 시작하면 대기 이미지를 걷는다.
+    if (currentTime > 0.1) {
+      setContinuationShown(true);
+      setContinuationMoving(true);
+    }
+  });
+  useEventListener(continuation, 'playingChange', ({ isPlaying }) => {
+    if (isPlaying && phaseRef.current === 'continuation')
+      setContinuationMoving(true);
+  });
+  useEventListener(continuation, 'playToEnd', () => {
+    if (phaseRef.current === 'continuation') finish(true);
   });
 
+  const still = openingStill(
+    phase,
+    clip,
+    introShown,
+    continuationShown && continuationMoving,
+  );
+  const awaiting = phase === 'awaitingInteraction';
+  // 9:16 장면 전체를 화면 안에 담는다. 남는 쪽은 장면과 어울리는 단색으로 둔다.
+  const stageWidth = Math.min(width, (height * 9) / 16);
   return (
-    <View style={{ flex: 1, backgroundColor: colors.gachaCocoa }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: OPENING_BACKDROP,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
       <StatusBar style="light" />
       <View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFill, { alignItems: 'center' }]}
+        style={{
+          width: stageWidth,
+          height: (stageWidth * 16) / 9,
+          overflow: 'hidden',
+        }}
       >
-        <View style={styles.stage}>
-          <Image
-            accessible={false}
-            source={clip.poster}
-            resizeMode="cover"
-            style={StyleSheet.absoluteFill}
-          />
+        {sourced.intro && (
           <VideoView
-            player={player}
+            testID="opening-intro-video"
+            player={intro}
             nativeControls={false}
-            contentFit="cover"
+            contentFit="contain"
             playsInline
-            // Android: TextureView라야 위에 얹은 번쩍임·버튼이 영상과 제대로 겹친다.
+            // Android: 영상 둘과 정지 이미지를 겹쳐 그리려면 TextureView여야 한다.
             surfaceType="textureView"
+            onFirstFrameRender={() => setIntroShown(true)}
             style={StyleSheet.absoluteFill}
           />
+        )}
+        {/* continuation은 미리 붙여 두되 차례가 오기 전에는 보이지 않게 intro 위에 둔다. */}
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              opacity:
+                phase === 'continuation' || phase === 'completed' ? 1 : 0,
+            },
+          ]}
+        >
+          {sourced.continuation && (
+            <VideoView
+              testID="opening-continuation-video"
+              player={continuation}
+              nativeControls={false}
+              contentFit="contain"
+              playsInline
+              surfaceType="textureView"
+              onFirstFrameRender={() => setContinuationShown(true)}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
         </View>
+        {still && (
+          <Image
+            testID="opening-still"
+            accessible={false}
+            source={still}
+            resizeMode="contain"
+            fadeDuration={0}
+            // 웹 Image는 에셋의 원본 크기를 기본 width·height로 넣어 absoluteFill만으로는 줄지 않는다.
+            style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
+          />
+        )}
+        {awaiting && <WakeHint />}
       </View>
-      {/* The whole scene skips too; it sits behind the chip so buttons don't nest. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="모찌 개봉 중, 눌러서 건너뛰기"
-        onPress={finish}
+      {/* 화면 전체가 입력 영역이다. 대기 중이 아닐 때의 터치는 받기만 하고 아무것도 하지 않는다. */}
+      <View
+        accessible
+        accessibilityRole={awaiting ? 'button' : undefined}
+        accessibilityLabel={awaiting ? '모찌 볼을 당겨 깨우기' : '모찌 개봉 중'}
+        accessibilityState={{ disabled: !awaiting }}
+        accessibilityActions={awaiting ? [{ name: 'activate' }] : undefined}
+        onAccessibilityAction={event => {
+          if (event.nativeEvent.actionName === 'activate') proceed();
+        }}
+        onAccessibilityTap={proceed}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={event => {
+          touchFrom.current = {
+            x: event.nativeEvent.pageX,
+            y: event.nativeEvent.pageY,
+          };
+        }}
+        onResponderMove={event => {
+          const from = touchFrom.current;
+          if (
+            from &&
+            Math.abs(event.nativeEvent.pageX - from.x) >= DRAG_TO_CONTINUE
+          )
+            proceed();
+        }}
+        onResponderRelease={event => {
+          const from = touchFrom.current;
+          touchFrom.current = null;
+          if (
+            from &&
+            Math.abs(event.nativeEvent.pageX - from.x) < TAP_SLOP &&
+            Math.abs(event.nativeEvent.pageY - from.y) < TAP_SLOP
+          )
+            proceed();
+        }}
+        onResponderTerminate={() => {
+          touchFrom.current = null;
+        }}
         style={StyleSheet.absoluteFill}
       />
-      <SafeAreaView
-        pointerEvents="box-none"
-        style={{ paddingHorizontal: 20, paddingTop: 6 }}
-      >
-        <GachaChip label="건너뛰기" dark width={98} onPress={finish} />
-      </SafeAreaView>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: colors.white, opacity: flash },
-        ]}
-      />
+      {/* 입력 영역보다 위에 두어 건너뛰기 터치가 영상 잇기로 새지 않게 한다. */}
+      {result === 'done' && phase !== 'completed' && (
+        <SafeAreaView
+          pointerEvents="box-none"
+          style={[
+            StyleSheet.absoluteFill,
+            { alignItems: 'flex-end', paddingHorizontal: 20, paddingTop: 6 },
+          ]}
+        >
+          <GachaChip label="건너뛰기" dark width={98} onPress={skip} />
+        </SafeAreaView>
+      )}
     </View>
   );
 }
 
-// 진동은 휴대폰에서만. 웹이나 진동이 없는 기기에서는 조용히 넘어간다.
-function pulse(strength: 'light' | 'medium' | 'heavy') {
-  if (Platform.OS === 'web') return;
-  const style = {
-    light: Haptics.ImpactFeedbackStyle.Light,
-    medium: Haptics.ImpactFeedbackStyle.Medium,
-    heavy: Haptics.ImpactFeedbackStyle.Heavy,
-  }[strength];
-  void Haptics.impactAsync(style).catch(() => undefined);
+// 입력을 기다리는 동안 영상 아래쪽에 떠서 오르내리는 안내. 터치는 아래 입력 영역으로 그대로 간다.
+// 화면 읽기 프로그램에는 입력 영역의 이름("모찌 볼을 당겨 깨우기")으로 이미 알리므로 숨긴다.
+function WakeHint() {
+  const [float] = useState(() => new Animated.Value(0));
+  const [shown] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    Animated.timing(shown, {
+      toValue: 1,
+      duration: 280,
+      useNativeDriver: true,
+    }).start();
+    const bob = (toValue: number) =>
+      Animated.timing(float, {
+        toValue,
+        duration: 700,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      });
+    const loop = Animated.loop(Animated.sequence([bob(1), bob(0)]));
+    loop.start();
+    return () => loop.stop();
+  }, [float, shown]);
+  return (
+    <Animated.View
+      testID="opening-wake-hint"
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: '11%',
+        alignItems: 'center',
+        gap: 8,
+        opacity: shown,
+      }}
+    >
+      <Animated.Text
+        style={{
+          fontSize: 44,
+          transform: [
+            {
+              translateY: float.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, -12],
+              }),
+            },
+          ],
+        }}
+      >
+        👆
+      </Animated.Text>
+      <Animated.View
+        style={{
+          paddingHorizontal: 18,
+          paddingVertical: 9,
+          borderRadius: 999,
+          backgroundColor: 'rgba(68, 42, 29, 0.6)',
+          opacity: float.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 0.72],
+          }),
+        }}
+      >
+        <AppText variant="label" style={{ color: colors.white }}>
+          화면을 톡! 모찌를 깨워 주세요
+        </AppText>
+      </Animated.View>
+    </Animated.View>
+  );
 }
 
-const styles = StyleSheet.create({
-  // 영상은 2:3. 넓은 화면(웹)에서도 위아래가 과하게 잘리지 않게 앱 화면 폭(600)까지만 채운다.
-  stage: { flex: 1, width: '100%', maxWidth: 600, overflow: 'hidden' },
-});
+// 영상 위를 덮는 정지 이미지. 영상과 같은 장면이라 전환 순간 빈 화면이 보이지 않는다.
+// continuation은 첫 프레임이 그려지고 재생이 시작된 뒤에야 대기 이미지를 걷는다.
+function openingStill(
+  phase: OpeningPhase,
+  clip: OpeningClip,
+  introVisible: boolean,
+  continuationVisible: boolean,
+) {
+  if (phase === 'completed') return clip.end;
+  if (phase === 'awaitingInteraction') return clip.touch;
+  if (phase === 'continuation') return continuationVisible ? null : clip.touch;
+  if (phase === 'intro' && introVisible) return null;
+  return clip.start;
+}
 
 // P-03 새로운 모찌 · 1장.
 export function RevealScreen() {
@@ -427,11 +724,8 @@ export function ResultsScreen() {
             style={fixed}
           />
         ) : (
-          <Button
-            label="확인 · 도감으로"
-            onPress={toCollection}
-            style={fixed}
-          />
+          // 1장 결과(P-03)와 같이 뽑기 화면으로 돌아간다. 도감은 카드를 눌러 상세로 볼 수 있다.
+          <Button label="확인" onPress={() => router.back()} style={fixed} />
         )
       }
     >
