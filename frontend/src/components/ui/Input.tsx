@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
-import { colors, radii, spacing, typography } from '@/theme/tokens';
+import { spacing, typography } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { AppText } from './Text';
 
 export function Input({
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.paperEdge,
-    borderRadius: radii.input,
+    borderRadius: 20,
   },
   memo: {
     minHeight: 112,
@@ -113,8 +114,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderWidth: 1,
     borderColor: colors.paperEdge,
-    borderRadius: radii.input,
-    backgroundColor: colors.white,
+    borderRadius: 22,
+    backgroundColor: colors.paper,
     gap: 12,
   },
 });

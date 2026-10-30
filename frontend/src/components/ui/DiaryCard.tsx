@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, View } from 'react-native';
 import type { DiaryEntry } from '@/types/diary';
 import { formatDate } from '@/constants/date';
-import { colors, radii } from '@/theme/tokens';
+import { radii } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { EmotionImage, EmotionPill } from '@/components/emotion/Emotion';
 import { AppText } from './Text';
 import { Icon } from './Icon';
@@ -153,10 +154,10 @@ export function DiaryCard({
   );
   const style = {
     backgroundColor: colors.paper,
-    borderRadius: radii.card,
+    borderRadius: 26,
     borderWidth: 1,
     borderColor: colors.paperEdge,
-    boxShadow: '0 5px 16px rgba(91, 65, 39, 0.06)',
+    boxShadow: '0 5px 16px rgba(130, 86, 97, 0.06)',
     overflow: 'hidden' as const,
   };
   return onPress ? (
@@ -188,7 +189,7 @@ export function DiaryRow({
         backgroundColor: colors.paper,
         borderWidth: 1,
         borderColor: colors.paperEdge,
-        borderRadius: 20,
+        borderRadius: 24,
         paddingVertical: 14,
         paddingLeft: 16,
         paddingRight: 12,

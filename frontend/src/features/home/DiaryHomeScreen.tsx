@@ -1,7 +1,10 @@
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { Screen, Heading } from '@/components/ui/Screen';
-import { Button } from '@/components/ui/Button';
+import { Heading } from '@/components/ui/Screen';
+import {
+  CozyScreen as Screen,
+  CozyButton as Button,
+} from '@/components/ui/CozyUI';
 import { DiaryArtwork } from '@/components/ui/DiaryCard';
 import {
   GenerationProgress,

@@ -1,6 +1,6 @@
 import { Check, Star, X } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { AppText } from './Text';
 
 // 태그 칩. 폭은 라벨에 맞춰 줄바꿈한다 (칩 수가 늘고 내 태그 라벨 길이가 제각각이라서).
@@ -38,8 +38,10 @@ export function TagChip({
       style={{
         minHeight: 44,
         paddingHorizontal: 14,
-        borderRadius: 16,
-        backgroundColor: selected ? colors.sageSoft : colors.white,
+        borderRadius: 22,
+        borderWidth: 1,
+        borderColor: selected ? colors.sage : colors.paperEdge,
+        backgroundColor: selected ? colors.sageSoft : colors.paper,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',

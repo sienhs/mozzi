@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
 import { emotionOrder, emotions } from '@/constants/emotions';
 import type { Emotion } from '@/types/diary';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { AppText } from '@/components/ui/Text';
 import { companionEmotionSource } from '@/constants/companions';
 import { MotionReveal, useReducedMotion } from '@/components/ui/Motion';
@@ -149,12 +149,13 @@ const styles = StyleSheet.create({
   option: {
     flex: 1,
     minHeight: 140,
-    borderRadius: 22,
+    borderRadius: 28,
     borderWidth: 1.5,
     borderColor: colors.paperEdge,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    boxShadow: '0 3px 10px rgba(130, 86, 97, 0.05)',
   },
 });

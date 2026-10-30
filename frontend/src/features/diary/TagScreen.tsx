@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { View } from 'react-native';
-import { Button } from '@/components/ui/Button';
+import {
+  CozyButton as Button,
+  CozyScreen as Screen,
+} from '@/components/ui/CozyUI';
 import { StatePanel } from '@/components/ui/Feedback';
-import { Heading, Screen } from '@/components/ui/Screen';
+import { Heading } from '@/components/ui/Screen';
 import { TagChip } from '@/components/ui/Selection';
 import {
   presetTagsOf,

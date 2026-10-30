@@ -3,10 +3,12 @@ import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, Leaf, Search, Star, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Screen } from '@/components/ui/Screen';
+import {
+  CozyScreen as Screen,
+  CozyButton as Button,
+} from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
 import { Sheet } from '@/components/ui/Sheet';
 import { OwnedCompanionCard } from '@/components/mypage/CompanionUI';
 import { Loading, StatePanel } from '@/components/ui/Feedback';
@@ -14,7 +16,7 @@ import { emotions, isEmotion } from '@/constants/emotions';
 import { EmotionSlotPicker } from '@/components/mypage/EmotionSlotPicker';
 import type { Emotion } from '@/types/diary';
 import { tierOrder, tiers } from '@/constants/gacha';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { useOwnedMozzis } from '@/features/gacha/useGachaQueries';
 import type { CompanionSort, OwnedMozzi } from '@/types/companion';
 import type { Tier } from '@/types/gacha';
@@ -324,7 +326,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: colors.paper,
-    borderRadius: 16,
+    borderRadius: 22,
     padding: 10,
     minHeight: 48,
   },

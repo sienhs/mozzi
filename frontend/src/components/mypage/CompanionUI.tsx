@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { Check, Leaf } from 'lucide-react-native';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { AppText } from '@/components/ui/Text';
 import type { Companion, OwnedMozzi } from '@/types/companion';
 
@@ -105,7 +105,11 @@ export function MyPageTitle({
     <AppText
       accessibilityRole="header"
       variant="heading"
-      style={{ textAlign: 'center', marginRight: back ? 48 : 0 }}
+      style={{
+        color: colors.ink,
+        textAlign: 'center',
+        marginRight: back ? 48 : 0,
+      }}
     >
       {children}
     </AppText>
@@ -136,10 +140,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
     padding: 8,
     gap: 6,
-    borderRadius: 18,
+    borderRadius: 24,
     backgroundColor: colors.paper,
     borderWidth: 1.5,
     borderColor: colors.paperEdge,
+    boxShadow: '0 3px 10px rgba(130, 86, 97, 0.05)',
     justifyContent: 'flex-start',
   },
   ownedBadge: {

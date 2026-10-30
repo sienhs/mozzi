@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Screen } from '@/components/ui/Screen';
+import {
+  CozyScreen as Screen,
+  CozyButton as Button,
+} from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
-import { Button } from '@/components/ui/Button';
 import {
   CompanionArtwork,
   CompanionNotice,
@@ -15,7 +17,7 @@ import { gachaArt } from '@/constants/gacha';
 import { emotionOrder, emotions } from '@/constants/emotions';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { Loading, StatePanel } from '@/components/ui/Feedback';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
   useMozziPicks,
@@ -69,7 +71,13 @@ export function MyPageScreen() {
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <AppText variant="heading">{profile?.nickname ?? '모찌'} 님</AppText>
-          <AppText variant="small">오늘도 좋은 하루 보내세요!</AppText>
+          <AppText
+            variant="small"
+            textBreakStrategy="balanced"
+            lineBreakStrategyIOS="hangul-word"
+          >
+            오늘도 좋은 하루 보내세요!
+          </AppText>
         </View>
       </View>
       {showSuccess && <CompanionNotice success />}
@@ -128,7 +136,11 @@ export function MyPageScreen() {
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <AppText variant="label">{emotions[emotion].label}</AppText>
-                  <AppText variant="small">
+                  <AppText
+                    variant="small"
+                    textBreakStrategy="balanced"
+                    lineBreakStrategyIOS="hangul-word"
+                  >
                     {pickQuery.data ? companionName(companion) : ' '}
                   </AppText>
                 </View>
@@ -203,10 +215,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: colors.peachPaper,
-    borderRadius: 20,
+    borderRadius: 26,
     padding: 18,
     borderWidth: 1,
     borderColor: colors.paperEdge,
+    boxShadow: '0 4px 14px rgba(130, 86, 97, 0.04)',
   },
   avatar: {
     borderRadius: 36,
@@ -218,10 +231,10 @@ const styles = StyleSheet.create({
   equipmentPanel: {
     backgroundColor: colors.paper,
     paddingHorizontal: 14,
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 1,
     borderColor: colors.paperEdge,
-    boxShadow: '0 4px 14px rgba(91, 65, 39, 0.04)',
+    boxShadow: '0 4px 14px rgba(130, 86, 97, 0.04)',
   },
   equipmentRow: {
     flexDirection: 'row',
@@ -230,7 +243,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   preview: {
-    borderRadius: 14,
+    borderRadius: 20,
     backgroundColor: colors.white,
     borderWidth: 1.5,
     borderColor: 'transparent',

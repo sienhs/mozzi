@@ -2,12 +2,12 @@ import type { ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { ArrowUpRight, BookOpen, Check, Sparkles } from 'lucide-react-native';
 import { AppText } from '@/components/ui/Text';
-import { Button } from '@/components/ui/Button';
+import { CozyButton as Button } from '@/components/ui/CozyUI';
 import { DiaryArtwork, DiaryRow } from '@/components/ui/DiaryCard';
 import { EmotionImage, EmotionPill } from '@/components/emotion/Emotion';
 import { MotionReveal } from '@/components/ui/Motion';
 import { formatDate } from '@/constants/date';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import type { DiaryEntry } from '@/types/diary';
 
 export function HomeMasthead({ date }: { date?: string }) {
@@ -186,17 +186,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     paddingVertical: 7,
     paddingHorizontal: 10,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.sageSoft,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.paperEdge,
+    borderColor: '#DDE5D8',
   },
   page: {
-    borderRadius: 24,
+    borderRadius: 28,
     backgroundColor: colors.paper,
     borderWidth: 1,
     borderColor: colors.paperEdge,
-    boxShadow: '0 6px 20px rgba(91, 65, 39, 0.05)',
+    boxShadow: '0 6px 20px rgba(130, 86, 97, 0.06)',
     overflow: 'hidden',
   },
   pageHeading: {
@@ -206,6 +206,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
+    backgroundColor: colors.roseWash,
   },
   pageLabel: {
     color: colors.primary,
@@ -215,8 +216,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   headingRule: { height: 1, flex: 1, backgroundColor: colors.paperEdge },
-  emptyContent: { paddingHorizontal: 18, paddingBottom: 18, gap: 8 },
-  question: { fontSize: 30, lineHeight: 40, textAlign: 'center' },
+  emptyContent: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 20,
+    gap: 10,
+  },
+  question: {
+    color: colors.ink,
+    fontSize: 30,
+    lineHeight: 40,
+    textAlign: 'center',
+  },
   mochiStage: { height: 160, alignItems: 'center', justifyContent: 'center' },
   mochiGround: {
     position: 'absolute',
@@ -224,7 +235,7 @@ const styles = StyleSheet.create({
     width: 178,
     height: 108,
     borderRadius: 90,
-    backgroundColor: colors.peachPaper,
+    backgroundColor: colors.butter,
   },
   sparkle: { position: 'absolute', left: '19%', top: 28 },
   invitation: {
@@ -240,7 +251,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     gap: 8,
   },
-  diaryTitle: { fontSize: 24, lineHeight: 32 },
+  diaryTitle: { color: colors.ink, fontSize: 24, lineHeight: 32 },
   metadata: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tags: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 24 },
   openDiary: {
