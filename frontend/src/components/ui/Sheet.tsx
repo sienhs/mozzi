@@ -19,12 +19,18 @@ export function Sheet({
   children,
   title,
   eyebrow,
+  appearance = 'default',
+  titleContent,
+  footer,
 }: {
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
   title: string;
   eyebrow?: string;
+  appearance?: 'default' | 'gacha';
+  titleContent?: ReactNode;
+  footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   return (
@@ -37,7 +43,7 @@ export function Sheet({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
+        style={[styles.overlay, appearance === 'gacha' && styles.gachaOverlay]}
       >
         <Pressable
           accessibilityRole="button"
@@ -47,9 +53,18 @@ export function Sheet({
         />
         <View
           accessibilityViewIsModal
-          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) }]}
+          style={[
+            styles.sheet,
+            appearance === 'gacha' && styles.gachaSheet,
+            { paddingBottom: Math.max(insets.bottom, 20) },
+          ]}
         >
-          <View style={styles.handle} />
+          <View
+            style={[
+              styles.handle,
+              appearance === 'gacha' && styles.gachaHandle,
+            ]}
+          />
           <ScrollView
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ gap: 16 }}
@@ -59,15 +74,18 @@ export function Sheet({
                 {eyebrow}
               </AppText>
             )}
-            <AppText
-              variant="heading"
-              accessibilityRole="header"
-              style={{ textAlign: 'center' }}
-            >
-              {title}
-            </AppText>
+            {titleContent ?? (
+              <AppText
+                variant="heading"
+                accessibilityRole="header"
+                style={{ textAlign: 'center' }}
+              >
+                {title}
+              </AppText>
+            )}
             {children}
           </ScrollView>
+          {footer && <View style={{ flexShrink: 0 }}>{footer}</View>}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -123,4 +141,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
     alignSelf: 'center',
   },
+  gachaOverlay: { backgroundColor: 'rgba(117, 74, 82, 0.25)' },
+  gachaSheet: {
+    maxHeight: '90%',
+    paddingHorizontal: 16,
+    gap: 12,
+    backgroundColor: '#FFF9F7',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderWidth: 1,
+    borderColor: '#EFCFD8',
+    boxShadow: '0 -4px 24px rgba(159, 89, 109, 0.16)',
+  },
+  gachaHandle: { width: 48, backgroundColor: '#EBC8D1' },
 });

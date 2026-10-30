@@ -13,7 +13,6 @@ import type { DiaryEntry } from '@/types/diary';
 export function HomeMasthead({ date }: { date?: string }) {
   const day = date ? formatDate(date, false) : '';
   const weekday = date ? formatDate(date).slice(day.length + 1) : '';
-  const dateWords = day ? day.split(' ') : [];
   return (
     <View style={styles.masthead}>
       <Image
@@ -30,17 +29,16 @@ export function HomeMasthead({ date }: { date?: string }) {
         <AppText variant="caption" style={{ color: colors.mossInk }}>
           {weekday || '오늘의 기록'}
         </AppText>
-        <View style={styles.dateWords}>
-          {dateWords.map(word => (
-            <AppText
-              key={word}
-              variant="label"
-              style={{ fontSize: 22, lineHeight: 28 }}
-            >
-              {word}
-            </AppText>
-          ))}
-        </View>
+        {!!day && (
+          <AppText
+            variant="label"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={{ fontSize: 22, lineHeight: 28 }}
+          >
+            {day}
+          </AppText>
+        )}
       </View>
     </View>
   );
@@ -183,7 +181,7 @@ const styles = StyleSheet.create({
   },
   dateStamp: {
     alignItems: 'center',
-    minWidth: 88,
+    minWidth: 112,
     maxWidth: '50%',
     flexShrink: 1,
     paddingVertical: 7,
@@ -192,13 +190,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.paperEdge,
-  },
-  dateWords: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-    columnGap: 4,
   },
   page: {
     borderRadius: 24,
