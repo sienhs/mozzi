@@ -305,8 +305,8 @@ class DiaryImageApiTest {
     void theMozziPickedForTheDiarysEmotionIsStored() throws Exception {
         GachaFixtures gacha = new GachaFixtures(jdbcTemplate);
         gacha.reset();
+        Long calm = gacha.card("S1-01-02", CardTier.LEGENDARY, Emotion.CALM, true);
         try {
-            Long calm = gacha.card("S1-01-02", CardTier.LEGENDARY, Emotion.CALM, true);
             gacha.owned(me, calm);
             jdbcTemplate.update("""
                     insert into my_mozzi_emoticon (member_id, emotion, card_id, updated_at)
@@ -319,8 +319,20 @@ class DiaryImageApiTest {
                     "select mozzi_card_id from diary_image where diary_id = ?", diaryId))
                     .containsEntry("mozzi_card_id", calm);
         } finally {
-            gacha.reset();
+            removeCard(calm);
         }
+    }
+
+    /**
+     * Row deletes, not {@link GachaFixtures#reset}: the picture's dispatch may still be reading
+     * the card on its own thread, and a truncate's table locks (mozzi_card, then diary_image
+     * through the foreign key) can deadlock with that read.
+     */
+    private void removeCard(Long cardId) {
+        jdbcTemplate.update("update diary_image set mozzi_card_id = null where mozzi_card_id = ?", cardId);
+        jdbcTemplate.update("delete from my_mozzi_emoticon where card_id = ?", cardId);
+        jdbcTemplate.update("delete from member_card where card_id = ?", cardId);
+        jdbcTemplate.update("delete from mozzi_card where card_id = ?", cardId);
     }
 
     private ResultActions requestForTest(Long memberId, Long diaryId, String json) throws Exception {

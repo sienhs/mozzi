@@ -319,3 +319,8 @@ HW-12-02,HW,미니 호박 핀 모찌 (평온),COMMON,CALM,GACHA/HW-12-02_mozzi_c
 HW-12-03,HW,미니 호박 핀 모찌 (보통),COMMON,NEUTRAL,GACHA/HW-12-03_mozzi_common_098_neutral.png,wearing an orange pumpkin hair clip with a green stem and vine on the side
 HW-12-04,HW,미니 호박 핀 모찌 (우울),COMMON,SAD,GACHA/HW-12-04_mozzi_common_099_sad.png,wearing an orange pumpkin hair clip with a green stem and vine on the side
 HW-12-05,HW,미니 호박 핀 모찌 (화남),COMMON,ANGRY,GACHA/HW-12-05_mozzi_common_100_angry.png,wearing an orange pumpkin hair clip with a green stem and vine on the side
+BASIC-01,BASIC,기본 모찌 (행복),NONE,HAPPY,basic/happy.png,
+BASIC-02,BASIC,기본 모찌 (평온),NONE,CALM,basic/calm.png,
+BASIC-03,BASIC,기본 모찌 (보통),NONE,NEUTRAL,basic/neutral.png,
+BASIC-04,BASIC,기본 모찌 (우울),NONE,SAD,basic/sad.png,
+BASIC-05,BASIC,기본 모찌 (화남),NONE,ANGRY,basic/angry.png,

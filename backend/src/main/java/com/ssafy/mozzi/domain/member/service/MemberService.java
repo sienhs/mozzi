@@ -61,8 +61,8 @@ public class MemberService {
     }
 
     /**
-     * Creates the member with the agreements it submitted, and its wallet with the sign-up
-     * tickets.
+     * Creates the member with the agreements it submitted, its wallet with the sign-up
+     * tickets, and its basic mozzi, one picked for each emotion.
      *
      * <p>Runs inside the sign-up transaction, so a failure here also keeps the sign-up
      * ticket. The nickname check up front is for a friendly answer; two sign-ups racing for
@@ -90,6 +90,7 @@ public class MemberService {
         agreedVersions.forEach((type, version) ->
                 termsAgreementRepository.save(new TermsAgreement(member.getId(), type, version, now)));
         walletService.open(member.getId());
+        myMozziService.grantBasic(member.getId());
         return member;
     }
 

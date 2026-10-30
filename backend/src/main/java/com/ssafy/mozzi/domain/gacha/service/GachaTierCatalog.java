@@ -1,5 +1,6 @@
 package com.ssafy.mozzi.domain.gacha.service;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -17,12 +18,17 @@ import com.ssafy.mozzi.domain.gacha.repository.GachaTierRepository;
  *
  * <p>A missing tier or weights that do not add up would skew every draw without failing any
  * of them, so the application refuses to start instead.
+ *
+ * <p>Only the drawn tiers are kept. {@link CardTier#NONE} has a row in {@code gacha_tier} only
+ * because {@code mozzi_card.tier} references it.
  */
 @Component
 public class GachaTierCatalog {
 
     /** Weights add up to this; a draw rolls {@code 0 .. TOTAL_WEIGHT - 1}. */
     public static final int TOTAL_WEIGHT = 100_000;
+
+    private static final int DRAWN_TIERS = (int) Arrays.stream(CardTier.values()).filter(CardTier::isDrawn).count();
 
     private final Map<CardTier, GachaTier> tiers;
 
@@ -33,8 +39,10 @@ public class GachaTierCatalog {
 
     GachaTierCatalog(List<GachaTier> rows) {
         Map<CardTier, GachaTier> byTier = new EnumMap<>(CardTier.class);
-        rows.forEach(row -> byTier.put(row.getTier(), row));
-        if (byTier.size() != CardTier.values().length) {
+        rows.stream()
+                .filter(row -> row.getTier().isDrawn())
+                .forEach(row -> byTier.put(row.getTier(), row));
+        if (byTier.size() != DRAWN_TIERS) {
             throw new IllegalStateException("gacha_tier must have a row for every tier, found " + byTier.keySet());
         }
         int total = byTier.values().stream().mapToInt(GachaTier::getWeight).sum();
@@ -60,6 +68,7 @@ public class GachaTierCatalog {
         throw new IllegalArgumentException("roll out of range: " + roll);
     }
 
+    /** A drawn tier's rules; {@code null} for {@link CardTier#NONE}. */
     public GachaTier get(CardTier tier) {
         return tiers.get(tier);
     }

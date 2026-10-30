@@ -55,7 +55,7 @@ public class GachaQueryService {
     public GachaStatusResponseDto status(Long memberId) {
         MemberWallet wallet = walletService.read(memberId);
         return new GachaStatusResponseDto(wallet.getTicketBalance(), wallet.getShardBalance(), new CollectionProgressDto(
-                memberCardRepository.countActiveOwned(memberId), cardRepository.countByActiveTrue()));
+                memberCardRepository.countActiveOwned(memberId), cardRepository.countDrawable()));
     }
 
     public GachaRatesResponseDto rates() {
@@ -65,7 +65,7 @@ public class GachaQueryService {
     /** Every active card, owned or not, with the member's copy where it has one. */
     @Transactional(readOnly = true)
     public GachaCollectionResponseDto collection(Long memberId, GachaCollectionRequestDto request) {
-        List<MozziCard> cards = cardRepository.findByActiveTrueOrderByIdAsc();
+        List<MozziCard> cards = cardRepository.findDrawable();
         Map<Long, MemberCard> owned = memberCardRepository.findByMemberId(memberId).stream()
                 .collect(Collectors.toMap(MemberCard::getCardId, Function.identity()));
         Set<Long> activeIds = cards.stream().map(MozziCard::getId).collect(Collectors.toSet());

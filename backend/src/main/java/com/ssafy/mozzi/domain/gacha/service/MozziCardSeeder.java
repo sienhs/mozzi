@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,9 +30,14 @@ import com.ssafy.mozzi.domain.gacha.repository.MozziCardRepository;
  * changed here. Off in tests ({@code mozzi.gacha.seed-cards}), which insert their own cards.
  *
  * <p>The file has a header and the columns {@code code, series, name, tier, emotion,
- * image_key, prompt}. No value contains a comma, so lines are split plainly.
+ * image_key, prompt}. No value contains a comma, so lines are split plainly. An empty prompt is
+ * stored as {@code null}: basic mozzi have none.
+ *
+ * <p>Runs before {@link BasicMozziBackfill}, which hands the basic mozzi registered here to
+ * existing members.
  */
 @Component
+@Order(1)
 @ConditionalOnProperty(name = "mozzi.gacha.seed-cards", havingValue = "true", matchIfMissing = true)
 public class MozziCardSeeder implements CommandLineRunner {
 
@@ -81,7 +87,7 @@ public class MozziCardSeeder implements CommandLineRunner {
             throw new IllegalStateException(SEED_FILE + " needs " + COLUMNS + " columns: " + line);
         }
         return MozziCard.register(cols[0], cols[1], cols[2], CardTier.valueOf(cols[3]),
-                Emotion.valueOf(cols[4]), cols[5], cols[6]);
+                Emotion.valueOf(cols[4]), cols[5], cols[6].isEmpty() ? null : cols[6]);
     }
 
 }

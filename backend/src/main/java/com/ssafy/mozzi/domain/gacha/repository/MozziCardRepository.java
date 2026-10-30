@@ -13,14 +13,24 @@ import com.ssafy.mozzi.domain.gacha.entity.MozziCard;
 public interface MozziCardRepository extends JpaRepository<MozziCard, Long> {
 
     /**
-     * The draw pool and the collection. A hundred or so rows, read whole. Ordered so that a
-     * card index means the same card from one read to the next.
+     * The draw pool and the collection: active cards, basic mozzi left out. A few hundred rows,
+     * read whole. Ordered so that a card index means the same card from one read to the next.
      */
-    List<MozziCard> findByActiveTrueOrderByIdAsc();
+    @Query("""
+            select c from MozziCard c
+            where c.active = true and c.tier <> com.ssafy.mozzi.domain.gacha.entity.CardTier.NONE
+            order by c.id
+            """)
+    List<MozziCard> findDrawable();
 
     Optional<MozziCard> findByIdAndActiveTrue(Long id);
 
-    long countByActiveTrue();
+    /** The size of the collection, as {@link #findDrawable} counts it. */
+    @Query("""
+            select count(c) from MozziCard c
+            where c.active = true and c.tier <> com.ssafy.mozzi.domain.gacha.entity.CardTier.NONE
+            """)
+    long countDrawable();
 
     /** Every card's code, active or not, so the seeder skips cards already registered. */
     @Query("select c.code from MozziCard c")
