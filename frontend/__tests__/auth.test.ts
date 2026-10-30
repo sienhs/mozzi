@@ -456,7 +456,6 @@ test('a late home or picture response from the previous account never reaches th
         diaryId: 1,
         recordDate: '2026-10-28',
         body: {
-          characterId: 1,
           weather: 'NONE',
           whereMyIconId: null,
           whoMyIconId: null,

@@ -12,7 +12,6 @@ import {
   CONTENT_SAVE_SUPPORTED,
   DIARY_IMAGE_ALREADY_REQUESTED,
   DiaryExistsError,
-  PROVISIONAL_CHARACTER_ID,
   diaryApi,
   diaryKeys,
 } from '@/services/diaryApi';
@@ -290,7 +289,6 @@ export const useAppStore = create<AppState>((set, get) => {
         for (const tag of selected)
           ids.set(tag.id, await useTagStore.getState().ensureIcon(tag));
         body = {
-          characterId: PROVISIONAL_CHARACTER_ID,
           weather: toServerWeather(
             weather && 'code' in weather ? weather.code : null,
           ),
@@ -379,7 +377,6 @@ export const useAppStore = create<AppState>((set, get) => {
             diaryId,
             recordDate: diary.recordDate,
             body: {
-              characterId: PROVISIONAL_CHARACTER_ID,
               weather: 'NONE',
               whereMyIconId: where?.myIconId ?? null,
               whoMyIconId: who?.myIconId ?? null,

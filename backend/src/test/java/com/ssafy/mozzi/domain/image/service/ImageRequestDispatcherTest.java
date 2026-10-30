@@ -53,7 +53,7 @@ class ImageRequestDispatcherTest {
 
     @Test
     void sendsEverythingTheAiServerNeedsInEnglish() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, TimeOfDay.EVENING, Weather.RAINY, "우리집", "엄마", "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(TimeOfDay.EVENING, Weather.RAINY, "우리집", "엄마", "요리")));
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
@@ -65,7 +65,7 @@ class ImageRequestDispatcherTest {
 
     @Test
     void aTestApiRequestIsMarkedForTheAiServer() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(null, null, null, null, "요리")));
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L, true));
 
@@ -74,7 +74,7 @@ class ImageRequestDispatcherTest {
 
     @Test
     void optionalPicksGoOutEmpty() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(null, null, null, null, "요리")));
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
@@ -87,7 +87,7 @@ class ImageRequestDispatcherTest {
     /** The character image is not set up yet; the request still goes out. */
     @Test
     void anUnsetCharacterImageGoesOutAsDefault() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(null, null, null, null, "요리")));
         dispatcher = dispatcherWith(sent::add, "");
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
@@ -103,7 +103,7 @@ class ImageRequestDispatcherTest {
         when(cardRepository.findById(30L)).thenReturn(Optional.of(MozziCard.register(
                 "S1-01-02", "S1", "달토끼 모찌", CardTier.LEGENDARY, Emotion.CALM,
                 "GACHA/S1-01-02_mozzi_legendary_001_calm.png", "wearing a navy star cape")));
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, 30L, null, null, null, null, "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(30L, null, null, null, null, "요리")));
 
         dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
 
@@ -114,7 +114,7 @@ class ImageRequestDispatcherTest {
 
     @Test
     void aRequestNoLongerPendingIsNotSent() {
-        DiaryImage image = DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리"));
+        DiaryImage image = DiaryImage.request(10L, new DiaryImage.Selection(null, null, null, null, "요리"));
         image.succeed("https://cdn.test/done.webp");
         stored(image);
 
@@ -126,7 +126,7 @@ class ImageRequestDispatcherTest {
 
     @Test
     void aFailedHandOverIsGivenUpWithoutCountingAgainstTheMember() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(null, null, null, null, "요리")));
         dispatcher = dispatcherWith(message -> {
             throw new IllegalStateException("queue down");
         }, "https://cdn.test/mozzi.webp");
@@ -140,7 +140,7 @@ class ImageRequestDispatcherTest {
     /** The picks never reach the AI server, and the try is used up. */
     @Test
     void blockedPicksAreRejectedAndNotSent() {
-        stored(DiaryImage.request(10L, new DiaryImage.Selection(7L, null, null, null, null, "요리")));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(null, null, null, null, "요리")));
         dispatcher = new ImageRequestDispatcher(
                 diaryRepository, imageRepository, cardRepository,
                 source -> {

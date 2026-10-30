@@ -95,7 +95,7 @@ class DiaryImageApiTest {
 
     @Test
     void requestingStoresWhatWasPickedAndStartsThePicture() throws Exception {
-        request(me, diaryId, body(7, "\"EVENING\"", "\"RAINY\"", home, mom, cooking))
+        request(me, diaryId, body("\"EVENING\"", "\"RAINY\"", home, mom, cooking))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.diaryId").value(diaryId))
                 .andExpect(jsonPath("$.imageStatus").value("PENDING"));
@@ -104,7 +104,6 @@ class DiaryImageApiTest {
         assertThat(row)
                 .containsEntry("status", "PENDING")
                 .containsEntry("failure_count", 0)
-                .containsEntry("character_id", 7L)
                 .containsEntry("mozzi_card_id", null)
                 .containsEntry("time_of_day", "EVENING")
                 .containsEntry("weather", "RAINY")
@@ -117,23 +116,23 @@ class DiaryImageApiTest {
     }
 
     @Test
-    void onlyCharacterAndWhatAreRequired() throws Exception {
-        request(me, diaryId, body(7, "null", "null", null, null, cooking))
+    void onlyWhatIsRequired() throws Exception {
+        request(me, diaryId, body("null", "null", null, null, cooking))
                 .andExpect(status().isAccepted());
         assertThat(jdbcTemplate.queryForObject(
                 "select weather from diary_image where diary_id = ?", String.class, diaryId))
                 .isEqualTo("NONE");
 
+        // characterId is gone from the API; an unknown field is rejected.
         request(me, diaryId, """
-                {"timeOfDay": "MORNING", "whatMyIconId": %d}
+                {"characterId": 1, "whatMyIconId": %d}
                 """.formatted(cooking))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("characterId"));
+                .andExpect(status().isBadRequest());
     }
 
     @Test
     void whatIsRequired() throws Exception {
-        request(me, diaryId, body(7, "null", "null", home, null, null))
+        request(me, diaryId, body("null", "null", home, null, null))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("whatMyIconId"));
     }
@@ -142,20 +141,20 @@ class DiaryImageApiTest {
     void iconsMustBeTheDiarysOwnInTheirCategory() throws Exception {
         Long notOnDiary = fixtures.myIcon(me, "운동", IconCategory.WHAT);
 
-        request(me, diaryId, body(7, "null", "null", null, null, notOnDiary))
+        request(me, diaryId, body("null", "null", null, null, notOnDiary))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
         // A WHAT icon sent as WHERE.
-        request(me, diaryId, body(7, "null", "null", reading, null, cooking))
+        request(me, diaryId, body("null", "null", reading, null, cooking))
                 .andExpect(status().isBadRequest());
         assertThat(jdbcTemplate.queryForObject("select count(*) from diary_image", Integer.class)).isZero();
     }
 
     @Test
     void aSecondRequestWhileDrawingIsRejected() throws Exception {
-        request(me, diaryId, body(7, "null", "null", null, null, cooking)).andExpect(status().isAccepted());
+        request(me, diaryId, body("null", "null", null, null, cooking)).andExpect(status().isAccepted());
 
-        request(me, diaryId, body(7, "null", "null", null, null, reading))
+        request(me, diaryId, body("null", "null", null, null, reading))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IMAGE_ALREADY_REQUESTED"));
     }
@@ -164,14 +163,14 @@ class DiaryImageApiTest {
     @Test
     void aResendWithTheSameKeyReplaysTheFirstResponse() throws Exception {
         String key = UUID.randomUUID().toString();
-        String picks = body(7, "null", "null", null, null, cooking);
+        String picks = body("null", "null", null, null, cooking);
         request(me, diaryId, picks, key).andExpect(status().isAccepted());
         jdbcTemplate.update("update diary_image set status = 'SUCCEEDED' where diary_id = ?", diaryId);
 
         request(me, diaryId, picks, key)
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.imageStatus").value("PENDING"));
-        request(me, diaryId, body(7, "null", "null", null, null, reading), key)
+        request(me, diaryId, body("null", "null", null, null, reading), key)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
     }
@@ -182,7 +181,7 @@ class DiaryImageApiTest {
         Long yesterday = fixtures.diary(me, today.minusDays(1), fixtures.emoticon(Emotion.SAD), Emotion.SAD);
         fixtures.attach(yesterday, cooking);
         String key = UUID.randomUUID().toString();
-        String picks = body(7, "null", "null", null, null, cooking);
+        String picks = body("null", "null", null, null, cooking);
         request(me, diaryId, picks, key).andExpect(status().isAccepted());
 
         request(me, yesterday, picks, key)
@@ -194,7 +193,7 @@ class DiaryImageApiTest {
     void aFinishedPictureIsNotRedrawn() throws Exception {
         fixtures.picture(diaryId, ImageStatus.SUCCEEDED, 0, "https://cdn.test/diary/done.webp");
 
-        request(me, diaryId, body(7, "null", "null", null, null, cooking))
+        request(me, diaryId, body("null", "null", null, null, cooking))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IMAGE_ALREADY_REQUESTED"));
     }
@@ -203,7 +202,7 @@ class DiaryImageApiTest {
     void aFailedPictureCanBeRequestedAgainWithNewPicks() throws Exception {
         fixtures.picture(diaryId, ImageStatus.FAILED, 2, null);
 
-        request(me, diaryId, body(9, "\"LUNCH\"", "\"SUNNY\"", null, null, reading))
+        request(me, diaryId, body("\"LUNCH\"", "\"SUNNY\"", null, null, reading))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.imageStatus").value("PENDING"));
 
@@ -211,7 +210,6 @@ class DiaryImageApiTest {
         assertThat(row)
                 .containsEntry("status", "PENDING")
                 .containsEntry("failure_count", 2)
-                .containsEntry("character_id", 9L)
                 .containsEntry("time_of_day", "LUNCH")
                 .containsEntry("weather", "SUNNY")
                 .containsEntry("what_name", "독서");
@@ -226,12 +224,12 @@ class DiaryImageApiTest {
         Long yesterday = fixtures.diary(me, today.minusDays(1), fixtures.emoticon(Emotion.SAD), Emotion.SAD);
         fixtures.attach(yesterday, cooking);
 
-        request(me, yesterday, body(7, "null", "null", null, null, cooking))
+        request(me, yesterday, body("null", "null", null, null, cooking))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("IMAGE_ONLY_TODAY"));
 
         fixtures.picture(yesterday, ImageStatus.FAILED, 1, null);
-        request(me, yesterday, body(7, "null", "null", null, null, cooking))
+        request(me, yesterday, body("null", "null", null, null, cooking))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("IMAGE_ONLY_TODAY"));
     }
@@ -240,14 +238,14 @@ class DiaryImageApiTest {
     void threeFailuresAreTheLimit() throws Exception {
         fixtures.picture(diaryId, ImageStatus.FAILED, 3, null);
 
-        request(me, diaryId, body(7, "null", "null", null, null, cooking))
+        request(me, diaryId, body("null", "null", null, null, cooking))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("RETRY_LIMIT_EXCEEDED"));
     }
 
     @Test
     void anotherMembersDiaryIsNotFound() throws Exception {
-        request(someoneElse, diaryId, body(7, "null", "null", null, null, cooking))
+        request(someoneElse, diaryId, body("null", "null", null, null, cooking))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
@@ -256,7 +254,7 @@ class DiaryImageApiTest {
     void idempotencyKeyIsRequired() throws Exception {
         mockMvc.perform(as(me, post("/api/v1/diaries/{id}/image", diaryId))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body(7, "null", "null", null, null, cooking)))
+                        .content(body("null", "null", null, null, cooking)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors[0].field").value("Idempotency-Key"));
     }
@@ -268,14 +266,13 @@ class DiaryImageApiTest {
         fixtures.attach(yesterday, cooking);
         fixtures.picture(yesterday, ImageStatus.SUCCEEDED, 0, "https://cdn.test/diary/done.webp");
 
-        requestForTest(me, yesterday, body(9, "null", "null", null, null, cooking))
+        requestForTest(me, yesterday, body("null", "null", null, null, cooking))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.imageStatus").value("PENDING"));
 
         Map<String, Object> row = jdbcTemplate.queryForMap("select * from diary_image where diary_id = ?", yesterday);
         assertThat(row)
                 .containsEntry("status", "PENDING")
-                .containsEntry("character_id", 9L)
                 .containsEntry("image_url", null);
         assertThat(jdbcTemplate.queryForObject("select count(*) from diary_image where diary_id = ?",
                 Integer.class, yesterday)).isOne();
@@ -285,7 +282,7 @@ class DiaryImageApiTest {
     void theTestApiIgnoresTheFailureCap() throws Exception {
         fixtures.picture(diaryId, ImageStatus.FAILED, 3, null);
 
-        requestForTest(me, diaryId, body(7, "null", "null", null, null, cooking))
+        requestForTest(me, diaryId, body("null", "null", null, null, cooking))
                 .andExpect(status().isAccepted());
         assertThat(jdbcTemplate.queryForObject(
                 "select failure_count from diary_image where diary_id = ?", Integer.class, diaryId))
@@ -294,16 +291,16 @@ class DiaryImageApiTest {
 
     @Test
     void theTestApiStillRejectsARequestWhileDrawing() throws Exception {
-        requestForTest(me, diaryId, body(7, "null", "null", null, null, cooking)).andExpect(status().isAccepted());
+        requestForTest(me, diaryId, body("null", "null", null, null, cooking)).andExpect(status().isAccepted());
 
-        requestForTest(me, diaryId, body(7, "null", "null", null, null, reading))
+        requestForTest(me, diaryId, body("null", "null", null, null, reading))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IMAGE_ALREADY_REQUESTED"));
-        requestForTest(someoneElse, diaryId, body(7, "null", "null", null, null, cooking))
+        requestForTest(someoneElse, diaryId, body("null", "null", null, null, cooking))
                 .andExpect(status().isNotFound());
     }
 
-    /** The member's mozzi for the diary's emotion goes into the picture, whatever characterId says. */
+    /** The member's mozzi for the diary's emotion goes into the picture. */
     @Test
     void theMozziPickedForTheDiarysEmotionIsStored() throws Exception {
         GachaFixtures gacha = new GachaFixtures(jdbcTemplate);
@@ -316,11 +313,10 @@ class DiaryImageApiTest {
                     values (?, 'CALM', ?, now())
                     """, me, calm);
 
-            request(me, diaryId, body(7, "null", "null", null, null, cooking)).andExpect(status().isAccepted());
+            request(me, diaryId, body("null", "null", null, null, cooking)).andExpect(status().isAccepted());
 
             assertThat(jdbcTemplate.queryForMap(
-                    "select character_id, mozzi_card_id from diary_image where diary_id = ?", diaryId))
-                    .containsEntry("character_id", 7L)
+                    "select mozzi_card_id from diary_image where diary_id = ?", diaryId))
                     .containsEntry("mozzi_card_id", calm);
         } finally {
             gacha.reset();
@@ -345,11 +341,10 @@ class DiaryImageApiTest {
                 .content(json));
     }
 
-    private static String body(
-            long characterId, String timeOfDay, String weather, Long where, Long who, Long what) {
+    private static String body(String timeOfDay, String weather, Long where, Long who, Long what) {
         return """
-                {"characterId": %d, "timeOfDay": %s, "weather": %s, "whereMyIconId": %s, "whoMyIconId": %s, "whatMyIconId": %s}
-                """.formatted(characterId, timeOfDay, weather, where, who, what);
+                {"timeOfDay": %s, "weather": %s, "whereMyIconId": %s, "whoMyIconId": %s, "whatMyIconId": %s}
+                """.formatted(timeOfDay, weather, where, who, what);
     }
 
     private MockHttpServletRequestBuilder as(Long memberId, MockHttpServletRequestBuilder request) {

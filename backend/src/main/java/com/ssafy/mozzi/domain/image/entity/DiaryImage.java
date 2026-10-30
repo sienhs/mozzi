@@ -48,10 +48,6 @@ public class DiaryImage extends BaseTimeEntity {
     @Column(name = "failure_count", nullable = false)
     private int failureCount;
 
-    /** As the app sent it. The card actually drawn is {@link #mozziCardId}. */
-    @Column(name = "character_id", nullable = false)
-    private Long characterId;
-
     /**
      * The member's mozzi for the diary's emotion when the picture was requested, or
      * {@code null} when none was picked: the AI server then draws its default character.
@@ -169,7 +165,6 @@ public class DiaryImage extends BaseTimeEntity {
 
     private void apply(Selection selection) {
         this.status = ImageStatus.PENDING;
-        this.characterId = selection.characterId();
         this.mozziCardId = selection.mozziCardId();
         this.timeOfDay = selection.timeOfDay();
         this.weather = selection.weather() == null ? Weather.NONE : selection.weather();
@@ -193,10 +188,6 @@ public class DiaryImage extends BaseTimeEntity {
 
     public int getFailureCount() {
         return failureCount;
-    }
-
-    public Long getCharacterId() {
-        return characterId;
     }
 
     public Long getMozziCardId() {
@@ -237,7 +228,6 @@ public class DiaryImage extends BaseTimeEntity {
      * @param whoName     optional
      */
     public record Selection(
-            Long characterId,
             Long mozziCardId,
             TimeOfDay timeOfDay,
             Weather weather,
@@ -246,9 +236,9 @@ public class DiaryImage extends BaseTimeEntity {
             String whatName) {
 
         /** Without a mozzi of the member's: the default character is drawn. */
-        public Selection(Long characterId, TimeOfDay timeOfDay, Weather weather,
-                String whereName, String whoName, String whatName) {
-            this(characterId, null, timeOfDay, weather, whereName, whoName, whatName);
+        public Selection(TimeOfDay timeOfDay, Weather weather, String whereName, String whoName,
+                String whatName) {
+            this(null, timeOfDay, weather, whereName, whoName, whatName);
         }
 
     }

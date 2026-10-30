@@ -154,12 +154,11 @@ public class DiaryImageService {
     /**
      * Turns the picked icon ids into names, and takes the member's mozzi for the diary's
      * emotion. Each icon must be one of the diary's live icons and in the category it was
-     * sent for. The request's {@code characterId} is stored as sent but not drawn.
+     * sent for.
      */
     private DiaryImage.Selection selectionOf(Diary diary, DiaryImageCreateRequestDto request) {
         List<MyIcon> diaryIcons = diaryRepository.findActiveIcons(diary.getId());
         return new DiaryImage.Selection(
-                request.characterId(),
                 myMozziService.cardFor(diary.getMemberId(), diary.getEmotion()).orElse(null),
                 request.timeOfDay(),
                 request.weather(),

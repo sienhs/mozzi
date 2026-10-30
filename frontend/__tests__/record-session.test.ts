@@ -110,7 +110,6 @@ test('one tap creates the diary without a line, then requests the picture with t
   const [image] = server.callsTo('POST', '/diaries/500/image');
   expect(image.key).toBeTruthy();
   expect(image.body).toEqual({
-    characterId: 1,
     weather: 'RAINY',
     whereMyIconId: icons['집'].myIconId,
     // 동행은 처음 고른 한 명만 그림에 들어간다.
@@ -296,7 +295,6 @@ test('after the app was closed, the stored scene recovers the lost request; with
   expect(recovered.body).toMatchObject({
     whatMyIconId: what.myIconId,
     weather: 'NONE',
-    characterId: 1,
   });
 });
 
