@@ -12,7 +12,8 @@
 - 별조각은 전설·신화 중 아직 없는 카드와 교환할 수 있다 (P-08 ~ P-13).
 - 화면 문구는 "별조각"이다. API 필드는 `shard`를 쓴다.
 - 뽑기권·별조각 보관 상한은 없다.
-- 시즌 구분은 없다. 뽑기 대상은 활성 카드 전체다.
+- 시즌 구분은 없다. 뽑기 대상은 기본 모찌를 뺀 활성 카드 전체다.
+- 기본 모찌(`NONE` 등급)는 가입할 때 감정마다 1장씩 받고, 각 감정의 내 모찌로 골라진다. 뽑기·도감·진행도·교환에는 나오지 않고 내 모찌 목록에만 나온다. 카드는 `seed/mozzi_cards.csv`의 `BASIC-01` ~ `BASIC-05`다.
 
 | 등급 | 확률 | 중복 시 별조각 | 교환가 |
 |---|---|---|---|
@@ -22,7 +23,7 @@
 | `LEGENDARY` 전설 | 7% | +15 | 200 |
 | `MYTHIC` 신화 | 1% | +40 | 400 |
 
-수치는 서버 설정값(`gacha_tier`)이다. 앱은 `GET /gacha/rates`의 값을 보여 준다.
+수치는 서버 설정값(`gacha_tier`)이다. 앱은 `GET /gacha/rates`의 값을 보여 준다. `NONE`은 가중치 0인 행이 있지만 확률표에는 나오지 않는다.
 
 서버는 추첨 결과만 준다. 승급·카드 뒤집기·건너뛰기 연출은 앱이 처리한다.
 
@@ -100,7 +101,7 @@ Response `200`
 }
 ```
 
-`collection.total`은 활성 카드 수다. `ticketCount`로 뽑기 버튼을 정한다.
+`collection.total`은 기본 모찌를 뺀 활성 카드 수다. `owned`도 기본 모찌는 세지 않는다. `ticketCount`로 뽑기 버튼을 정한다.
 
 | 뽑기권 | 버튼 |
 |---|---|
@@ -195,7 +196,7 @@ Response `200`
 }
 ```
 
-활성 카드 전체를 내린다. 카드는 등급 높은 순, 같은 등급 안에서는 `code` 순이다. P-07 모찌 상세와 P-08 교환 목록도 이 응답으로 그린다.
+기본 모찌를 뺀 활성 카드 전체를 내린다. 카드는 등급 높은 순, 같은 등급 안에서는 `code` 순이다. P-07 모찌 상세와 P-08 교환 목록도 이 응답으로 그린다.
 미보유 카드도 이름·이미지가 들어 있다. 도감 칸에서는 앱이 가리고, 교환 목록에서는 그대로 보여 준다.
 
 ## `POST /gacha/collection/seen` — NEW 표시 지우기
@@ -278,7 +279,7 @@ Response `201`
 
 1. 멱등을 확인하고 지갑을 잠근다.
 2. 카드가 없거나 비활성이면 `404 NOT_FOUND`.
-3. 등급의 `exchange_cost`가 `null`이면 `409 CARD_NOT_EXCHANGEABLE`.
+3. 기본 모찌(`NONE`)이거나 등급의 `exchange_cost`가 `null`이면 `409 CARD_NOT_EXCHANGEABLE`.
 4. `member_card`가 있으면 `409 CARD_ALREADY_OWNED`.
 5. `shard_balance < exchange_cost`면 `409 NOT_ENOUGH_SHARDS`.
 6. 저장:
@@ -294,7 +295,9 @@ Response `201`
 3. 0행이면 지급하지 않는다: `granted: false` 또는 `reward: null`.
 4. 1행이면 `ticket_balance + 10`.
 
-`SIGNUP`은 가입 트랜잭션에서 `member_wallet`(뽑기권 20, 별조각 0)과 `SIGNUP` 장부를 함께 만든다.
+`SIGNUP`은 가입 트랜잭션에서 `member_wallet`(뽑기권 20, 별조각 0)과 `SIGNUP` 장부를 함께 만든다. 같은 트랜잭션에서 기본 모찌 5종을 `member_card`(`seen_at` = 지급 시각, NEW 아님)로 주고, 감정마다 `my_mozzi_emoticon`으로 고른다.
+
+기본 모찌가 생기기 전에 가입한 회원은 서버가 시작할 때 카드 등록(`MozziCardSeeder`) 바로 뒤에 `BasicMozziBackfill`이 채운다. 이미 다른 모찌를 고른 감정은 그대로 둔다.
 
 ### 회원 탈퇴
 

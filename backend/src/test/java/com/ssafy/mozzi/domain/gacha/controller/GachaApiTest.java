@@ -172,6 +172,26 @@ class GachaApiTest {
                 .andExpect(jsonPath("$.total").value(4));
     }
 
+    /** Basic mozzi are given at sign-up: not in the collection or its progress, not exchanged. */
+    @Test
+    void basicMozziStayOutOfTheGacha() throws Exception {
+        gacha.wallet(me, 0, 1_000);
+        Long basic = gacha.card("BASIC-01", CardTier.NONE);
+        gacha.card("S2-01-01", CardTier.COMMON);
+        gacha.owned(me, basic);
+
+        mockMvc.perform(as(me, get("/api/v1/gacha/status")))
+                .andExpect(jsonPath("$.collection.owned").value(0))
+                .andExpect(jsonPath("$.collection.total").value(1));
+        mockMvc.perform(as(me, get("/api/v1/gacha/collection")))
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.cards.length()").value(1))
+                .andExpect(jsonPath("$.cards[0].code").value("S2-01-01"));
+        exchange(me, basic)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CARD_NOT_EXCHANGEABLE"));
+    }
+
     @Test
     void seenClearsTheNewMarkAndIgnoresCardsNotOwned() throws Exception {
         gacha.wallet(me, 1, 0);

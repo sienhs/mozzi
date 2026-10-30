@@ -33,7 +33,7 @@
 | 감정 검색 | `emotion_search` | 질문·답변 | V6 |
 | | `emotion_search_result` | 답변 근거 기록 | V6 |
 | | `diary_embedding` | 일기 의미 검색용 임베딩 (1:1, 한 줄 일기가 있는 일기만) | V6 |
-| 뽑기 | `gacha_tier` | 등급별 가중치·별조각 규칙 (5행) | V11 |
+| 뽑기 | `gacha_tier` | 등급별 가중치·별조각 규칙 (6행, 기본 모찌 `NONE` 포함) | V11, V15 |
 | | `mozzi_card` | 카드 마스터 | V11 |
 | | `member_card` | 회원 도감 | V11 |
 | | `gacha_draw` | 뽑기 1회 (1~10장) | V11 |
@@ -415,20 +415,20 @@ erDiagram
 
 ## 모찌 뽑기
 
-`V11__create_gacha_tables.sql`이 테이블과 `gacha_tier` 5행을 만든다. 카드 데이터는 마이그레이션에 넣지 않는다. 규칙과 처리 순서는 [api/gacha.md](api/gacha.md)에 있다.
+`V11__create_gacha_tables.sql`이 테이블과 `gacha_tier` 5행을 만든다. `V15__add_none_gacha_tier.sql`이 기본 모찌용 `NONE` 행(가중치 0)을 더한다. 카드 데이터는 마이그레이션에 넣지 않는다. 규칙과 처리 순서는 [api/gacha.md](api/gacha.md)에 있다.
 
 ### gacha_tier
 
-등급 규칙. `GET /gacha/rates`가 이 테이블을 그대로 내려준다.
+등급 규칙. `GET /gacha/rates`가 `NONE`을 뺀 행을 내려준다.
 
 | 컬럼 | 타입 | 키 | NULL | 설명 |
 |---|---|---|---|---|
-| tier | varchar(10) | PK | | `COMMON`, `RARE`, `EPIC`, `LEGENDARY`, `MYTHIC` |
-| weight | integer | | | 추첨 가중치. 합 100,000 (45,000 / 30,000 / 17,000 / 7,000 / 1,000) |
+| tier | varchar(10) | PK | | `NONE`(기본 모찌), `COMMON`, `RARE`, `EPIC`, `LEGENDARY`, `MYTHIC` |
+| weight | integer | | | 추첨 가중치. 합 100,000 (45,000 / 30,000 / 17,000 / 7,000 / 1,000). `NONE`은 0 |
 | duplicate_shards | integer | | | 중복 시 받는 별조각 (1, 2, 5, 15, 40) |
 | exchange_cost | integer | | O | 교환에 드는 별조각. `LEGENDARY` 200, `MYTHIC` 400. 나머지는 `null`(교환 불가) |
 
-- 기동할 때 5행인지, 가중치 합이 100,000인지 검사한다. 실패하면 기동을 멈춘다
+- 기동할 때 뽑는 5개 등급이 다 있는지, 가중치 합이 100,000인지 검사한다. 실패하면 기동을 멈춘다. `NONE` 행은 `mozzi_card.tier` FK 때문에만 있고 검사·추첨에서 빠진다
 - 변경: `gacha_season` 삭제에 따라 `season_id` 삭제, PK = `tier`. `rate numeric(6,5)` → `weight integer`. `exchange_cost` NULL 허용
 
 ### mozzi_card
@@ -439,7 +439,7 @@ erDiagram
 | code | varchar(12) | | | `S2-01-04` |
 | series | varchar(20) | | | `과일 모찌` |
 | name | varchar(30) | | | `수박 모찌` |
-| tier | varchar(10) | | | |
+| tier | varchar(10) | | | `NONE`이면 기본 모찌: 가입할 때 받고, 뽑기·도감에서 빠진다 |
 | emotion | varchar(10) | | | `Emotion` |
 | image_key | varchar(100) | | | 공개 S3 키 `cards/{code}_{원본 파일}_{감정 영문}.png`. URL은 `{mozzi.gacha.image-base-url}/{image_key}` |
 | is_active | boolean | | | 뽑기·도감 대상 |

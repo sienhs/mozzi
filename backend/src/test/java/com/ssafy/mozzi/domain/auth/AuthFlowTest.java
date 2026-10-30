@@ -29,9 +29,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.jayway.jsonpath.JsonPath;
+import com.ssafy.mozzi.domain.diary.entity.Emotion;
+import com.ssafy.mozzi.domain.gacha.entity.CardTier;
 import com.ssafy.mozzi.integration.google.GoogleIdTokenInvalidException;
 import com.ssafy.mozzi.integration.google.GoogleIdTokenVerifier;
 import com.ssafy.mozzi.integration.google.GoogleUnavailableException;
+import com.ssafy.mozzi.support.GachaFixtures;
 import com.ssafy.mozzi.support.IntegrationTest;
 
 /**
@@ -100,6 +103,28 @@ class AuthFlowTest {
         signUp(ticket, "다른닉네임")
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("SIGNUP_TOKEN_INVALID"));
+    }
+
+    /** A new member owns the basic mozzi, each picked for its emotion. */
+    @Test
+    void signupGivesTheBasicMozzi() throws Exception {
+        GachaFixtures gacha = new GachaFixtures(jdbcTemplate);
+        gacha.reset();
+        try {
+            Long happy = gacha.card("BASIC-01", CardTier.NONE, Emotion.HAPPY, true);
+            Long calm = gacha.card("BASIC-02", CardTier.NONE, Emotion.CALM, true);
+            gacha.card("S1-01-01", CardTier.MYTHIC, Emotion.HAPPY, true);
+
+            signUpAs("id-a", "sub-a", "a@gmail.com", "하루");
+
+            assertThat(jdbcTemplate.queryForList("select card_id from member_card order by card_id", Long.class))
+                    .containsExactly(happy, calm);
+            assertThat(jdbcTemplate.queryForList(
+                    "select emotion || ':' || card_id from my_mozzi_emoticon order by emotion", String.class))
+                    .containsExactly("CALM:" + calm, "HAPPY:" + happy);
+        } finally {
+            gacha.reset();
+        }
     }
 
     @Test

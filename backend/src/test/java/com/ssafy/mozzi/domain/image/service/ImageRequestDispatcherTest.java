@@ -112,6 +112,19 @@ class ImageRequestDispatcherTest {
         assertThat(sent.get(0).characterPrompt()).isEqualTo("wearing a navy star cape");
     }
 
+    /** A basic mozzi goes out as the default character, the same as no pick. */
+    @Test
+    void aBasicMozziIsDrawnAsTheDefaultCharacter() {
+        when(cardRepository.findById(31L)).thenReturn(Optional.of(MozziCard.register(
+                "BASIC-02", "BASIC", "기본 모찌 (평온)", CardTier.NONE, Emotion.CALM, "basic/calm.png", null)));
+        stored(DiaryImage.request(10L, new DiaryImage.Selection(31L, null, null, null, null, "요리")));
+
+        dispatcher.dispatch(new ImageGenerationRequestedEvent(10L));
+
+        assertThat(sent.get(0).characterImageUrl()).isEqualTo("https://cdn.test/mozzi.webp");
+        assertThat(sent.get(0).characterPrompt()).isEqualTo("a round mochi");
+    }
+
     @Test
     void aRequestNoLongerPendingIsNotSent() {
         DiaryImage image = DiaryImage.request(10L, new DiaryImage.Selection(null, null, null, null, "요리"));

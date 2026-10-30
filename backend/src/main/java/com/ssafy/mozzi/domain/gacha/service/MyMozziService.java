@@ -12,6 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
@@ -123,6 +124,18 @@ public class MyMozziService {
                 .ifPresentOrElse(
                         row -> row.change(cardId, now),
                         () -> myMozziRepository.save(MyMozziEmoticon.pick(memberId, emotion, cardId, now)));
+    }
+
+    /**
+     * Gives the member the basic mozzi and picks each for its emotion where nothing is picked
+     * yet. Safe to repeat. Runs in the caller's transaction: sign-up, or
+     * {@link BasicMozziBackfill} at start-up.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void grantBasic(Long memberId) {
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        memberCardRepository.grantBasic(memberId, now);
+        myMozziRepository.pickBasic(memberId, now);
     }
 
     /** The card to draw into a picture of this emotion: the pick, while still active and owned. */

@@ -11,8 +11,11 @@ import type { Emotion } from '@/types/diary';
 import { api } from './api';
 
 // 모찌 뽑기·도감·교환 API (backend docs/api/gacha.md). 추첨은 서버만 한다.
-export type ServerTier = 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY' | 'MYTHIC';
+// NONE은 가입할 때 받는 기본 모찌다. 뽑기·도감에는 나오지 않고 내 모찌 목록에만 나온다.
+export type ServerTier =
+  'NONE' | 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY' | 'MYTHIC';
 const tierOf: Record<ServerTier, Tier> = {
+  NONE: 'basic',
   COMMON: 'common',
   RARE: 'rare',
   EPIC: 'epic',

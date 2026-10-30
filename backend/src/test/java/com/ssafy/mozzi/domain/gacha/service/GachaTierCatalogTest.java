@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -93,6 +94,18 @@ class GachaTierCatalogTest {
         assertThat(catalog.tierFor(98_999)).isEqualTo(CardTier.LEGENDARY);
         assertThat(catalog.tierFor(99_000)).isEqualTo(CardTier.MYTHIC);
         assertThat(catalog.tierFor(99_999)).isEqualTo(CardTier.MYTHIC);
+    }
+
+    /** NONE, the basic mozzi, has a row only for the foreign key: never rolled, never listed. */
+    @Test
+    void theNoneRowIsLeftOut() {
+        List<GachaTier> rows = new ArrayList<>(SEEDED);
+        rows.add(new GachaTier(CardTier.NONE, 0, 0, null));
+        GachaTierCatalog withNone = new GachaTierCatalog(rows);
+
+        assertThat(withNone.all()).extracting(GachaTier::getTier).doesNotContain(CardTier.NONE);
+        assertThat(withNone.get(CardTier.NONE)).isNull();
+        assertThat(roll(withNone, new Random(42L), 100_000)).doesNotContainKey(CardTier.NONE);
     }
 
     @Test

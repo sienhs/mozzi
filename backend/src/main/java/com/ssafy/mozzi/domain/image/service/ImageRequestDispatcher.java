@@ -145,7 +145,8 @@ public class ImageRequestDispatcher {
         MozziCard card = request.card();
         String characterImageUrl;
         String characterPrompt;
-        if (card != null) {
+        // A basic mozzi is drawn as the default character, the same as no pick.
+        if (card != null && card.getTier().isDrawn()) {
             characterImageUrl = gachaProperties.imageUrl(card.getImageKey());
             characterPrompt = nullToEmpty(card.getPrompt());
         } else {

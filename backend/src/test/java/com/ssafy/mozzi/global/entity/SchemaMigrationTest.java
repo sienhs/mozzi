@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15");
     }
 
     @Test
@@ -210,7 +210,10 @@ class SchemaMigrationTest {
                 .contains("WHERE (deleted_at IS NULL)");
     }
 
-    /** The draw odds are read from these rows; the application refuses to start without all five. */
+    /**
+     * The draw odds are read from these rows; the application refuses to start without all
+     * five drawn ones. NONE, the basic mozzi, is never drawn.
+     */
     @Test
     void gachaTiersAreSeeded() {
         List<String> tiers = jdbcTemplate.queryForList(
@@ -218,7 +221,8 @@ class SchemaMigrationTest {
                         + "from gacha_tier order by weight desc", String.class);
 
         assertThat(tiers).containsExactly(
-                "COMMON:45000:1:-", "RARE:30000:2:-", "EPIC:17000:5:-", "LEGENDARY:7000:15:200", "MYTHIC:1000:40:400");
+                "COMMON:45000:1:-", "RARE:30000:2:-", "EPIC:17000:5:-", "LEGENDARY:7000:15:200", "MYTHIC:1000:40:400",
+                "NONE:0:0:-");
     }
 
     /** A reward is paid once per key; rows without a key (draws, exchanges) are not checked. */

@@ -1,6 +1,6 @@
 import type { Emotion } from './diary';
 
-export type Tier = 'common' | 'rare' | 'epic' | 'legend' | 'myth';
+export type Tier = 'basic' | 'common' | 'rare' | 'epic' | 'legend' | 'myth';
 // 모찌 카드 (backend docs/api/gacha.md "Card"). 카드마다 감정이 하나이고, 그림은 서버가 주는 공개 이미지다.
 export interface MochiCard {
   cardId: number;

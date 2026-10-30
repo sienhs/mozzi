@@ -2,11 +2,19 @@ import type { ImageSourcePropType } from 'react-native';
 import type { Tier } from '@/types/gacha';
 
 // 등급 표시(이름·색). 확률·별조각·교환가는 서버 값(GET /gacha/rates, 카드의 exchangeCost)을 쓴다.
-export const tierOrder: Tier[] = ['common', 'rare', 'epic', 'legend', 'myth'];
+export const tierOrder: Tier[] = [
+  'basic',
+  'common',
+  'rare',
+  'epic',
+  'legend',
+  'myth',
+];
 export const tiers: Record<
   Tier,
   { label: string; color: string; badge: string }
 > = {
+  basic: { label: '기본', color: '#7A7166', badge: '#F2EFEA' },
   common: { label: '일반', color: '#596273', badge: '#EDF0F4' },
   rare: { label: '희귀', color: '#1764D1', badge: '#E8F1FF' },
   epic: { label: '영웅', color: '#8535CD', badge: '#F3E8FF' },

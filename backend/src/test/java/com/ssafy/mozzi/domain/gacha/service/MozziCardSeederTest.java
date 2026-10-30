@@ -21,7 +21,7 @@ import com.ssafy.mozzi.support.IntegrationTest;
 @IntegrationTest
 class MozziCardSeederTest {
 
-    private static final int SEED_CARDS = 320;
+    private static final int SEED_CARDS = 325;
 
     @Autowired
     private MozziCardRepository mozziCardRepository;
@@ -48,7 +48,7 @@ class MozziCardSeederTest {
     void registersEveryCardOfTheFileIntoAnEmptyTable() throws Exception {
         seeder.run();
 
-        assertThat(mozziCardRepository.countByActiveTrue()).isEqualTo(SEED_CARDS);
+        assertThat(mozziCardRepository.count()).isEqualTo(SEED_CARDS);
         Map<String, Object> first = jdbcTemplate.queryForMap(
                 "select series, name, tier, emotion, image_key, prompt from mozzi_card where code = 'S1-01-01'");
         assertThat(first).containsEntry("series", "S1")

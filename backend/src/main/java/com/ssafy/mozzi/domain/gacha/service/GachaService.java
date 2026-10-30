@@ -185,7 +185,8 @@ public class GachaService {
         MemberWallet wallet = walletService.lock(memberId);
         MozziCard card = cardRepository.findByIdAndActiveTrue(cardId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.NOT_FOUND, "card " + cardId));
-        Integer cost = tierCatalog.get(card.getTier()).getExchangeCost();
+        // A basic mozzi is given, not exchanged.
+        Integer cost = card.getTier().isDrawn() ? tierCatalog.get(card.getTier()).getExchangeCost() : null;
         if (cost == null) {
             throw new BusinessException(GachaErrorCode.CARD_NOT_EXCHANGEABLE, card.getTier() + " card " + cardId);
         }
@@ -204,7 +205,7 @@ public class GachaService {
 
     private Map<CardTier, List<MozziCard>> activeCardsByTier() {
         Map<CardTier, List<MozziCard>> byTier = new EnumMap<>(CardTier.class);
-        for (MozziCard card : cardRepository.findByActiveTrueOrderByIdAsc()) {
+        for (MozziCard card : cardRepository.findDrawable()) {
             byTier.computeIfAbsent(card.getTier(), tier -> new ArrayList<>()).add(card);
         }
         return byTier;
