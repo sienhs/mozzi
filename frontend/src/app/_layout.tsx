@@ -18,6 +18,7 @@ import { SPLASH_MIN_MS, Splash } from '@/components/ui/Splash';
 import { useMetaStore } from '@/stores/useMetaStore';
 import { useRewardStore } from '@/stores/useRewardStore';
 import { RewardSheet } from '@/features/reward/RewardSheet';
+import { PushNotifications } from '@/features/push/PushNotifications';
 import {
   ForceUpdateScreen,
   MetaErrorScreen,
@@ -94,6 +95,7 @@ export default function RootLayout() {
           <>
             <RecommendedUpdateSheet />
             {signedIn && <RewardSheet />}
+            {signedIn && <PushNotifications />}
             <Stack
               screenOptions={{
                 headerShown: false,

@@ -298,16 +298,70 @@ test('after the app was closed, the stored scene recovers the lost request; with
   });
 });
 
-test('the one-line save is not faked while the server has no API for it', async () => {
+test('the one-line save writes the trimmed line once and clears the draft', async () => {
   pickDay();
   await store().startGeneration(MEMBER);
   await settle();
   server.finish(500, 'SUCCEEDED');
-  store().setMemo('비 오는 날');
+  // 비어 있으면 보내지 않는다(서버는 빈 한 줄을 400으로 거절한다).
+  store().setMemo('   ');
   const before = server.state.calls.length;
   expect(await store().completeDiary(MEMBER, 500)).toBe(false);
   expect(server.state.calls).toHaveLength(before);
-  expect(server.state.diaries[0].content).toBeNull();
+
+  store().setMemo('  비 오는 날  ');
+  expect(await store().completeDiary(MEMBER, 500)).toBe(true);
+  expect(server.callsTo('PATCH', '/diaries/500/content')).toEqual([
+    expect.objectContaining({ body: { content: '비 오는 날' } }),
+  ]);
+  expect(server.state.diaries[0].content).toBe('비 오는 날');
+  expect(store().draft.memo).toBe('');
+  expect(store().saveStatus).toBe('idle');
+});
+
+test('the one-line memo is capped at the server limit of 50 characters', () => {
+  store().setMemo('가'.repeat(80));
+  expect(store().draft.memo).toHaveLength(50);
+});
+
+test('a lost save answer keeps the line so the same save can be sent again safely', async () => {
+  pickDay();
+  await store().startGeneration(MEMBER);
+  await settle();
+  server.finish(500, 'SUCCEEDED');
+  server.next('PATCH /diaries/500/content', (call, config) => {
+    server.process(call, config);
+    timeout(config);
+  });
+  store().setMemo('비 오는 날');
+  expect(await store().completeDiary(MEMBER, 500)).toBe(false);
+  expect(store().saveStatus).toBe('error');
+  expect(store().saveError).toBe(
+    '저장됐는지 확인하지 못했어요. 같은 한 줄로 다시 저장해 주세요.',
+  );
+  expect(store().draft.memo).toBe('비 오는 날');
+  // 서버는 이미 넣었다. 같은 내용 재전송은 200이라 그대로 끝난다.
+  expect(await store().completeDiary(MEMBER, 500)).toBe(true);
+  expect(server.callsTo('PATCH', '/diaries/500/content')).toHaveLength(2);
+  expect(server.state.diaries[0].content).toBe('비 오는 날');
+});
+
+test('a line already written on another device shows the server reason and refreshes the diary', async () => {
+  pickDay();
+  await store().startGeneration(MEMBER);
+  await settle();
+  server.finish(500, 'SUCCEEDED');
+  server.state.diaries[0].content = '다른 기기에서 쓴 한 줄';
+  const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
+  store().setMemo('비 오는 날');
+  expect(await store().completeDiary(MEMBER, 500)).toBe(false);
+  expect(store().saveError).toBe('이미 한 줄 일기를 남겼어요.');
+  expect(server.state.diaries[0].content).toBe('다른 기기에서 쓴 한 줄');
+  // 서버의 한 줄로 화면을 맞추도록 일기 조회를 다시 부른다.
+  expect(invalidate).toHaveBeenCalledWith({
+    queryKey: diaryKeys.all(MEMBER),
+  });
+  invalidate.mockRestore();
 });
 
 test('an account reset discards late diary, picture and tag responses', async () => {

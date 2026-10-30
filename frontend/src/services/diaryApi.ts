@@ -22,9 +22,8 @@ import { parseReward, type Reward } from './rewardApi';
 export const DIARY_IMAGE_ONLY_TODAY = 'IMAGE_ONLY_TODAY';
 export const DIARY_IMAGE_ALREADY_REQUESTED = 'IMAGE_ALREADY_REQUESTED';
 
-// 그림 뒤에 쓰는 한 줄을 저장할 API가 아직 없다 (일기 수정 API 없음, 백엔드 추가 예정).
-// 생기기 전까지 저장 버튼은 막고, 성공한 것처럼 처리하지 않는다.
-export const CONTENT_SAVE_SUPPORTED = false;
+// 한 줄 일기는 비어 있는 일기에 한 번만 넣는다. 이미 다른 한 줄이 있으면 409.
+export const DIARY_CONTENT_ALREADY_WRITTEN = 'DIARY_CONTENT_ALREADY_WRITTEN';
 
 // TanStack Query 키. 회원 ID를 넣어 계정이 바뀌면 다른 캐시를 쓰게 한다(로그아웃 때는 queryClient.clear).
 export const diaryKeys = {
@@ -162,15 +161,14 @@ export const diaryApi = {
     });
     return parseMonthly(data, yearMonth);
   },
-  // 그림을 본 뒤 쓴 한 줄 저장. 서버 API가 생기면 여기만 구현한다.
-  async saveContent(
-    _diaryId: number,
-    _content: string,
-    _requestKey: string,
-  ): Promise<never> {
-    throw new AuthError(
-      'NOT_SUPPORTED',
-      '한 줄 저장은 서버에서 준비 중이에요. 그림은 이미 저장됐어요.',
-    );
+  // PATCH /diaries/{id}/content. 그림을 본 뒤 쓴 한 줄을 넣는다(최대 50자, 빈 값은 400).
+  // 같은 내용을 다시 보내면 200이라 응답을 못 받았을 때 그대로 다시 보내도 된다.
+  async saveContent(diaryId: number, content: string): Promise<string> {
+    const { data } = await api.patch(`/diaries/${diaryId}/content`, {
+      content,
+    });
+    if (data?.diaryId !== diaryId || typeof data?.content !== 'string')
+      throw invalidResponse();
+    return data.content;
   },
 };

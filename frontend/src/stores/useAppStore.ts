@@ -9,7 +9,7 @@ import type {
 import type { HomeResponse, ImageRequestBody } from '@/types/server';
 import { createMockEntries } from '@/mocks/diaries';
 import {
-  CONTENT_SAVE_SUPPORTED,
+  DIARY_CONTENT_ALREADY_WRITTEN,
   DIARY_IMAGE_ALREADY_REQUESTED,
   DiaryExistsError,
   diaryApi,
@@ -49,7 +49,8 @@ import { mozziKeys } from '@/services/mozziApi';
 import type { EmotionPicks } from '@/types/companion';
 import type { Reward } from '@/services/rewardApi';
 
-export const MEMO_MAX_LENGTH = 100;
+// 서버 한 줄 일기 최대 길이(PATCH /diaries/{id}/content, 앞뒤 공백 제거 후 50자).
+export const MEMO_MAX_LENGTH = 50;
 export const MEMO_MAX_LINES = 3;
 export const emptyDraft = (): DiaryDraft => ({
   mainActivityId: null,
@@ -82,7 +83,6 @@ interface AppState {
   // 한 줄 저장 상태. 그림 성공과는 별개다.
   saveStatus: 'idle' | 'saving' | 'error';
   saveError: string;
-  saveKey: string | null;
   tagNotice: string;
   session: number;
   resetSession: () => void;
@@ -145,7 +145,6 @@ const initialRecordState = () => ({
   requestKey: null,
   saveStatus: 'idle' as const,
   saveError: '',
-  saveKey: null,
   tagNotice: '',
 });
 // 감정별로 고른 모찌 (마이페이지에서 받은 값). 아직 받지 않았으면 기본 모찌.
@@ -243,10 +242,7 @@ export const useAppStore = create<AppState>((set, get) => {
     },
     setMemo: memo => {
       if (get().saveStatus === 'saving') return;
-      set(state => ({
-        draft: { ...state.draft, memo: limitMemo(memo) },
-        saveKey: null,
-      }));
+      set(state => ({ draft: { ...state.draft, memo: limitMemo(memo) } }));
     },
     startGeneration: async memberId => {
       const state = get();
@@ -444,25 +440,30 @@ export const useAppStore = create<AppState>((set, get) => {
           requests: { ...state.requests, [diaryId]: snapshot },
         }));
     },
+    // 한 줄은 빈 일기에 한 번만 넣을 수 있어 빈 한 줄은 보내지 않는다(쓰지 않으려면 홈으로 나간다).
     completeDiary: async (memberId, diaryId) => {
       const state = get();
-      if (state.saveStatus === 'saving' || !CONTENT_SAVE_SUPPORTED)
-        return false;
-      const saveKey = state.saveKey ?? createRequestKey();
+      const content = state.draft.memo.trim();
+      if (state.saveStatus === 'saving' || !content) return false;
       const session = state.session;
-      set({ saveStatus: 'saving', saveError: '', saveKey });
+      set({ saveStatus: 'saving', saveError: '' });
       try {
-        await diaryApi.saveContent(diaryId, state.draft.memo.trim(), saveKey);
+        await diaryApi.saveContent(diaryId, content);
         if (get().session !== session) return false;
         set(initialRecordState());
         await refreshDiaries(memberId);
         return true;
       } catch (error) {
-        if (get().session === session)
-          set({
-            saveStatus: 'error',
-            saveError: apiErrorMessage(error, '기록을 저장하지 못했어요.'),
-          });
+        if (get().session !== session) return false;
+        // 다른 기기에서 이미 한 줄을 남겼다. 서버의 기록으로 화면을 맞춘다.
+        const written = errorCode(error) === DIARY_CONTENT_ALREADY_WRITTEN;
+        set({
+          saveStatus: 'error',
+          saveError: isUnknownOutcome(error)
+            ? '저장됐는지 확인하지 못했어요. 같은 한 줄로 다시 저장해 주세요.'
+            : apiErrorMessage(error, '기록을 저장하지 못했어요.'),
+        });
+        if (written) await refreshDiaries(memberId);
         return false;
       }
     },
