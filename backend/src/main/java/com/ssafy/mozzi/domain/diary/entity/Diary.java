@@ -22,7 +22,6 @@ import org.hibernate.annotations.SQLRestriction;
 
 import com.ssafy.mozzi.domain.emoticon.entity.Emoticon;
 import com.ssafy.mozzi.domain.icon.entity.MyIcon;
-import com.ssafy.mozzi.domain.image.entity.ImageStatus;
 import com.ssafy.mozzi.global.entity.BaseTimeEntity;
 
 /**
@@ -83,11 +82,6 @@ public class Diary extends BaseTimeEntity {
             inverseJoinColumns = @JoinColumn(name = "my_icon_id"))
     private Set<MyIcon> myIcons = new HashSet<>();
 
-    /** Copy of {@code diary_image.status}; {@code null} until a picture is requested. */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "diary_image_status", length = 12)
-    private ImageStatus diaryImageStatus;
-
     @Column(name = "deleted_at")
     private OffsetDateTime deletedAt;
 
@@ -117,11 +111,6 @@ public class Diary extends BaseTimeEntity {
         this.content = content;
     }
 
-    /** Mirrors the picture's status; change both in the same transaction. */
-    public void showImageStatus(ImageStatus status) {
-        this.diaryImageStatus = status;
-    }
-
     public Long getId() {
         return id;
     }
@@ -148,10 +137,6 @@ public class Diary extends BaseTimeEntity {
 
     public Set<MyIcon> getMyIcons() {
         return myIcons;
-    }
-
-    public ImageStatus getDiaryImageStatus() {
-        return diaryImageStatus;
     }
 
     public OffsetDateTime getDeletedAt() {

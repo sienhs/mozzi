@@ -1,19 +1,18 @@
 package com.ssafy.mozzi.domain.gacha.entity;
 
-import java.io.Serializable;
 import java.time.OffsetDateTime;
-import java.util.Objects;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.DynamicUpdate;
 
 /**
- * A card in a member's collection (ERD {@code member_card}). The primary key is the last line
- * against the same card being added twice.
+ * A card in a member's collection (ERD {@code member_card}). The unique index on
+ * {@code (member_id, card_id)} is the last line against the same card being added twice.
  *
  * <p>Draws and the NEW mark write different columns of the same row, and only draws take the
  * wallet lock. {@link DynamicUpdate} keeps a draw's update to {@code owned_count}, so a draw
@@ -21,16 +20,18 @@ import org.hibernate.annotations.DynamicUpdate;
  */
 @Entity
 @Table(name = "member_card")
-@IdClass(MemberCard.Key.class)
 @DynamicUpdate
 public class MemberCard {
 
     @Id
-    @Column(name = "member_id")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "member_card_id")
+    private Long id;
+
+    @Column(name = "member_id", nullable = false)
     private Long memberId;
 
-    @Id
-    @Column(name = "card_id")
+    @Column(name = "card_id", nullable = false)
     private Long cardId;
 
     /** Times obtained through draws and exchanges, duplicates included. */
@@ -63,6 +64,10 @@ public class MemberCard {
         ownedCount++;
     }
 
+    public Long getId() {
+        return id;
+    }
+
     public Long getMemberId() {
         return memberId;
     }
@@ -85,34 +90,6 @@ public class MemberCard {
 
     public boolean isNew() {
         return seenAt == null;
-    }
-
-    /** Composite primary key. */
-    public static class Key implements Serializable {
-
-        private Long memberId;
-        private Long cardId;
-
-        protected Key() {
-            // JPA
-        }
-
-        public Key(Long memberId, Long cardId) {
-            this.memberId = memberId;
-            this.cardId = cardId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return o instanceof Key other && Objects.equals(memberId, other.memberId)
-                    && Objects.equals(cardId, other.cardId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(memberId, cardId);
-        }
-
     }
 
 }

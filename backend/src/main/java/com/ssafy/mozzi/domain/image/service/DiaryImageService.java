@@ -98,7 +98,6 @@ public class DiaryImageService {
         } else {
             image = diaryImageRepository.save(DiaryImage.request(diaryId, selection));
         }
-        diary.showImageStatus(image.getStatus());
 
         log.info("image pipeline: step=requested diaryId={} failures={}", diaryId, image.getFailureCount());
         eventPublisher.publishEvent(new ImageGenerationRequestedEvent(diaryId));
@@ -131,7 +130,6 @@ public class DiaryImageService {
         } else {
             image = diaryImageRepository.save(DiaryImage.request(diaryId, selection));
         }
-        diary.showImageStatus(image.getStatus());
 
         log.info("image pipeline: step=requested diaryId={} failures={} test=true",
                 diaryId, image.getFailureCount());

@@ -64,7 +64,6 @@ public final class DiaryFixtures {
                 insert into diary_image (diary_id, status, failure_count, what_name, image_url, created_at, updated_at)
                 values (?, ?, ?, '요리', ?, now(), now())
                 """, diaryId, status.name(), failureCount, imageUrl);
-        jdbcTemplate.update("update diary set diary_image_status = ? where diary_id = ?", status.name(), diaryId);
     }
 
 }

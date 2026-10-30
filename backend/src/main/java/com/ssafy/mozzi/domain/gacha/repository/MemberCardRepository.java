@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.ssafy.mozzi.domain.gacha.entity.MemberCard;
 
-public interface MemberCardRepository extends JpaRepository<MemberCard, MemberCard.Key> {
+public interface MemberCardRepository extends JpaRepository<MemberCard, Long> {
 
     List<MemberCard> findByMemberId(Long memberId);
 

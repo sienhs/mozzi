@@ -19,7 +19,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.ssafy.mozzi.domain.diary.entity.Diary;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.diary.repository.DiaryRepository;
 import com.ssafy.mozzi.domain.icon.dto.MyIconCreateRequestDto;
@@ -103,10 +102,9 @@ class DiaryConcurrencyTest {
     void aSecondPictureRequestWaitsAndIsRejected() throws Exception {
         CompletableFuture<Void> second = whileHeld(
                 () -> {
-                    Diary diary = diaryRepository.findForUpdate(diaryId, memberId).orElseThrow();
-                    DiaryImage image = diaryImageRepository.save(DiaryImage.request(
+                    diaryRepository.findForUpdate(diaryId, memberId).orElseThrow();
+                    diaryImageRepository.save(DiaryImage.request(
                             diaryId, new DiaryImage.Selection(null, null, null, null, "요리")));
-                    diary.showImageStatus(image.getStatus());
                 },
                 () -> diaryImageService.request(memberId, diaryId, UUID.randomUUID().toString(),
                         new DiaryImageCreateRequestDto(null, null, null, null, cooking)));
