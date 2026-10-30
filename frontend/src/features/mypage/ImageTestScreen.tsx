@@ -16,11 +16,7 @@ import { emotions } from '@/constants/emotions';
 import { formatDate } from '@/constants/date';
 import { colors } from '@/theme/tokens';
 import { apiErrorMessage } from '@/services/authErrors';
-import {
-  diaryApi,
-  diaryKeys,
-  PROVISIONAL_CHARACTER_ID,
-} from '@/services/diaryApi';
+import { diaryApi, diaryKeys } from '@/services/diaryApi';
 import { queryClient } from '@/services/queryClient';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { createRequestKey } from '@/utils/requestKey';
@@ -216,7 +212,6 @@ function DiaryTest({
       diaryApi.requestImageTest(
         diary.diaryId,
         {
-          characterId: PROVISIONAL_CHARACTER_ID,
           weather,
           timeOfDay,
           whereMyIconId: where,

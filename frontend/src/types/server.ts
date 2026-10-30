@@ -78,7 +78,6 @@ export interface MetaResponse {
 export type TimeOfDay = 'MORNING' | 'LUNCH' | 'EVENING';
 // 그림 요청 본문 (POST /diaries/{id}/image).
 export interface ImageRequestBody {
-  characterId: number;
   weather: ServerWeather;
   whereMyIconId: number | null;
   whoMyIconId: number | null;

@@ -61,9 +61,8 @@ public final class DiaryFixtures {
     /** A picture in the given state, as the worker would leave it. */
     public void picture(Long diaryId, ImageStatus status, int failureCount, String imageUrl) {
         jdbcTemplate.update("""
-                insert into diary_image (diary_id, status, failure_count, character_id, what_name, image_url,
-                                         created_at, updated_at)
-                values (?, ?, ?, 1, '요리', ?, now(), now())
+                insert into diary_image (diary_id, status, failure_count, what_name, image_url, created_at, updated_at)
+                values (?, ?, ?, '요리', ?, now(), now())
                 """, diaryId, status.name(), failureCount, imageUrl);
         jdbcTemplate.update("update diary set diary_image_status = ? where diary_id = ?", status.name(), diaryId);
     }

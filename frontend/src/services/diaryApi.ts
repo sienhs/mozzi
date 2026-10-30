@@ -22,10 +22,6 @@ import { parseReward, type Reward } from './rewardApi';
 export const DIARY_IMAGE_ONLY_TODAY = 'IMAGE_ONLY_TODAY';
 export const DIARY_IMAGE_ALREADY_REQUESTED = 'IMAGE_ALREADY_REQUESTED';
 
-// 그림 요청의 필수값 characterId. 서버는 이 값을 저장만 하고, 그림에는 그 감정에 고른 모찌
-// (PUT /members/me/mozzis)를 그린다. 그래서 고정값을 보낸다.
-export const PROVISIONAL_CHARACTER_ID = 1;
-
 // 그림 뒤에 쓰는 한 줄을 저장할 API가 아직 없다 (일기 수정 API 없음, 백엔드 추가 예정).
 // 생기기 전까지 저장 버튼은 막고, 성공한 것처럼 처리하지 않는다.
 export const CONTENT_SAVE_SUPPORTED = false;

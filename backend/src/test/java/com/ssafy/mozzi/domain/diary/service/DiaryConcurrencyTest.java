@@ -105,11 +105,11 @@ class DiaryConcurrencyTest {
                 () -> {
                     Diary diary = diaryRepository.findForUpdate(diaryId, memberId).orElseThrow();
                     DiaryImage image = diaryImageRepository.save(DiaryImage.request(
-                            diaryId, new DiaryImage.Selection(1L, null, null, null, null, "요리")));
+                            diaryId, new DiaryImage.Selection(null, null, null, null, "요리")));
                     diary.showImageStatus(image.getStatus());
                 },
                 () -> diaryImageService.request(memberId, diaryId, UUID.randomUUID().toString(),
-                        new DiaryImageCreateRequestDto(1L, null, null, null, null, cooking)));
+                        new DiaryImageCreateRequestDto(null, null, null, null, cooking)));
 
         assertRejectedWith(second, ImageErrorCode.IMAGE_ALREADY_REQUESTED);
         assertThat(jdbcTemplate.queryForObject(

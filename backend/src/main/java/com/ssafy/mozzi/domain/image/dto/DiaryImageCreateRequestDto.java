@@ -17,7 +17,6 @@ import com.ssafy.mozzi.domain.image.entity.Weather;
  * @param whoMyIconId   optional
  */
 public record DiaryImageCreateRequestDto(
-        @NotNull(message = "모찌를 골라 주세요.") Long characterId,
         TimeOfDay timeOfDay,
         Weather weather,
         Long whereMyIconId,

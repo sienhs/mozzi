@@ -333,7 +333,7 @@ erDiagram
 | diary_id | bigint | FK | | |
 | status | varchar(12) | | | `PENDING`, `SUCCEEDED`, `FAILED` |
 | failure_count | integer | | | AI 서버가 보낸 실패와 유해성 판정으로 막힌 요청을 센다 (번역·큐 전송 실패는 제외). 기본 0. 3이 되면 더 요청할 수 없다 |
-| character_id | bigint | | | 고른 모찌. FK는 캐릭터 테이블이 생기면 건다 |
+| mozzi_card_id | bigint | FK | O | 그림에 들어갈 모찌. 요청할 때 그 일기 감정에 고른 내 모찌(`my_mozzi_emoticon`). 없으면 `null`이고 기본 캐릭터로 그린다 |
 | time_of_day | varchar(10) | | O | `MORNING`, `LUNCH`, `EVENING` |
 | weather | varchar(10) | | | `NONE`(입력되지 않음), `SUNNY`, `CLOUDY`, `RAINY`, `SNOWY`. 기본 `NONE` |
 | where_name | varchar(10) | | O | 고른 `WHERE` 아이콘 이름 |

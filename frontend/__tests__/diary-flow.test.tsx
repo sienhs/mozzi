@@ -111,7 +111,6 @@ function seedToday(
       status: image,
       failures: image === 'FAILED' ? 1 : 0,
       body: {
-        characterId: 1,
         weather: 'NONE',
         whereMyIconId: place.myIconId,
         whoMyIconId: null,

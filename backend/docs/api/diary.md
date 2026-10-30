@@ -9,7 +9,7 @@
         │
 일기 쓰기: 이모티콘 1개 + 한 줄 일기 + 내 아이콘들 (무엇을 1개 이상)
         │
-그림 만들기: 캐릭터 + 시간대 + 날씨 + 카테고리별 아이콘 1개씩 → 비동기 생성
+그림 만들기: 시간대 + 날씨 + 카테고리별 아이콘 1개씩 → 비동기 생성
         │
 캘린더(한 달 감정) · 하루 일기 · 일기 목록으로 조회
 ```
@@ -343,7 +343,6 @@ Request
 
 ```json
 {
-  "characterId": 7,
   "timeOfDay": "EVENING",
   "weather": "RAINY",
   "whereMyIconId": 15,
@@ -354,7 +353,6 @@ Request
 
 | 필드 | 필수 | 규칙 |
 |---|---|---|
-| `characterId` | O | 그림에 들어갈 모찌 |
 | `timeOfDay` | | `MORNING` 아침 · `LUNCH` 점심 · `EVENING` 저녁 |
 | `weather` | | `NONE` 입력되지 않음 · `SUNNY` 맑음 · `CLOUDY` 흐림 · `RAINY` 비 · `SNOWY` 눈. 보내지 않으면 `NONE` |
 | `whereMyIconId` | | 이 일기에 붙인 `WHERE` 아이콘 중 하나 |
@@ -381,7 +379,7 @@ Response `202`
 
 | HTTP | code | 처리 |
 |---|---|---|
-| 400 | `INVALID_INPUT` | `characterId`·`whatMyIconId` 없음, 이 일기에 없는 아이콘, 카테고리가 맞지 않는 아이콘 |
+| 400 | `INVALID_INPUT` | `whatMyIconId` 없음, 모르는 필드, 이 일기에 없는 아이콘, 카테고리가 맞지 않는 아이콘 |
 | 400 | `IMAGE_ONLY_TODAY` | 오늘 일기가 아님 |
 | 404 | `NOT_FOUND` | 없거나 다른 회원의 일기 |
 | 409 | `IMAGE_ALREADY_REQUESTED` | 생성 중이거나 이미 완성됨 |
@@ -390,7 +388,7 @@ Response `202`
 
 같은 `Idempotency-Key`로 재전송하면 첫 응답(`202`, `PENDING`)을 그대로 돌려준다. 그 사이 그림이 끝났어도 `PENDING`이니 상태는 푸시나 `GET /diaries/daily`로 확인한다. 실패 후 다시 그리기는 새 요청이므로 **새 키**를 쓴다. 같은 키를 쓰면 첫 응답만 돌아오고 다시 그리지 않는다. 키는 일기마다 따로 본다.
 
-> 예정: 캐릭터 테이블과 보유 확인 (뽑기로 얻은 캐릭터만 가능, 기본 캐릭터 1개 지급). 그 전까지 `characterId`는 저장만 하고, AI 서버에는 설정값의 기본 캐릭터 이미지·프롬프트를 보낸다.
+> 그림에 들어갈 모찌는 요청으로 받지 않는다. 요청할 때 그 일기 감정에 고른 내 모찌(`PUT /members/me/mozzis/{emotion}`)를 서버가 찾아 저장하고, 고른 모찌가 없으면 기본 캐릭터로 그린다. 나중에 고른 모찌를 바꿔도 이미 요청한 그림은 바뀌지 않는다.
 
 ### `POST /diaries/{diaryId}/image/test` — [테스트·임시] 제한 없이 그림 만들기
 
