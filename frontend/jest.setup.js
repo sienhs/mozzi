@@ -73,6 +73,38 @@ jest.mock('expo-video', () => {
   };
 });
 
+// expo-notifications has no native module in Jest. Permissions and the FCM token are plain mocks a
+// test can override; listeners are recorded so a test can deliver a notification.
+jest.mock('expo-notifications', () => {
+  const listeners = { token: new Set(), received: new Set() };
+  const subscribe = set => listener => {
+    set.add(listener);
+    return { remove: () => set.delete(listener) };
+  };
+  return {
+    __listeners: listeners,
+    AndroidImportance: { HIGH: 4 },
+    setNotificationHandler: jest.fn(),
+    setNotificationChannelAsync: jest.fn(async () => null),
+    getPermissionsAsync: jest.fn(async () => ({
+      granted: true,
+      canAskAgain: true,
+    })),
+    requestPermissionsAsync: jest.fn(async () => ({
+      granted: true,
+      canAskAgain: true,
+    })),
+    getDevicePushTokenAsync: jest.fn(async () => ({
+      type: 'android',
+      data: 'fcm-token-1',
+    })),
+    addPushTokenListener: jest.fn(subscribe(listeners.token)),
+    addNotificationReceivedListener: jest.fn(subscribe(listeners.received)),
+    useLastNotificationResponse: jest.fn(() => null),
+    clearLastNotificationResponseAsync: jest.fn(async () => undefined),
+  };
+});
+
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },

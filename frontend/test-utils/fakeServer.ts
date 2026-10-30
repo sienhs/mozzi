@@ -87,6 +87,8 @@ export function createFakeServer(today: string) {
     >(),
     calls: [] as Call[],
     withdrawn: false,
+    // PUT /members/me/push-tokens로 등록한 기기 (deviceId → 토큰).
+    pushTokens: new Map<string, { token: string; platform: string }>(),
     // 뽑기권 보상. 기본은 이미 받은 상태라 다른 테스트에 알림이 끼어들지 않는다.
     tickets: 20,
     rewardedDates: new Set<string>(),
@@ -429,6 +431,25 @@ export function createFakeServer(today: string) {
       });
       return ok(config, { diaryId, imageStatus: 'PENDING' }, 202);
     }
+    // 한 줄 일기는 비어 있을 때 한 번만. 같은 내용 재전송은 200, 다른 내용은 409. 날짜 제한은 없다.
+    const contentPath = url.match(/^\/diaries\/(\d+)\/content$/);
+    if (method === 'PATCH' && contentPath) {
+      const diaryId = Number(contentPath[1]);
+      const diary = state.diaries.find(item => item.diaryId === diaryId);
+      if (!diary) fail(config, 404, 'NOT_FOUND');
+      const content =
+        typeof call.body?.content === 'string' ? call.body.content.trim() : '';
+      if (!content || content.length > 50)
+        fail(config, 400, 'INVALID_INPUT', {
+          message: '50자 이하로 입력해 주세요.',
+        });
+      if (diary.content !== null && diary.content !== content)
+        fail(config, 409, 'DIARY_CONTENT_ALREADY_WRITTEN', {
+          message: '이미 한 줄 일기를 남겼어요.',
+        });
+      diary.content = content;
+      return ok(config, { diaryId, content });
+    }
     if (method === 'GET' && url === '/home') return ok(config, home());
     if (method === 'POST' && url === '/rewards/daily-login') {
       const key = `LOGIN:${state.today}`;
@@ -469,6 +490,22 @@ export function createFakeServer(today: string) {
       });
     if (method === 'DELETE' && url === '/members/me') {
       state.withdrawn = true;
+      return ok(config, '', 204);
+    }
+    // 같은 deviceId면 덮어쓴다.
+    if (method === 'PUT' && url === '/members/me/push-tokens') {
+      const { token, platform, deviceId } = call.body ?? {};
+      if (
+        typeof token !== 'string' ||
+        !token ||
+        token.length > 512 ||
+        !['ANDROID', 'IOS'].includes(platform) ||
+        typeof deviceId !== 'string' ||
+        !deviceId ||
+        deviceId.length > 64
+      )
+        fail(config, 400, 'INVALID_INPUT');
+      state.pushTokens.set(deviceId, { token, platform });
       return ok(config, '', 204);
     }
     if (method === 'GET' && url === '/emotion-search/suggestions')

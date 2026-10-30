@@ -221,12 +221,24 @@ test('tags create the diary, the picture is polled until done, and the one-line 
   expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
     uri: 'https://cdn.example.test/diary/501.webp',
   });
-  expect(
-    screen.getByText(
-      '한 줄 저장은 서버에서 준비 중이에요. 그림은 이미 저장됐어요.',
-    ),
-  ).toBeOnTheScreen();
+  // 빈 한 줄은 서버가 받지 않아 저장할 수 없다. 쓰지 않을 때는 홈으로 나간다.
   expect(screen.getByRole('button', { name: '기록 저장하기' })).toBeDisabled();
+  const memo = screen.getByLabelText('오늘의 한 줄 (선택)');
+  expect(memo.props.maxLength).toBe(50);
+  await fireEvent.changeText(memo, '  퇴근하고 오므라이스를 만들어 먹었어 ');
+  await fireEvent.press(screen.getByRole('button', { name: '기록 저장하기' }));
+  await advance(0);
+  // PATCH /diaries/{id}/content로 한 줄만 넣고, 일기를 다시 만들지 않는다.
+  expect(server.callsTo('PATCH', '/diaries/501/content')).toEqual([
+    expect.objectContaining({
+      body: { content: '퇴근하고 오므라이스를 만들어 먹었어' },
+    }),
+  ]);
+  expect(server.callsTo('POST', '/diaries')).toHaveLength(1);
+  expect(await screen.findByText('오늘도 한 장 남겼어요')).toBeOnTheScreen();
+  expect(
+    screen.getByText('퇴근하고 오므라이스를 만들어 먹었어'),
+  ).toBeOnTheScreen();
 }, 30000);
 
 test('after the diary is created, back goes home and the tag screens cannot be reopened', async () => {

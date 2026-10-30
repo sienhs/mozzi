@@ -27,7 +27,6 @@ import {
   useAppStore,
 } from '@/stores/useAppStore';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { CONTENT_SAVE_SUPPORTED } from '@/services/diaryApi';
 import {
   ImageRequestButton,
   ImageRequestStatus,
@@ -185,7 +184,8 @@ export function GenerationScreen() {
                 : '기록 저장하기'
           }
           loading={saving}
-          disabled={!CONTENT_SAVE_SUPPORTED}
+          // 빈 한 줄은 서버가 받지 않는다. 쓰지 않을 때는 '홈으로'로 나가고 오늘 안에 다시 쓸 수 있다.
+          disabled={!memo.trim()}
           onPress={() => {
             const memberId = useAuthStore.getState().member?.memberId;
             if (memberId !== undefined && entry.serverId)
@@ -236,14 +236,9 @@ export function GenerationScreen() {
             placeholder="그림을 보고 떠오른 한 줄을 남겨 보세요"
             maxLength={MEMO_MAX_LENGTH}
             value={memo}
-            editable={CONTENT_SAVE_SUPPORTED && !saving}
+            editable={!saving}
             onChangeText={useAppStore.getState().setMemo}
           />
-          {!CONTENT_SAVE_SUPPORTED && (
-            <AppText variant="caption">
-              한 줄 저장은 서버에서 준비 중이에요. 그림은 이미 저장됐어요.
-            </AppText>
-          )}
         </>
       )}
       {phase !== 'completed' && (
