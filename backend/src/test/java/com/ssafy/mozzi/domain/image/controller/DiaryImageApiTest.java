@@ -213,9 +213,6 @@ class DiaryImageApiTest {
                 .containsEntry("time_of_day", "LUNCH")
                 .containsEntry("weather", "SUNNY")
                 .containsEntry("what_name", "독서");
-        assertThat(jdbcTemplate.queryForObject(
-                "select diary_image_status from diary where diary_id = ?", String.class, diaryId))
-                .isEqualTo("PENDING");
     }
 
     /** Pictures are made on the diary's own day only, retries included. */

@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17");
     }
 
     @Test
@@ -223,6 +223,15 @@ class SchemaMigrationTest {
         assertThat(tiers).containsExactly(
                 "COMMON:45000:1:-", "RARE:30000:2:-", "EPIC:17000:5:-", "LEGENDARY:7000:15:200", "MYTHIC:1000:40:400",
                 "NONE:0:0:-");
+    }
+
+    /** member_card has its own key; a member still holds one row per card (V17). */
+    @Test
+    void memberCardIsUniquePerMemberAndCard() {
+        String definition = jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'uq_member_card_member_card'", String.class);
+
+        assertThat(definition).contains("UNIQUE").contains("(member_id, card_id)");
     }
 
     /** A reward is paid once per key; rows without a key (draws, exchanges) are not checked. */

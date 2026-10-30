@@ -106,7 +106,6 @@ public class DiaryImageResultService {
             log.info("image pipeline: step=ignored outcome={} diaryId={} reason=not-pending", outcome, diaryId);
             return;
         }
-        diary.showImageStatus(image.getStatus());
         log.info("image pipeline: step={} diaryId={} failures={}", outcome, diaryId, image.getFailureCount());
         String imageUrl = image.getStatus() == ImageStatus.SUCCEEDED ? image.getImageUrl() : null;
         eventPublisher.publishEvent(new ImageFinishedEvent(diaryId, image.getStatus(), imageUrl, reason));

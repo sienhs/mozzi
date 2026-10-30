@@ -75,11 +75,10 @@ class DiaryImageResultServiceTest {
     }
 
     @Test
-    void aSuccessStoresTheUrlOnBothRows() {
+    void aSuccessStoresTheUrl() {
         resultService.succeed(diaryId, me, "https://cdn.test/diary/done.webp");
 
         assertThat(picture()).containsEntry("status", "SUCCEEDED").containsEntry("image_url", "https://cdn.test/diary/done.webp");
-        assertThat(diaryStatus()).isEqualTo("SUCCEEDED");
     }
 
     /** SQS may deliver the same failure twice; it counts once. */
@@ -89,7 +88,6 @@ class DiaryImageResultServiceTest {
         resultService.fail(diaryId, me);
 
         assertThat(picture()).containsEntry("status", "FAILED").containsEntry("failure_count", 1);
-        assertThat(diaryStatus()).isEqualTo("FAILED");
     }
 
     @Test
@@ -127,7 +125,6 @@ class DiaryImageResultServiceTest {
         resultService.abandon(diaryId);
 
         assertThat(picture()).containsEntry("status", "FAILED").containsEntry("failure_count", 0);
-        assertThat(diaryStatus()).isEqualTo("FAILED");
     }
 
     /** Unfit picks use up a try: the same picks would be judged the same way again. */
@@ -136,7 +133,6 @@ class DiaryImageResultServiceTest {
         resultService.reject(diaryId);
 
         assertThat(picture()).containsEntry("status", "FAILED").containsEntry("failure_count", 1);
-        assertThat(diaryStatus()).isEqualTo("FAILED");
     }
 
     /**
@@ -244,11 +240,6 @@ class DiaryImageResultServiceTest {
 
     private Map<String, Object> picture() {
         return jdbcTemplate.queryForMap("select * from diary_image where diary_id = ?", diaryId);
-    }
-
-    private String diaryStatus() {
-        return jdbcTemplate.queryForObject(
-                "select diary_image_status from diary where diary_id = ?", String.class, diaryId);
     }
 
     private void device(String token, boolean active) {

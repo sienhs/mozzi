@@ -121,13 +121,13 @@ class DiaryEmbeddingPipelineTest {
         verify(embeddingClient, never()).embedAll(anyList());
     }
 
-    /** A picture's status changes the diary, not the embedded text. */
+    /** A change to the diary outside the embedded text only marks the row current. */
     @Test
     void changeOutsideTheTextOnlyMarksTheRowCurrent() {
         Diary diary = insertDiary("엄마랑 산책");
         diaryEmbeddingService.refresh(diary.getId());
-        jdbcTemplate.update("update diary set diary_image_status = 'PENDING', updated_at = updated_at + interval '1 minute' "
-                + "where diary_id = ?", diary.getId());
+        jdbcTemplate.update(
+                "update diary set updated_at = updated_at + interval '1 minute' where diary_id = ?", diary.getId());
 
         diaryEmbeddingService.refresh(diary.getId());
 

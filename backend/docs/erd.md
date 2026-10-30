@@ -35,7 +35,7 @@
 | | `diary_embedding` | 일기 의미 검색용 임베딩 (1:1, 한 줄 일기가 있는 일기만) | V6 |
 | 뽑기 | `gacha_tier` | 등급별 가중치·별조각 규칙 (6행, 기본 모찌 `NONE` 포함) | V11, V15 |
 | | `mozzi_card` | 카드 마스터 | V11 |
-| | `member_card` | 회원 도감 | V11 |
+| | `member_card` | 회원 도감 | V11, V17 |
 | | `gacha_draw` | 뽑기 1회 (1~10장) | V11 |
 | | `gacha_draw_result` | 뽑기 결과 카드 | V11 |
 | | `member_wallet` | 뽑기권·별조각 잔액 (1:1) | V11 |
@@ -135,8 +135,9 @@ erDiagram
         varchar tier
     }
     member_card {
-        bigint member_id PK, FK
-        bigint card_id PK, FK
+        bigint member_card_id PK
+        bigint member_id FK
+        bigint card_id FK
     }
     gacha_draw {
         bigint draw_id PK
@@ -304,7 +305,6 @@ erDiagram
 | emoticon_id | bigint | FK | | |
 | emotion | varchar(10) | | | `emoticon.emotion` 복사본. 캘린더·감정 필터에서 조인 없이 쓴다 |
 | content | varchar(50) | | O | 한 줄 일기 |
-| diary_image_status | varchar(12) | | O | `diary_image.status` 복사본. 그림을 요청하기 전에는 `null` |
 | created_at | timestamptz | | | |
 | updated_at | timestamptz | | | |
 | deleted_at | timestamptz | | O | 소프트 삭제. 지금은 삭제 API가 없다 |
@@ -312,6 +312,7 @@ erDiagram
 - `uq_diary_member_record_date (member_id, record_date) where deleted_at is null` — 하루 1기록. 동시에 두 번 저장하면 두 번째를 DB가 거절한다. 최신순 조회에도 이 인덱스를 쓴다
 - `ix_diary_member_emotion_record_date (member_id, emotion, record_date)` — 감정 필터·감정 검색
 - V7 변경: `memo varchar(100)` → `content varchar(50)`, `emoticon_id` 추가, `title`·`current_image_id` 삭제, `image_status` → `diary_image_status` (NULL 허용)
+- V16 변경: `diary_image_status` 삭제. `diary_image.status`를 복사만 하고 읽는 곳이 없었다
 
 ### diary_icon
 
@@ -346,8 +347,7 @@ erDiagram
 - `uq_diary_image_diary (diary_id)` — 일기당 1행
 - 타임아웃이 없다. `PENDING`인 동안은 다시 요청할 수 없으므로, AI 서버의 결과는 일기 ID만으로 지금 요청에 반영된다
 - 아이콘은 ID가 아니라 이름을 복사해 둔다. 아이콘을 지워도 그림이 무엇으로 만들어졌는지 남는다
-- 요청 처리: `diary` 행을 잠그고(`select … for update`) `diary_image_status`를 확인한 뒤 저장한다. 같은 일기에 동시에 온 두 번째 요청은 첫 요청이 커밋될 때까지 기다렸다가 `PENDING`을 보고 거절된다
-- `diary_image`와 `diary.diary_image_status`는 같은 트랜잭션에서 함께 바꾼다
+- 요청 처리: `diary` 행을 잠그고(`select … for update`) 이 표의 `status`를 확인한 뒤 저장한다. 같은 일기에 동시에 온 두 번째 요청은 첫 요청이 커밋될 때까지 기다렸다가 `PENDING`을 보고 거절된다
 - V7 변경: `attempt_no`, `stage`, `trigger_type`, `prompt`, `model`, `failure_code`, `requested_at`, `started_at`, `completed_at` 삭제, `image_key` → `image_url`
 - V8 변경: `weather` 추가 (기본 `NONE`)
 - 유해성 판정으로 막힌 이유는 저장하지 않는다. 앱에는 결과 푸시의 `code`로만 알린다
@@ -403,8 +403,7 @@ erDiagram
 - 임베딩 텍스트는 날짜·감정·아이콘 이름·한 줄 일기를 합친 한 줄이다 (`2026-10-12 평온 / 공원, 엄마, 산책 / {content}`)
 - 한 줄 일기(`content`)가 있는 일기만 만든다. 기간·감정은 SQL이 거르므로 글이 없는 일기는 의미 검색으로 찾을 게 없다
 - 일기 작성이 커밋된 뒤 비동기로 만든다(`DiaryContentChangedEvent`). 실패해도 일기 저장은 성공이다. 일기 수정·삭제 API는 없다
-- 5분마다 스윕이 놓친 행(갱신 실패, 기존 일기, 다른 모델, 그림 결과로 바뀐 일기)을 100건씩 채운다
-- 그림 결과가 저장되면 `diary.diary_image_status`가 바뀌어 `diary.updated_at`이 올라가지만 이벤트는 없다. 스윕이 다시 집지만 텍스트가 같아 GMS는 부르지 않는다
+- 5분마다 스윕이 놓친 행(갱신 실패, 기존 일기, 다른 모델)을 100건씩 채운다
 - 저장은 `on conflict` upsert이고 `updated_at`이 더 새로운 쪽만 이긴다. 갱신이 연달아 와도 마지막 내용이 남는다
 - 저장 직전에 원본 일기를 `for share`로 잠그고 삭제·버전을 다시 확인한다. GMS 응답을 기다리는 사이 지워진 일기의 벡터가 되살아나지 않는다
 - 텍스트가 같으면(`content_hash`) GMS를 부르지 않고 `updated_at`만 올린다
@@ -453,14 +452,16 @@ erDiagram
 
 | 컬럼 | 타입 | 키 | NULL | 설명 |
 |---|---|---|---|---|
-| member_id | bigint | PK, FK | | |
-| card_id | bigint | PK, FK | | |
+| member_card_id | bigint | PK | | |
+| member_id | bigint | FK | | |
+| card_id | bigint | FK | | |
 | owned_count | integer | | | 뽑기·교환으로 얻은 횟수 (중복 포함) |
 | first_acquired_at | timestamptz | | | |
 | seen_at | timestamptz | | O | `null`이면 도감에 NEW 표시 |
 
 - `ix_member_card_member (member_id)` — 보유 목록, 도감
-- PK가 같은 카드를 두 번 insert하는 것을 막는다 (동시성 최종 방어)
+- `uq_member_card_member_card (member_id, card_id)` — 같은 카드를 두 번 insert하는 것을 막는다 (동시성 최종 방어). 기본 모찌 지급의 `on conflict`도 이 인덱스를 쓴다
+- V17 변경: 복합 PK `(member_id, card_id)` → 대리키 `member_card_id`, 두 컬럼은 유니크 인덱스로
 
 ### gacha_draw
 
