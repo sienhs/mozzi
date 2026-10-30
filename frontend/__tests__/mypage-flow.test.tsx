@@ -9,7 +9,6 @@ import { render } from '@testing-library/react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { EmotionPicker } from '@/components/emotion/Emotion';
 import { CalendarDay } from '@/features/calendar/CalendarScreen';
-import { gachaArt } from '@/constants/gacha';
 import { emotionOrder, emotions } from '@/constants/emotions';
 import { emptyDraft, useAppStore } from '@/stores/useAppStore';
 import { useGachaStore } from '@/stores/useGachaStore';
@@ -126,9 +125,11 @@ test('mypage tab shows server picks; a refused equip keeps the pick and a retry 
   await advance(3000);
   expect(screen.queryByText('장착 완료!')).toBeNull();
   await fireEvent.press(screen.getByRole('tab', { name: '뽑기' }));
-  expect(screen.getByLabelText('유리병 속 기본 모찌').props.source).toBe(
-    gachaArt.mochi,
-  );
+  expect(app.getPathname()).toBe('/gacha');
+  expect(screen.getByRole('tab', { name: '뽑기' })).toBeSelected();
+  expect(screen.getByRole('header', { name: '모찌 뽑기' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '확률 보기' })).toBeOnTheScreen();
+  expect(server.callsTo('POST', '/gacha/draws')).toHaveLength(0);
 }, 30000);
 
 test('settings gear opens settings while profile card is static, and back returns to mypage', async () => {

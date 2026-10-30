@@ -6,20 +6,20 @@ import {
   Image,
   Pressable,
   ScrollView,
+  StyleSheet,
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { ChevronRight, Sparkles, Star, Ticket } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
-import { Sheet } from '@/components/ui/Sheet';
-import { BalanceChip, GachaChip, TierBadge } from '@/components/gacha/GachaUI';
 import { Loading, StatePanel } from '@/components/ui/Feedback';
 import { gachaArt } from '@/constants/gacha';
-import { colors, spacing } from '@/theme/tokens';
 import { useGachaStore } from '@/stores/useGachaStore';
 import type { MochiCard } from '@/types/gacha';
-import { useGachaRates, useGachaStatus } from './useGachaQueries';
+import { useGachaStatus } from './useGachaQueries';
+import { GachaOddsSheet } from './GachaOddsSheet';
 
 const openCollection = () => router.push('/gacha/collection');
 const startPull = (count: number) =>
@@ -42,219 +42,309 @@ export function GachaHomeScreen() {
     }, [pending]),
   );
   return (
-    <SafeAreaView
-      edges={['top', 'left', 'right']}
-      style={{ flex: 1, backgroundColor: colors.bg }}
-    >
-      <View
-        style={{ flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center' }}
-      >
-        <View
-          style={{
-            minHeight: 56,
-            paddingHorizontal: spacing.page,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <AppText
-            variant="heading"
-            accessibilityRole="header"
-            style={{ flex: 1 }}
-          >
-            모찌 뽑기
-          </AppText>
-          <BalanceChip label={`뽑기권 ${wallet ? wallet.tickets : '-'}`} />
-          <View ref={target} collapsable={false}>
-            <BalanceChip
-              label={`별조각 ${wallet ? wallet.shards : '-'}`}
-              onPress={() => router.push('/gacha/exchange')}
-            />
-          </View>
-        </View>
+    <View style={roomStyles.room}>
+      <Image
+        accessible={false}
+        source={require('../../../assets/gacha/Gacha_back.png')}
+        resizeMode="cover"
+        style={roomStyles.background}
+      />
+      <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: spacing.page,
-            paddingTop: spacing.md,
-            paddingBottom: spacing.page,
-            gap: 12,
-          }}
+          contentContainerStyle={roomStyles.content}
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <AppText variant="small" style={{ color: colors.primary }}>
-              {status.data
-                ? `도감 ${status.data.collection.owned} / ${status.data.collection.total}`
-                : ' '}
-            </AppText>
+          <View style={roomStyles.information}>
+            <View style={roomStyles.header}>
+              <AppText
+                variant="heading"
+                accessibilityRole="header"
+                style={roomStyles.title}
+              >
+                모찌 뽑기
+              </AppText>
+              <View style={roomStyles.balances}>
+                <RoomBalance
+                  kind="ticket"
+                  label={`뽑기권 ${wallet ? wallet.tickets : '-'}`}
+                />
+                <View ref={target} collapsable={false}>
+                  <RoomBalance
+                    kind="star"
+                    label={`별조각 ${wallet ? wallet.shards : '-'}`}
+                    onPress={() => router.push('/gacha/exchange')}
+                  />
+                </View>
+              </View>
+            </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="모찌 도감"
               onPress={openCollection}
-              hitSlop={12}
+              style={roomStyles.collection}
             >
-              <AppText variant="small">모찌 도감 ›</AppText>
+              <AppText variant="caption" style={roomStyles.progress}>
+                {status.data
+                  ? `도감 ${status.data.collection.owned} / ${status.data.collection.total}`
+                  : '도감 — / —'}
+              </AppText>
+              <View style={roomStyles.collectionLink}>
+                <AppText variant="caption" style={roomStyles.ink}>
+                  모찌 도감
+                </AppText>
+                <ChevronRight size={16} color={roomInk} />
+              </View>
             </Pressable>
           </View>
-          <NightRoom
-            origin={origin}
-            flightStyle={style}
-            duplicate={pending?.card}
-          />
-          {status.isError && !wallet && (
-            <StatePanel
-              compact
-              title="뽑기권을 확인하지 못했어요"
-              description="연결 상태를 확인하고 다시 시도해 주세요."
-              retry={() => void status.refetch()}
-              retryLabel="다시 불러오기"
-            />
-          )}
-          <GachaChip
-            label="확률 보기"
-            width={150}
-            onPress={() => setOddsOpen(true)}
-          />
-        </ScrollView>
-        <View
-          style={{
-            paddingHorizontal: spacing.page,
-            paddingTop: spacing.md,
-            paddingBottom: spacing.lg,
-            gap: spacing.md,
-          }}
-        >
-          {!wallet ? (
-            status.isPending && <Loading label="뽑기권을 확인하고 있어요" />
-          ) : tickets === 0 ? (
-            <Button
-              label="뽑기권 없음"
-              disabled
-              onPress={() => undefined}
-              style={{ minHeight: 54 }}
-            />
-          ) : (
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Button
-                label="1장 · 뽑기권 1"
-                variant={multi > 1 ? 'secondary' : 'primary'}
-                onPress={() => startPull(1)}
-                style={{ flex: 1, minHeight: 54 }}
+          <View style={roomStyles.machineSpace} pointerEvents="none">
+            {pending && (
+              <DuplicateFlight
+                origin={origin}
+                flightStyle={style}
+                duplicate={pending.card}
               />
-              {multi > 1 && (
+            )}
+          </View>
+          <View style={roomStyles.controls}>
+            {status.isError && !wallet && (
+              <StatePanel
+                compact
+                title="뽑기권을 확인하지 못했어요"
+                description="연결 상태를 확인하고 다시 시도해 주세요."
+                retry={() => void status.refetch()}
+                retryLabel="다시 불러오기"
+              />
+            )}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="확률 보기"
+              onPress={() => setOddsOpen(true)}
+              style={roomStyles.odds}
+            >
+              <Sparkles size={15} color={roomInk} />
+              <AppText variant="caption" style={roomStyles.ink}>
+                확률 보기
+              </AppText>
+            </Pressable>
+            {!wallet ? (
+              status.isPending && (
+                <View style={roomStyles.loading}>
+                  <Loading label="뽑기권을 확인하고 있어요" />
+                </View>
+              )
+            ) : tickets === 0 ? (
+              <Button
+                label="뽑기권 없음"
+                disabled
+                onPress={() => undefined}
+                style={[roomStyles.drawButton, roomStyles.disabled]}
+                labelStyle={roomStyles.disabledLabel}
+              />
+            ) : (
+              <View style={roomStyles.draws}>
                 <Button
-                  label={`${multi}장 · 뽑기권 ${multi}`}
-                  onPress={() => startPull(multi)}
-                  style={{ flex: 1, minHeight: 54 }}
+                  label="1장 · 뽑기권 1"
+                  onPress={() => startPull(1)}
+                  style={[
+                    roomStyles.drawButton,
+                    { flex: 1 },
+                    multi > 1 && roomStyles.secondaryDraw,
+                  ]}
+                  labelStyle={roomStyles.ink}
                 />
-              )}
-            </View>
-          )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="모찌 도감 보기"
-            onPress={openCollection}
-            style={{
-              minHeight: 32,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <AppText variant="small">모찌 도감 {' '}›</AppText>
-          </Pressable>
-        </View>
-      </View>
-      <OddsSheet visible={oddsOpen} onClose={() => setOddsOpen(false)} />
-    </SafeAreaView>
+                {multi > 1 && (
+                  <Button
+                    label={`${multi}장 · 뽑기권 ${multi}`}
+                    onPress={() => startPull(multi)}
+                    style={[roomStyles.drawButton, { flex: 1 }]}
+                    labelStyle={roomStyles.ink}
+                  />
+                )}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+      <GachaOddsSheet visible={oddsOpen} onClose={() => setOddsOpen(false)} />
+    </View>
   );
 }
 
-function NightRoom({
+const roomInk = '#754A52';
+const roomStyles = StyleSheet.create({
+  room: { flex: 1, backgroundColor: '#F9DCE4' },
+  background: { position: 'absolute', width: '100%', height: '100%' },
+  // The tab bar owns the bottom safe area. Only unusually short screens or
+  // enlarged text scroll; on regular phones the controls rest above the tabs.
+  content: {
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  information: { gap: 10 },
+  header: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 10,
+    rowGap: 8,
+  },
+  title: { flexGrow: 1, color: roomInk },
+  balances: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  balance: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    minHeight: 44,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 249, 245, 0.9)',
+    backgroundColor: 'rgba(255, 249, 245, 0.88)',
+  },
+  ink: { color: roomInk },
+  collection: {
+    minHeight: 44,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 249, 245, 0.85)',
+    backgroundColor: 'rgba(255, 249, 245, 0.82)',
+  },
+  progress: { flexGrow: 1, color: roomInk },
+  collectionLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  machineSpace: {
+    flex: 1,
+    minHeight: 240,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  controls: { gap: 12 },
+  odds: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 249, 245, 0.9)',
+    backgroundColor: 'rgba(255, 249, 245, 0.9)',
+  },
+  draws: { flexDirection: 'row', gap: 10 },
+  drawButton: {
+    minHeight: 56,
+    paddingHorizontal: 10,
+    borderRadius: 22,
+    borderColor: '#E4A7B3',
+    backgroundColor: 'rgba(255, 249, 245, 0.96)',
+    boxShadow: '0 4px 12px rgba(117, 74, 82, 0.16)',
+  },
+  secondaryDraw: { backgroundColor: '#F9DCE4' },
+  disabled: {
+    backgroundColor: 'rgba(248, 230, 233, 0.96)',
+    borderColor: '#DDBDC5',
+    boxShadow: 'none',
+  },
+  disabledLabel: { color: '#84616A' },
+  loading: { borderRadius: 22, backgroundColor: 'rgba(255, 249, 245, 0.94)' },
+});
+
+function RoomBalance({
+  kind,
+  label,
+  onPress,
+}: {
+  kind: 'ticket' | 'star';
+  label: string;
+  onPress?: () => void;
+}) {
+  const content = (
+    <>
+      {kind === 'ticket' ? (
+        <Ticket size={15} color={roomInk} />
+      ) : (
+        <Star size={15} color={roomInk} fill="#EFCB84" />
+      )}
+      <AppText variant="caption" style={roomStyles.ink}>
+        {label}
+      </AppText>
+    </>
+  );
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={roomStyles.balance}
+    >
+      {content}
+    </Pressable>
+  ) : (
+    <View style={roomStyles.balance}>{content}</View>
+  );
+}
+
+// Only the returned duplicate and its shards are overlaid during the existing
+// reward flight. The machine and all idle characters are already in the room art.
+function DuplicateFlight({
   origin,
   flightStyle,
   duplicate,
 }: {
   origin: ReturnType<typeof useShardFlight>['origin'];
   flightStyle: ReturnType<typeof useShardFlight>['style'];
-  duplicate?: MochiCard;
+  duplicate: MochiCard;
 }) {
   return (
     <View
-      accessibilityLabel="유리병 속에서 빛을 모으는 모찌"
-      style={{
-        width: '100%',
-        aspectRatio: 350 / 324,
-        borderRadius: 24,
-        overflow: 'hidden',
-      }}
+      ref={origin}
+      collapsable={false}
+      style={{ width: 96, aspectRatio: 1 }}
     >
-      <Image
+      <Animated.Image
         accessible={false}
-        source={gachaArt.room}
-        style={{ width: '100%', height: '100%' }}
+        source={{ uri: duplicate.imageUrl }}
+        resizeMode="contain"
+        style={[{ width: '100%', height: '100%' }, flightStyle(0)]}
       />
-      <View
-        style={{
-          position: 'absolute',
-          left: '30.9%',
-          top: '42%',
-          width: '38.3%',
-          aspectRatio: 1,
-          opacity: duplicate ? 0 : 1,
-        }}
-      >
-        <Image
-          accessibilityLabel="유리병 속 기본 모찌"
-          source={gachaArt.mochi}
-          resizeMode="contain"
-          style={{ width: '100%', height: '100%' }}
+      {[14, 12, 10].map((size, index) => (
+        <Animated.Image
+          key={size}
+          accessible={false}
+          source={gachaArt.star}
+          style={[
+            {
+              position: 'absolute',
+              left: `${19 + index * 19}%`,
+              top: `${19 - index * 10}%`,
+              width: size,
+              height: size,
+            },
+            flightStyle(index + 1),
+          ]}
         />
-      </View>
-      {duplicate && (
-        <View
-          ref={origin}
-          collapsable={false}
-          style={{
-            position: 'absolute',
-            left: '36.3%',
-            top: '52.5%',
-            width: '27.4%',
-            aspectRatio: 1,
-          }}
-        >
-          <Animated.Image
-            accessible={false}
-            source={{ uri: duplicate.imageUrl }}
-            resizeMode="contain"
-            style={[{ width: '100%', height: '100%' }, flightStyle(0)]}
-          />
-          {[14, 12, 10].map((size, index) => (
-            <Animated.Image
-              key={size}
-              accessible={false}
-              source={gachaArt.star}
-              style={[
-                {
-                  position: 'absolute',
-                  left: `${19 + index * 19}%`,
-                  top: `${19 - index * 10}%`,
-                  width: size,
-                  height: size,
-                },
-                flightStyle(index + 1),
-              ]}
-            />
-          ))}
-        </View>
-      )}
+      ))}
     </View>
   );
 }
@@ -330,78 +420,4 @@ function useShardFlight() {
     };
   };
   return { origin, target, play, style };
-}
-
-// P-05 확률은 서버 값(GET /gacha/rates)을 그대로 보여 준다.
-const percent = (rate: number) => `${Number((rate * 100).toFixed(3))}%`;
-function OddsSheet({
-  visible,
-  onClose,
-}: {
-  visible: boolean;
-  onClose: () => void;
-}) {
-  const rates = useGachaRates(visible);
-  return (
-    <Sheet visible={visible} onClose={onClose} title="등급별 획득 확률">
-      <AppText variant="small">1회 뽑기 기준</AppText>
-      {rates.data ? (
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row' }}>
-            <AppText variant="caption" style={{ width: 128 }}>
-              등급
-            </AppText>
-            <AppText variant="caption" style={{ flex: 1 }}>
-              확률
-            </AppText>
-            <AppText variant="caption" style={{ textAlign: 'right' }}>
-              중복 시 별조각
-            </AppText>
-          </View>
-          {rates.data.map(item => (
-            <View
-              key={item.tier}
-              style={{ flexDirection: 'row', alignItems: 'center' }}
-            >
-              <View style={{ width: 128 }}>
-                <TierBadge tier={item.tier} />
-              </View>
-              <AppText variant="label" style={{ flex: 1 }}>
-                {percent(item.rate)}
-              </AppText>
-              <AppText variant="small" style={{ textAlign: 'right' }}>
-                +{item.duplicateShards}
-              </AppText>
-            </View>
-          ))}
-        </View>
-      ) : rates.isError ? (
-        <StatePanel
-          compact
-          title="확률을 불러오지 못했어요"
-          description="연결 상태를 확인하고 다시 시도해 주세요."
-          retry={() => void rates.refetch()}
-          retryLabel="다시 불러오기"
-        />
-      ) : (
-        <Loading label="확률을 불러오고 있어요" />
-      )}
-      <View
-        style={{
-          backgroundColor: colors.bg,
-          borderRadius: 20,
-          padding: 16,
-          gap: 8,
-        }}
-      >
-        <AppText variant="small" style={{ color: colors.ink }}>
-          매번 같은 등급 확률로 뽑아요.
-        </AppText>
-        <AppText variant="small">
-          {'천장·등급 확정은 없어요.\n전설·신화는 미보유 모찌가 우선 등장해요.'}
-        </AppText>
-      </View>
-      <Button label="확인" onPress={onClose} />
-    </Sheet>
-  );
 }

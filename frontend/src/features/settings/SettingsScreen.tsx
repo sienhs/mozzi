@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { Screen } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
@@ -137,12 +136,6 @@ export function SettingsScreen() {
           </>
         ) : null}
       </Sheet>
-      {__DEV__ && (
-        <SettingsRow
-          label="개발용 화면 미리보기"
-          onPress={() => router.push('/dev')}
-        />
-      )}
     </Screen>
   );
 }
