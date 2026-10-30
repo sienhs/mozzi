@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
-import { Screen } from '@/components/ui/Screen';
+import {
+  CozyScreen as Screen,
+  CozyButton as Button,
+} from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
-import { Button } from '@/components/ui/Button';
 import { DiaryArtwork, DiaryMeta } from '@/components/ui/DiaryCard';
 import { Loading, PictureState, StatePanel } from '@/components/ui/Feedback';
 import { Sheet } from '@/components/ui/Sheet';
 import { formatDate, formatTime } from '@/constants/date';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import type { DiaryEntry } from '@/types/diary';
 import {
   canResend,

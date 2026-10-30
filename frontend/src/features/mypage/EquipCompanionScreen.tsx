@@ -3,15 +3,17 @@ import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { Smile, Sparkles, FileText, Leaf } from 'lucide-react-native';
-import { Screen } from '@/components/ui/Screen';
+import {
+  CozyScreen as Screen,
+  CozyButton as Button,
+} from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
-import { Button } from '@/components/ui/Button';
 import { ErrorBanner, Loading, StatePanel } from '@/components/ui/Feedback';
 import { TierBadge } from '@/components/gacha/GachaUI';
 import { MyPageTitle } from '@/components/mypage/CompanionUI';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { emotions } from '@/constants/emotions';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { apiErrorMessage } from '@/services/authErrors';
 import { mozziApi, mozziKeys } from '@/services/mozziApi';
 import { queryClient } from '@/services/queryClient';

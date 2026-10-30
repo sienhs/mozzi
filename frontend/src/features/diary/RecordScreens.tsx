@@ -1,6 +1,10 @@
 import { router, useLocalSearchParams, usePreventRemove } from 'expo-router';
 import { View } from 'react-native';
-import { Button, TextButton } from '@/components/ui/Button';
+import { TextButton } from '@/components/ui/Button';
+import {
+  CozyButton as Button,
+  CozyScreen as Screen,
+} from '@/components/ui/CozyUI';
 import {
   ErrorBanner,
   GenerationProgress,
@@ -8,12 +12,12 @@ import {
   PictureState,
   StatePanel,
 } from '@/components/ui/Feedback';
-import { Screen, Heading } from '@/components/ui/Screen';
+import { Heading } from '@/components/ui/Screen';
 import { MemoInput } from '@/components/ui/Input';
 import { DiaryArtwork, DiaryCard } from '@/components/ui/DiaryCard';
 import { AppText } from '@/components/ui/Text';
 import { EmotionPicker } from '@/components/emotion/Emotion';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import type { DiaryTag } from '@/types/diary';
 import {
   MEMO_MAX_LENGTH,

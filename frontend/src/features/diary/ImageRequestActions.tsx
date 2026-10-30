@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { Button } from '@/components/ui/Button';
+import { CozyButton as Button } from '@/components/ui/CozyUI';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { TagChip } from '@/components/ui/Selection';
 import { AppText } from '@/components/ui/Text';

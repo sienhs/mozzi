@@ -60,6 +60,7 @@ export function StatePanel({
   retry,
   retryLabel = '다시 물어보기',
   compact,
+  titleStyle,
 }: {
   title: string;
   description: string;
@@ -67,6 +68,7 @@ export function StatePanel({
   retry?: () => void;
   retryLabel?: string;
   compact?: boolean;
+  titleStyle?: StyleProp<TextStyle>;
 }) {
   return (
     <View
@@ -82,7 +84,9 @@ export function StatePanel({
       }}
     >
       {!compact && <EmotionImage emotion={emotion} size={64} />}
-      <AppText variant={compact ? 'label' : 'heading'}>{title}</AppText>
+      <AppText variant={compact ? 'label' : 'heading'} style={titleStyle}>
+        {title}
+      </AppText>
       <AppText
         variant={compact ? 'small' : 'body'}
         style={{ color: colors.muted, textAlign: compact ? 'left' : 'center' }}

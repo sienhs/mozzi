@@ -29,6 +29,8 @@ import { EmotionImage } from '@/components/emotion/Emotion';
 import { Splash, splashArtwork } from '@/components/ui/Splash';
 import { emotions } from '@/constants/emotions';
 import { api } from '@/services/api';
+import { gachaKeys } from '@/services/gachaApi';
+import type { CollectionResponse } from '@/types/gacha';
 import { queryClient } from '@/services/queryClient';
 import { useGachaStore } from '@/stores/useGachaStore';
 import {
@@ -496,6 +498,37 @@ test('the collection hides missing cards and viewing a new card clears its NEW m
     server.callsTo('POST', '/gacha/collection/seen').map(call => call.body),
   ).toEqual([{ cardIds: [WATERMELON] }]);
   expect(server.state.owned.get(WATERMELON)?.seen).toBe(true);
+});
+
+test('the album shows tier then Korean name order without reordering the shared server cache', async () => {
+  server.state.cards.push({
+    cardId: 206,
+    code: 'S2-99-01',
+    name: '귤 모찌',
+    tier: 'COMMON',
+    emotion: 'CALM',
+    exchangeCost: null,
+  });
+  for (const cardId of [PEACH, 206])
+    server.state.owned.set(cardId, {
+      count: 1,
+      seen: true,
+      at: '2026-10-20T09:00:00+09:00',
+    });
+  await openApp('/gacha/collection');
+  const labels = ['천도복숭아 모찌 전설', '귤 모찌 일반', '사과 모찌 일반'];
+  expect(
+    screen
+      .getAllByRole('button')
+      .map(button => button.props.accessibilityLabel)
+      .filter(label => labels.includes(label)),
+  ).toEqual(labels);
+  const cached = queryClient.getQueryData<CollectionResponse>(
+    gachaKeys.collection(0),
+  );
+  expect(
+    cached?.cards.filter(card => card.tier === 'common').map(card => card.name),
+  ).toEqual(['사과 모찌', '귤 모찌']);
 });
 
 test('shards buy a missing legend card with the server price', async () => {

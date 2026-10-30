@@ -14,6 +14,12 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  AlbumCover,
+  AlbumChip,
+  AlbumCard,
+} from '@/components/gacha/CollectionAlbum';
+import { CozyScreen, CozyButton } from '@/components/ui/CozyUI';
 import { Screen } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -32,6 +38,7 @@ import {
   highestTier,
   openingClips,
   tiers,
+  tierOrder,
   type OpeningClip,
 } from '@/constants/gacha';
 import { colors } from '@/theme/tokens';
@@ -479,21 +486,37 @@ export function CollectionScreen() {
   const seriesList = [
     ...new Set((data?.cards ?? []).map(card => card.series).filter(Boolean)),
   ];
-  const list = (data?.cards ?? []).filter(
-    card =>
-      (filter === 'all' || !card.owned) && (!series || card.series === series),
-  );
+  // Sort a filtered copy for the album only; keep the shared API cache untouched.
+  const list = (data?.cards ?? [])
+    .filter(
+      card =>
+        (filter === 'all' || !card.owned) &&
+        (!series || card.series === series),
+    )
+    .sort(
+      (a, b) =>
+        tierOrder.indexOf(b.tier) - tierOrder.indexOf(a.tier) ||
+        a.name.localeCompare(b.name, 'ko'),
+    );
   return (
-    <Screen
+    <CozyScreen
       title="모찌 도감"
       back
-      contentStyle={{ gap: 12 }}
+      contentStyle={{ gap: 16 }}
       footer={
         data && (
-          <Button
+          <CozyButton
             label={`✦ ${data.shards}  ·  별조각으로 모찌 만나기`}
             onPress={() => router.push('/gacha/exchange')}
-            style={fixed}
+            style={[
+              fixed,
+              {
+                backgroundColor: '#F0EBF6',
+                borderColor: '#D9CFE3',
+                boxShadow: 'none',
+              },
+            ]}
+            labelStyle={{ color: '#665176' }}
           />
         )
       }
@@ -502,24 +525,22 @@ export function CollectionScreen() {
         <CollectionState query={collection} />
       ) : (
         <>
-          <AppText variant="small">
-            모은 모찌 {data.owned} / {data.total}
-          </AppText>
+          <AlbumCover owned={data.owned} total={data.total} />
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <GachaChip
+            <AlbumChip
               label="전체"
               width={62}
               active={filter === 'all'}
               onPress={() => setFilter('all')}
             />
-            <GachaChip
+            <AlbumChip
               label="미보유"
               width={72}
               active={filter === 'missing'}
               onPress={() => setFilter('missing')}
             />
             {seriesList.map(name => (
-              <GachaChip
+              <AlbumChip
                 key={name}
                 label={name}
                 width={100}
@@ -532,13 +553,13 @@ export function CollectionScreen() {
             <CardGrid>
               {list.map(card =>
                 card.owned ? (
-                  <MochiCard
+                  <AlbumCard
                     key={card.cardId}
                     state={{ kind: 'owned', card, isNew: card.isNew }}
                     onPress={() => openDetail(card.cardId)}
                   />
                 ) : (
-                  <MochiCard
+                  <AlbumCard
                     key={card.cardId}
                     state={{ kind: 'locked', card }}
                   />
@@ -552,7 +573,7 @@ export function CollectionScreen() {
           )}
         </>
       )}
-    </Screen>
+    </CozyScreen>
   );
 }
 
@@ -577,27 +598,35 @@ export function MochiDetailScreen() {
   }, [unseen, cardId, memberId]);
   if (!collection.data)
     return (
-      <Screen title="모찌 도감" back>
+      <CozyScreen title="모찌 도감" back>
         <CollectionState query={collection} />
-      </Screen>
+      </CozyScreen>
     );
   if (!card?.owned) return <Redirect href="/gacha/collection" />;
   return (
-    <Screen
+    <CozyScreen
       title="모찌 도감"
       back
       footer={
-        <Button
+        <CozyButton
           label="도감으로 돌아가기"
           onPress={() => router.back()}
-          style={fixed}
+          style={[
+            fixed,
+            {
+              backgroundColor: '#F0EBF6',
+              borderColor: '#D9CFE3',
+              boxShadow: 'none',
+            },
+          ]}
+          labelStyle={{ color: '#665176' }}
         />
       }
     >
       <MochiFeature card={card} size={246}>
         {!!card.series && <AppText variant="small">{card.series}</AppText>}
       </MochiFeature>
-    </Screen>
+    </CozyScreen>
   );
 }
 function MochiFeature({

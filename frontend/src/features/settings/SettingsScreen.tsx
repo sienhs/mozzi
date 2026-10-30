@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { Screen } from '@/components/ui/Screen';
+import {
+  CozyScreen as Screen,
+  CozyButton as Button,
+} from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
-import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { LegalDocument } from '@/components/ui/LegalDocument';
 import { ConfirmModal, Sheet } from '@/components/ui/Sheet';
 import { ErrorBanner } from '@/components/ui/Feedback';
 import { EmotionImage } from '@/components/emotion/Emotion';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
+import { fonts } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { apiErrorMessage } from '@/services/authErrors';
 
@@ -40,7 +43,9 @@ export function SettingsScreen() {
         style={{
           padding: 16,
           backgroundColor: colors.white,
-          borderRadius: 20,
+          borderRadius: 26,
+          borderWidth: 1,
+          borderColor: colors.paperEdge,
           flexDirection: 'row',
           alignItems: 'center',
           gap: 12,
@@ -118,6 +123,22 @@ export function SettingsScreen() {
       <Sheet
         visible={!!panel}
         title={panel === '프로필' ? '모찌가 부를 이름' : panel}
+        titleContent={
+          panel === '이용약관' || panel === '개인정보 처리방침' ? (
+            <AppText
+              accessibilityRole="header"
+              style={{
+                fontFamily: fonts.medium,
+                fontWeight: '600',
+                fontSize: 22,
+                lineHeight: 32,
+                textAlign: 'center',
+              }}
+            >
+              {panel}
+            </AppText>
+          ) : undefined
+        }
         onClose={() => setPanel('')}
       >
         {panel === '프로필' ? (
@@ -132,7 +153,15 @@ export function SettingsScreen() {
         ) : panel === '이용약관' || panel === '개인정보 처리방침' ? (
           <>
             <LegalDocument type={panel === '이용약관' ? 'TERMS' : 'PRIVACY'} />
-            <Button label="확인" onPress={() => setPanel('')} />
+            <Button
+              label="확인"
+              labelStyle={{
+                fontFamily: fonts.medium,
+                fontSize: 16,
+                lineHeight: 24,
+              }}
+              onPress={() => setPanel('')}
+            />
           </>
         ) : null}
       </Sheet>

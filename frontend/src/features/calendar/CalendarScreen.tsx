@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { Screen } from '@/components/ui/Screen';
+import { CozyScreen as Screen } from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
 import { Icon } from '@/components/ui/Icon';
 import { TextButton } from '@/components/ui/Button';
@@ -11,7 +11,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { emotions } from '@/constants/emotions';
 import { formatDate, monthCells, todayKey } from '@/constants/date';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import type { DiaryEntry, Emotion } from '@/types/diary';
 import { toAppEmotion } from '@/features/diary/serverDiary';
 import { useDiary, useMonthly } from '@/features/diary/useDiaryQueries';
@@ -38,10 +38,14 @@ export function CalendarDay({
       style={{
         height: 62,
         flex: 1,
-        borderRadius: 12,
+        borderRadius: 16,
         borderWidth: 1.5,
         borderColor: selected ? colors.primary : 'transparent',
-        backgroundColor: selected ? colors.soft : 'transparent',
+        backgroundColor: selected
+          ? colors.soft
+          : date === todayKey()
+            ? colors.roseWash
+            : 'transparent',
         alignItems: 'center',
         paddingTop: 4,
         gap: 2,
@@ -104,10 +108,10 @@ export function CalendarScreen() {
           gap: 6,
           backgroundColor: colors.paper,
           padding: 12,
-          borderRadius: 24,
+          borderRadius: 28,
           borderWidth: 1,
           borderColor: colors.paperEdge,
-          boxShadow: '0 4px 18px rgba(91, 65, 39, 0.04)',
+          boxShadow: '0 4px 18px rgba(130, 86, 97, 0.05)',
         }}
       >
         <View className="flex-row items-center justify-between">
@@ -119,7 +123,7 @@ export function CalendarScreen() {
           >
             <Icon name="back" color={colors.muted} />
           </Pressable>
-          <AppText variant="heading">
+          <AppText variant="heading" style={{ color: colors.ink }}>
             {month.getFullYear()}년 {month.getMonth() + 1}월
           </AppText>
           <Pressable
@@ -228,5 +232,5 @@ const monthButton = {
   alignItems: 'center' as const,
   justifyContent: 'center' as const,
   borderRadius: 16,
-  backgroundColor: colors.sageSoft,
+  backgroundColor: colors.lavender,
 };

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Keyboard, Pressable, View } from 'react-native';
-import { Screen, Heading } from '@/components/ui/Screen';
+import { Heading } from '@/components/ui/Screen';
+import { CozyScreen as Screen } from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
 import { Input } from '@/components/ui/Input';
 import { Icon } from '@/components/ui/Icon';
@@ -11,7 +12,7 @@ import { Loading, StatePanel } from '@/components/ui/Feedback';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { emotions } from '@/constants/emotions';
 import { todayKey } from '@/constants/date';
-import { colors } from '@/theme/tokens';
+import { cozyColors as colors } from '@/theme/cozy';
 import { apiErrorMessage } from '@/services/authErrors';
 import {
   SEARCH_QUESTION_MAX,

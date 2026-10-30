@@ -16,6 +16,7 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import { colors, spacing } from '@/theme/tokens';
+import { cozyColors } from '@/theme/cozy';
 import { Icon, type IconName } from './Icon';
 import { AppText } from './Text';
 
@@ -30,6 +31,7 @@ export function ScreenHeader({
   onBack = goBack,
   action,
   onTitleLongPress,
+  appearance,
 }: {
   title?: string;
   titleContent?: ReactNode;
@@ -37,6 +39,7 @@ export function ScreenHeader({
   onBack?: () => void;
   action?: { icon: IconName; label: string; onPress: () => void };
   onTitleLongPress?: () => void;
+  appearance?: 'cozy';
 }) {
   return (
     <View style={styles.header}>
@@ -55,7 +58,14 @@ export function ScreenHeader({
         onLongPress={onTitleLongPress}
         style={{ flex: 1 }}
       >
-        {titleContent ?? <AppText variant="heading">{title}</AppText>}
+        {titleContent ?? (
+          <AppText
+            variant="heading"
+            style={appearance === 'cozy' && { color: cozyColors.ink }}
+          >
+            {title}
+          </AppText>
+        )}
       </Pressable>
       {action && (
         <Pressable
@@ -83,6 +93,7 @@ export function Screen({
   onTitleLongPress,
   tabbed = false,
   scrollable = true,
+  appearance,
 }: {
   children: ReactNode;
   footer?: ReactNode;
@@ -96,7 +107,13 @@ export function Screen({
   const insets = useSafeAreaInsets();
   const bottomInset = tabbed ? 0 : insets.bottom;
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
+    <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[
+        styles.safe,
+        appearance === 'cozy' && { backgroundColor: cozyColors.bg },
+      ]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.frame}
@@ -109,6 +126,7 @@ export function Screen({
             onBack={onBack}
             action={action}
             onTitleLongPress={onTitleLongPress}
+            appearance={appearance}
           />
         )}
         {scrollable ? (
@@ -131,6 +149,10 @@ export function Screen({
           <View
             style={[
               styles.footer,
+              appearance === 'cozy' && {
+                backgroundColor: cozyColors.bg,
+                borderTopColor: cozyColors.line,
+              },
               {
                 paddingBottom: tabbed
                   ? 16

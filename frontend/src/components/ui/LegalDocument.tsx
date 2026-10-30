@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { View } from 'react-native';
+import { fonts } from '@/theme/tokens';
 import type { LegalType } from '@/constants/legal';
 import { fetchLegal, legalKeys } from '@/services/legalApi';
 import { Loading, StatePanel } from './Feedback';
@@ -20,6 +21,12 @@ export function LegalDocument({ type }: { type: LegalType }) {
     return (
       <StatePanel
         compact
+        titleStyle={{
+          fontFamily: fonts.medium,
+          fontWeight: '600',
+          fontSize: 18,
+          lineHeight: 28,
+        }}
         title="약관을 불러오지 못했어요"
         description="연결 상태를 확인하고 다시 시도해 주세요."
         retry={() => void document.refetch()}
@@ -36,6 +43,12 @@ export function LegalDocument({ type }: { type: LegalType }) {
             key={index}
             variant={paragraph.startsWith('#') ? 'label' : 'small'}
             selectable
+            style={{
+              fontFamily: fonts.regular,
+              fontWeight: paragraph.startsWith('#') ? '600' : '400',
+              fontSize: paragraph.startsWith('#') ? 17 : 15,
+              lineHeight: 28,
+            }}
           >
             {paragraph.replace(/^#{1,6}\s*/, '').replace(/\*\*/g, '')}
           </AppText>
