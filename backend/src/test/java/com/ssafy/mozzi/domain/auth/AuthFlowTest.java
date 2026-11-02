@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.jayway.jsonpath.JsonPath;
 import com.ssafy.mozzi.domain.diary.entity.Emotion;
 import com.ssafy.mozzi.domain.gacha.entity.CardTier;
+import com.ssafy.mozzi.domain.icon.entity.DefaultMyIcons;
 import com.ssafy.mozzi.integration.google.GoogleIdTokenInvalidException;
 import com.ssafy.mozzi.integration.google.GoogleIdTokenVerifier;
 import com.ssafy.mozzi.integration.google.GoogleUnavailableException;
@@ -125,6 +126,19 @@ class AuthFlowTest {
         } finally {
             gacha.reset();
         }
+    }
+
+    /** A new member starts with the default icons, in list order. */
+    @Test
+    void signupGivesTheDefaultIcons() throws Exception {
+        signUpAs("id-a", "sub-a", "a@gmail.com", "하루");
+
+        assertThat(jdbcTemplate.queryForList(
+                "select category || ':' || name from my_icon where deleted_at is null order by my_icon_id",
+                String.class))
+                .containsExactlyElementsOf(DefaultMyIcons.ALL.stream()
+                        .map(icon -> icon.category() + ":" + icon.name())
+                        .toList());
     }
 
     @Test

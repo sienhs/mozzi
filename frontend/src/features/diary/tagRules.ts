@@ -1,7 +1,6 @@
 import {
   customTagLimits,
   presetTag,
-  presetTags,
   tagCategories,
   tagCategoryOrder,
 } from '@/constants/tags';
@@ -87,9 +86,8 @@ export const labelLength = (label: string) => Array.from(label).length;
 export type CustomTagCheck =
   | { kind: 'create'; label: string; key: string }
   | { kind: 'reuse'; id: string }
-  | { kind: 'preset'; tag: (typeof presetTags)[number] }
   | { kind: 'error'; message: string };
-// used: 서버에 이미 있는 그 카테고리의 아이콘 수 (기본 태그용 아이콘 포함).
+// used: 서버에 이미 있는 그 카테고리의 아이콘 수 (기본 태그 포함).
 export function checkCustomTag(
   raw: string,
   library: CustomTag[],
@@ -99,10 +97,6 @@ export function checkCustomTag(
   const label = normalizeTagLabel(raw);
   if (!label) return { kind: 'error', message: '태그를 입력해 주세요.' };
   const key = tagKey(label);
-  const preset = presetTags.find(
-    tag => tag.category === category && tagKey(tag.label) === key,
-  );
-  if (preset) return { kind: 'preset', tag: preset };
   const existing = library.find(
     tag => tag.category === category && tag.key === key,
   );
@@ -115,7 +109,7 @@ export function checkCustomTag(
   if (used >= customTagLimits.maxPerCategory)
     return {
       kind: 'error',
-      message: `태그는 카테고리마다 ${customTagLimits.maxPerCategory}개까지 만들 수 있어요. 자주 고른 기본 태그도 함께 세요.`,
+      message: `태그는 카테고리마다 ${customTagLimits.maxPerCategory}개까지 만들 수 있어요. 기본 태그도 함께 세요.`,
     };
   return { kind: 'create', label, key };
 }

@@ -69,6 +69,26 @@ const card = (
   emotion: ServerEmotion,
   exchangeCost: number | null = null,
 ) => ({ cardId, code, name, tier, emotion, exchangeCost });
+// 서버 DefaultMyIcons와 같은 목록·순서.
+export const defaultIcons: [string, IconCategory][] = [
+  ['공부', 'WHAT'],
+  ['일하기', 'WHAT'],
+  ['운동', 'WHAT'],
+  ['산책', 'WHAT'],
+  ['휴식', 'WHAT'],
+  ['식사', 'WHAT'],
+  ['요리', 'WHAT'],
+  ['독서', 'WHAT'],
+  ['집', 'WHERE'],
+  ['회사', 'WHERE'],
+  ['학교', 'WHERE'],
+  ['카페', 'WHERE'],
+  ['공원', 'WHERE'],
+  ['가족', 'WHO'],
+  ['친구', 'WHO'],
+  ['연인', 'WHO'],
+  ['동료', 'WHO'],
+];
 export function createFakeServer(today: string) {
   let iconId = 100;
   const state = {
@@ -118,6 +138,11 @@ export function createFakeServer(today: string) {
     state.icons.push(created);
     return created;
   };
+  // 이미 있는 같은 이름의 아이콘을 쓰고, 없으면 만든다 (기본 태그로 남긴 기록).
+  const ownIcon = (name: string, category: IconCategory) =>
+    state.icons.find(
+      item => item.name === name && item.category === category,
+    ) ?? icon(name, category);
   const detail = (diaryId: number): DiaryDetail => {
     const diary = state.diaries.find(item => item.diaryId === diaryId)!;
     const icons = state.icons.filter(item =>
@@ -652,6 +677,11 @@ export function createFakeServer(today: string) {
     process: (call: Call, config: InternalAxiosRequestConfig) =>
       route(call, config),
     icon,
+    ownIcon,
+    // 가입 때 서버가 만드는 기본 태그(DefaultMyIcons)를 넣는다.
+    signUpIcons() {
+      for (const [name, category] of defaultIcons) icon(name, category);
+    },
     // 오늘 이전 기록을 넣는다.
     addDiary(
       recordDate: string,
@@ -666,7 +696,9 @@ export function createFakeServer(today: string) {
         recordDate,
         emotion,
         content,
-        iconIds: names.map(([name, category]) => icon(name, category).myIconId),
+        iconIds: names.map(
+          ([name, category]) => ownIcon(name, category).myIconId,
+        ),
       });
       if (imageStatus)
         state.images.set(diaryId, {

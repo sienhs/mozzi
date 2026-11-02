@@ -1,40 +1,19 @@
-import type { DiaryTag, PresetTag, TagCategory } from '@/types/diary';
+import type {
+  CustomTagCategory,
+  DiaryTag,
+  PresetTag,
+  TagCategory,
+} from '@/types/diary';
 
-// 기본 태그는 누구나 쓰는 것만 둔다. 나머지는 사용자가 내 태그(POST /my-icons)로 만든다.
-// 서버에는 기본 태그가 없어 기본 태그를 고르면 같은 이름의 내 아이콘을 만들고, 그것도 카테고리당 9개 한도에 센다.
-// 그래서 기본 태그가 많을수록 사용자가 만들 수 있는 칸이 줄어든다.
-// 날씨는 서버 그림 요청의 weather 값(맑음·흐림·비·눈)과 같은 것만 둔다.
-const catalog: Record<TagCategory, [code: string, label: string][]> = {
-  activity: [
-    ['STUDYING', '공부'],
-    ['WORK', '일하기'],
-    ['EXERCISE', '운동'],
-    ['WALK', '산책'],
-    ['RESTING', '휴식'],
-    ['EATING', '식사'],
-    ['COOKING', '요리'],
-    ['READING', '독서'],
-  ],
-  place: [
-    ['HOME', '집'],
-    ['OFFICE', '회사'],
-    ['SCHOOL', '학교'],
-    ['CAFE', '카페'],
-    ['PARK', '공원'],
-  ],
-  companion: [
-    ['FAMILY', '가족'],
-    ['FRIEND', '친구'],
-    ['PARTNER', '연인'],
-    ['COWORKER', '동료'],
-  ],
-  weather: [
-    ['SUNNY', '맑음'],
-    ['CLOUDY', '흐림'],
-    ['RAINY', '비'],
-    ['SNOWY', '눈'],
-  ],
-};
+// 무엇을·어디서·누구와 태그는 모두 서버의 내 아이콘(/my-icons)이다. 기본 태그(공부·집·가족 등)도
+// 가입할 때 서버가 내 아이콘으로 만들어 두므로 앱에는 목록이 없고, 사용자가 지울 수도 있다.
+// 날씨만 앱에 둔다. 서버 그림 요청의 weather 값(맑음·흐림·비·눈)과 같은 고정 목록이다.
+const weatherCatalog: [code: string, label: string][] = [
+  ['SUNNY', '맑음'],
+  ['CLOUDY', '흐림'],
+  ['RAINY', '비'],
+  ['SNOWY', '눈'],
+];
 
 export const tagCategoryOrder: TagCategory[] = [
   'activity',
@@ -65,20 +44,17 @@ export const tagCategories: Record<
   weather: { title: '날씨', limit: '선택', single: true, min: 0, max: 1 },
 };
 export const customTagLimits = {
-  // 서버 내 아이콘 규칙 (POST /my-icons): 이름 10자, 카테고리마다 30개.
-  // 서버에는 기본 태그가 없어 기본 태그를 고르면 같은 이름의 아이콘을 만들고, 그것도 30개에 센다.
+  // 서버 내 아이콘 규칙 (POST /my-icons): 이름 10자, 카테고리마다 30개. 기본 태그도 30개에 센다.
   maxLength: 10,
   maxPerCategory: 30,
 };
 
-export const presetTags: PresetTag[] = tagCategoryOrder.flatMap(category =>
-  catalog[category].map(([code, label]) => ({
-    id: `${category}.${code.toLowerCase()}`,
-    code,
-    category,
-    label,
-  })),
-);
+export const presetTags: PresetTag[] = weatherCatalog.map(([code, label]) => ({
+  id: `weather.${code.toLowerCase()}`,
+  code,
+  category: 'weather',
+  label,
+}));
 const byId = new Map(presetTags.map(tag => [tag.id, tag]));
 export const presetTag = (id: string) => byId.get(id);
 export const presetTagsOf = (category: TagCategory) =>
@@ -88,21 +64,18 @@ export const presetTagsOf = (category: TagCategory) =>
 
 // 개편 전 활동 8개 (공부·업무·운동·휴식·친구·취미·가족·기타). 지난 기록의 표시·검색용이다.
 // 취미·기타는 새 체계에 대응이 없어 legacy 태그로 남긴다.
-const legacyActivities: Record<string, string | null> = {
-  공부: 'activity.studying',
-  업무: 'activity.work',
-  운동: 'activity.exercise',
-  휴식: 'activity.resting',
-  친구: 'companion.friend',
-  가족: 'companion.family',
+const legacyActivities: Record<string, CustomTagCategory | null> = {
+  공부: 'activity',
+  업무: 'activity',
+  운동: 'activity',
+  휴식: 'activity',
+  친구: 'companion',
+  가족: 'companion',
   취미: null,
   기타: null,
 };
-export function legacyActivityTag(label: string): DiaryTag {
-  const tag = legacyActivities[label]
-    ? presetTag(legacyActivities[label]!)
-    : null;
-  return tag
-    ? { category: tag.category, code: tag.code, label: tag.label }
-    : { category: 'legacy', code: null, label };
-}
+export const legacyActivityTag = (label: string): DiaryTag => ({
+  category: legacyActivities[label] ?? 'legacy',
+  code: null,
+  label,
+});

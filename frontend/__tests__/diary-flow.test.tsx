@@ -72,6 +72,7 @@ beforeEach(() => {
   diaryApi.forgetEmoticons();
   queryClient.clear();
   server = createFakeServer(TODAY);
+  server.signUpIcons();
   api.defaults.adapter = server.adapter;
 });
 afterEach(async () => {
@@ -95,8 +96,8 @@ function seedToday(
   image: 'PENDING' | 'SUCCEEDED' | 'FAILED' | null,
   options: { withWhat?: boolean } = {},
 ) {
-  const what = server.icon('요리', 'WHAT');
-  const place = server.icon('집', 'WHERE');
+  const what = server.ownIcon('요리', 'WHAT');
+  const place = server.ownIcon('집', 'WHERE');
   server.state.diaries.push({
     diaryId: 700,
     recordDate: TODAY,
@@ -641,7 +642,11 @@ test('custom tags are saved as server icons per category, and a custom activity 
   expect(screen.getByRole('radio', { name: '연습실' })).toBeSelected();
   await fireEvent.press(screen.getByRole('checkbox', { name: '친구' }));
   await add('누구와', '동아리 친구');
-  expect(server.state.icons.map(icon => [icon.name, icon.category])).toEqual([
+  // 기본 태그는 이미 있으니 만든 태그만 새로 생긴다.
+  expect(server.callsTo('POST', '/my-icons')).toHaveLength(3);
+  expect(
+    server.state.icons.slice(-3).map(icon => [icon.name, icon.category]),
+  ).toEqual([
     ['악기 연습', 'WHAT'],
     ['연습실', 'WHERE'],
     ['동아리 친구', 'WHO'],

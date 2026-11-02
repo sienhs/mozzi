@@ -52,6 +52,7 @@ export function TagScreen() {
           const rule = tagCategories[category];
           return (
             <TagSection key={category} title={rule.title} limit={rule.limit}>
+              {/* 날씨만 앱의 고정 목록이다. 나머지는 서버의 내 태그(기본 태그 포함)를 보여 준다. */}
               {presetTagsOf(category).map(tag => (
                 <TagChip
                   key={tag.id}

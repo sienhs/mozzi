@@ -40,10 +40,11 @@ export function PreviewScreen() {
         recordDate: todayKey(),
         emotion: 'calm',
         tags: {
-          activities: ['activity.cooking', 'activity.eating'],
-          place: 'place.home',
-          companions: ['companion.family'],
-          weather: null,
+          // 무엇을·어디서·누구와는 서버의 내 태그라 미리 고를 수 없다.
+          activities: [],
+          place: null,
+          companions: [],
+          weather: 'weather.rainy',
         },
         memo: '',
       },

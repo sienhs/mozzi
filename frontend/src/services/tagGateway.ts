@@ -9,7 +9,7 @@ import {
 import { api } from './api';
 
 // 내 태그 = 서버 내 아이콘 (GET·POST·DELETE /my-icons). 카테고리마다 30개, 이름 10자까지.
-// 서버에는 기본 태그가 없어서 기본 태그도 같은 이름의 내 아이콘으로 만들어 쓴다 (useTagStore.ensureIcon).
+// 기본 태그(공부·집·가족 등)는 가입할 때 서버가 내 아이콘으로 만들어 둔다.
 export const iconCategoryOf: Record<CustomTagCategory, IconCategory> = {
   activity: 'WHAT',
   place: 'WHERE',

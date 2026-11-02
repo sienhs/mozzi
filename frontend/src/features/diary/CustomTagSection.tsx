@@ -23,7 +23,7 @@ const categoryNames = {
   place: '어디서',
   companion: '누구와',
 } as const;
-// 별도 내 태그 목록 없이 각 카테고리 안에서 추가·선택·삭제한다.
+// 별도 내 태그 목록 없이 각 카테고리 안에서 추가·선택·삭제한다. 가입 때 받은 기본 태그도 여기 있다.
 export function CustomTagSection({
   category,
   selection,
@@ -54,10 +54,7 @@ export function CustomTagSection({
     if (!typed || adding) return;
     const result = await useTagStore.getState().add(text, category);
     if (result.kind === 'none') return;
-    const tag =
-      result.kind === 'preset'
-        ? result.tag
-        : useTagStore.getState().tags.find(tag => tag.id === result.id);
+    const tag = useTagStore.getState().tags.find(tag => tag.id === result.id);
     if (!tag) return;
     const current = useAppStore.getState().draft.tags;
     const canSelect = canSelectTag(current, tag);
