@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
-import { router } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { CozyScreen as Screen } from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
 import { Icon } from '@/components/ui/Icon';
 import { TextButton } from '@/components/ui/Button';
-import { DiaryRow } from '@/components/ui/DiaryCard';
 import { Loading, StatePanel } from '@/components/ui/Feedback';
 import { Sheet } from '@/components/ui/Sheet';
 import { EmotionImage } from '@/components/emotion/Emotion';
@@ -15,6 +13,10 @@ import { cozyColors as colors } from '@/theme/cozy';
 import type { DiaryEntry, Emotion } from '@/types/diary';
 import { toAppEmotion } from '@/features/diary/serverDiary';
 import { useDiary, useMonthly } from '@/features/diary/useDiaryQueries';
+import {
+  DiaryDetailBody,
+  shareDiary,
+} from '@/features/diary/DiaryDetailScreen';
 
 export function CalendarDay({
   date,
@@ -70,7 +72,7 @@ export function CalendarDay({
   );
 }
 // 서버 캘린더: 달마다 GET /diaries/monthly로 일기를 쓴 날의 감정을 받고,
-// 날짜를 누르면 그날 일기를 GET /diaries/daily로 불러 한 줄(없으면 감정 기본 제목)을 보여 준다.
+// 날짜를 누르면 그날 일기를 GET /diaries/daily로 불러 상세 화면으로 넘기지 않고 캘린더 아래에 펼친다.
 const monthKey = (month: Date) =>
   `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
 export function CalendarScreen() {
@@ -188,15 +190,22 @@ export function CalendarScreen() {
       ) : monthly.isPending ? (
         <Loading label="이달의 기록을 불러오고 있어요" />
       ) : entry ? (
-        <DiaryRow
-          entry={entry}
-          onPress={() =>
-            router.push({
-              pathname: '/diary/[id]',
-              params: { id: entry.id, date: entry.date },
-            })
-          }
-        />
+        <View style={{ gap: 20 }}>
+          <View className="flex-row items-center justify-between">
+            <AppText variant="label" style={{ color: colors.ink }}>
+              {formatDate(entry.date)}
+            </AppText>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="기록 공유"
+              onPress={() => void shareDiary(entry)}
+              style={monthButton}
+            >
+              <Icon name="share" size={20} color={colors.muted} />
+            </Pressable>
+          </View>
+          <DiaryDetailBody entry={entry} />
+        </View>
       ) : selectedRecorded && day.isError ? (
         <StatePanel
           compact

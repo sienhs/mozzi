@@ -152,7 +152,19 @@ export function MyPageScreen() {
       </View>
       <CompanionNotice />
       <View style={{ gap: 10 }}>
-        <AppText variant="heading">최근 만난 모찌</AppText>
+        <View style={styles.sectionHeader}>
+          <AppText variant="heading">최근 만난 모찌</AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="모찌 도감 보기"
+            hitSlop={8}
+            onPress={() => router.push('/gacha/collection')}
+            style={styles.collectionLink}
+          >
+            <AppText variant="caption">도감 보기</AppText>
+            <ChevronRight size={16} color={colors.muted} />
+          </Pressable>
+        </View>
         {recent.data ? (
           recent.data.length ? (
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -241,6 +253,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     gap: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  collectionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    minHeight: 44,
   },
   preview: {
     borderRadius: 20,

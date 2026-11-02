@@ -6,19 +6,33 @@ import { colors, fonts } from '@/theme/tokens';
 import { AppText } from '@/components/ui/Text';
 
 // Figma "Gacha V2 / Tier badge": 66 × 26, radius 12.
-export function TierBadge({ tier }: { tier: Tier }) {
+// compact는 카드 그리드처럼 좁은 칸에 이름과 함께 놓는 작은 배지다.
+export function TierBadge({
+  tier,
+  compact,
+}: {
+  tier: Tier;
+  compact?: boolean;
+}) {
   return (
     <View
       style={{
-        width: 66,
-        height: 26,
-        borderRadius: 12,
+        width: compact ? undefined : 66,
+        height: compact ? 22 : 26,
+        paddingHorizontal: compact ? 10 : 0,
+        borderRadius: compact ? 11 : 12,
         backgroundColor: tiers[tier].badge,
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      <AppText variant="caption" style={{ color: tiers[tier].color }}>
+      <AppText
+        variant="caption"
+        style={[
+          { color: tiers[tier].color },
+          compact && { fontSize: 12, lineHeight: 18 },
+        ]}
+      >
         {tiers[tier].label}
       </AppText>
     </View>
@@ -115,6 +129,7 @@ type CardState =
   // 아직 없는 카드. 도감에서는 이름·그림을 가린다.
   | { kind: 'locked'; card: Card };
 // Figma "Gacha V2 / Collection card": 108 × 142 in a 3-column grid.
+// 결과 화면 배경 위에 그림과 이름만 놓이도록 카드 테두리·배경은 두지 않는다.
 export function MochiCard({
   state,
   onPress,
@@ -124,11 +139,6 @@ export function MochiCard({
 }) {
   const tier = state.kind === 'sealed' ? null : state.card.tier;
   const owned = state.kind === 'owned';
-  const borderColor = owned
-    ? tiers[tier!].color
-    : state.kind === 'sealed'
-      ? colors.muted
-      : colors.line;
   const label =
     state.kind === 'sealed'
       ? '열어보기'
@@ -144,10 +154,6 @@ export function MochiCard({
       style={{
         flex: 1,
         minHeight: 142,
-        backgroundColor: colors.white,
-        borderRadius: 12,
-        borderWidth: tier === 'myth' && owned ? 1.5 : 1,
-        borderColor,
         paddingVertical: 8,
         paddingHorizontal: 6,
         alignItems: 'center',
@@ -170,12 +176,24 @@ export function MochiCard({
         </AppText>
       )}
       {owned ? (
-        <Image
-          accessible={false}
-          source={{ uri: state.card.imageUrl }}
-          resizeMode="contain"
-          style={{ width: 80, height: 80, borderRadius: 12 }}
-        />
+        // 등급 색을 연하게 깐 원 위에 그림을 올려, 펼쳐 놓았을 때 색만으로도 등급이 갈린다.
+        <View
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: tiers[tier!].badge,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Image
+            accessible={false}
+            source={{ uri: state.card.imageUrl }}
+            resizeMode="contain"
+            style={{ width: 72, height: 72 }}
+          />
+        </View>
       ) : (
         <View style={{ width: 80, height: 80, alignItems: 'center' }}>
           <AppText variant="heading" style={{ color: colors.gachaGoldInk }}>
@@ -190,18 +208,20 @@ export function MochiCard({
             ? '???'
             : state.card.name}
       </AppText>
-      <AppText
-        variant="caption"
-        style={{ color: owned ? tiers[tier!].color : colors.muted }}
-      >
-        {state.kind === 'sealed'
-          ? '탭해서 확인'
-          : state.kind === 'locked'
-            ? tiers[tier!].label
-            : state.shards
-              ? `${tiers[tier!].label} · ✦ +${state.shards}`
-              : tiers[tier!].label}
-      </AppText>
+      {owned ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <TierBadge tier={tier!} compact />
+          {!!state.shards && (
+            <AppText variant="caption" style={{ fontSize: 12 }}>
+              ✦ +{state.shards}
+            </AppText>
+          )}
+        </View>
+      ) : (
+        <AppText variant="caption" style={{ color: colors.muted }}>
+          {state.kind === 'sealed' ? '탭해서 확인' : tiers[tier!].label}
+        </AppText>
+      )}
     </Pressable>
   );
 }
