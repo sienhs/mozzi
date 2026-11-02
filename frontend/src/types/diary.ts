@@ -9,10 +9,11 @@ export type GenerationStatus =
 export type TagCategory = 'activity' | 'place' | 'companion' | 'weather';
 export type CustomTagCategory = Exclude<TagCategory, 'weather'>;
 export type SelectableTag = PresetTag | CustomTag;
+// 앱에 고정된 태그. 지금은 날씨뿐이다 (무엇을·어디서·누구와는 모두 서버의 내 태그).
 export interface PresetTag {
-  // 앱 안에서 바뀌지 않는 ID ('activity.cooking').
+  // 앱 안에서 바뀌지 않는 ID ('weather.sunny').
   id: string;
-  // 서버·AI로 보내는 코드 ('COOKING'). CONTRACT: B2 — 서버 목록이 정해지면 /meta 값으로 바뀐다.
+  // 서버로 보내는 코드 ('SUNNY').
   code: string;
   category: TagCategory;
   label: string;

@@ -92,11 +92,11 @@ test('server diaries map to the screen model for every picture status', () => {
     generation: 'notRequested',
     status: 'draft',
   });
-  // 기본 태그와 같은 이름은 기본 태그로, 나머지는 내 태그로 보인다.
+  // 기본 태그도 서버의 내 태그라 모든 아이콘이 같은 모양으로 보인다.
   expect(notRequested.tags).toEqual([
-    { category: 'activity', code: 'COOKING', label: '요리' },
+    { category: 'activity', code: null, label: '요리', customTagId: '30' },
     { category: 'activity', code: null, label: '악기 연습', customTagId: '31' },
-    { category: 'place', code: 'HOME', label: '집' },
+    { category: 'place', code: null, label: '집', customTagId: '15' },
   ]);
   expect(entryPhase(notRequested, false)).toBe('notRequested');
   expect(canResend(notRequested)).toBe(true);

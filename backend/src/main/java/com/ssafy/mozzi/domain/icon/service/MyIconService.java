@@ -3,11 +3,13 @@ package com.ssafy.mozzi.domain.icon.service;
 import java.time.Clock;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ssafy.mozzi.domain.icon.dto.MyIconCreateRequestDto;
 import com.ssafy.mozzi.domain.icon.dto.MyIconListResponseDto;
 import com.ssafy.mozzi.domain.icon.dto.MyIconResponseDto;
+import com.ssafy.mozzi.domain.icon.entity.DefaultMyIcons;
 import com.ssafy.mozzi.domain.icon.entity.IconCategory;
 import com.ssafy.mozzi.domain.icon.entity.MyIcon;
 import com.ssafy.mozzi.domain.icon.exception.MyIconErrorCode;
@@ -54,6 +56,17 @@ public class MyIconService {
         }
         MyIcon saved = myIconRepository.save(MyIcon.create(memberId, request.name(), request.category()));
         return MyIconResponseDto.of(saved);
+    }
+
+    /**
+     * Makes {@link DefaultMyIcons#ALL} for a member who has just signed up. Runs in the
+     * sign-up transaction, so a failure here keeps the sign-up ticket too.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void grantDefaults(Long memberId) {
+        myIconRepository.saveAll(DefaultMyIcons.ALL.stream()
+                .map(icon -> MyIcon.create(memberId, icon.name(), icon.category()))
+                .toList());
     }
 
     @Transactional(readOnly = true)

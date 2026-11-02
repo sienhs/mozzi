@@ -16,6 +16,7 @@ import com.ssafy.mozzi.domain.auth.exception.AuthErrorCode;
 import com.ssafy.mozzi.domain.auth.service.MemberSessionService;
 import com.ssafy.mozzi.domain.gacha.service.GachaDataEraser;
 import com.ssafy.mozzi.domain.gacha.service.MyMozziService;
+import com.ssafy.mozzi.domain.icon.service.MyIconService;
 import com.ssafy.mozzi.domain.member.dto.MemberDetailResponseDto;
 import com.ssafy.mozzi.domain.member.entity.AuthProvider;
 import com.ssafy.mozzi.domain.member.entity.Member;
@@ -42,13 +43,14 @@ public class MemberService {
     private final WalletService walletService;
     private final GachaDataEraser gachaDataEraser;
     private final MyMozziService myMozziService;
+    private final MyIconService myIconService;
     private final TermsProperties termsProperties;
     private final Clock clock;
 
     public MemberService(MemberRepository memberRepository, TermsAgreementRepository termsAgreementRepository,
             MemberSessionService sessionService, PushDeviceService pushDeviceService, WalletService walletService,
-            GachaDataEraser gachaDataEraser, MyMozziService myMozziService, TermsProperties termsProperties,
-            Clock clock) {
+            GachaDataEraser gachaDataEraser, MyMozziService myMozziService, MyIconService myIconService,
+            TermsProperties termsProperties, Clock clock) {
         this.memberRepository = memberRepository;
         this.termsAgreementRepository = termsAgreementRepository;
         this.sessionService = sessionService;
@@ -56,13 +58,14 @@ public class MemberService {
         this.walletService = walletService;
         this.gachaDataEraser = gachaDataEraser;
         this.myMozziService = myMozziService;
+        this.myIconService = myIconService;
         this.termsProperties = termsProperties;
         this.clock = clock;
     }
 
     /**
      * Creates the member with the agreements it submitted, its wallet with the sign-up
-     * tickets, and its basic mozzi, one picked for each emotion.
+     * tickets, its basic mozzi, one picked for each emotion, and its default icons.
      *
      * <p>Runs inside the sign-up transaction, so a failure here also keeps the sign-up
      * ticket. The nickname check up front is for a friendly answer; two sign-ups racing for
@@ -91,6 +94,7 @@ public class MemberService {
                 termsAgreementRepository.save(new TermsAgreement(member.getId(), type, version, now)));
         walletService.open(member.getId());
         myMozziService.grantBasic(member.getId());
+        myIconService.grantDefaults(member.getId());
         return member;
     }
 

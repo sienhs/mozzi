@@ -1,5 +1,4 @@
 import { emotions } from '@/constants/emotions';
-import { presetTags } from '@/constants/tags';
 import type { ImageRequestSnapshot } from '@/services/imageRequests';
 import { tagCategoryOf } from '@/services/tagGateway';
 import type {
@@ -17,7 +16,6 @@ import type {
   ServerEmotion,
   ServerWeather,
 } from '@/types/server';
-import { tagKey } from './tagRules';
 
 // 서버 일기(DiaryDetail)를 화면 공통 모델(DiaryEntry)로 바꾼다. 홈·상세·생성 화면이 같은 변환을 쓴다.
 //
@@ -37,21 +35,13 @@ const weathers: ServerWeather[] = ['SUNNY', 'CLOUDY', 'RAINY', 'SNOWY'];
 export const toServerWeather = (code: string | null): ServerWeather =>
   weathers.includes(code as ServerWeather) ? (code as ServerWeather) : 'NONE';
 
-// 기본 태그와 같은 이름의 아이콘은 기본 태그로 보여 준다 (useTagStore와 같은 규칙).
-export function iconTag(icon: MyIcon): DiaryTag {
-  const category = tagCategoryOf[icon.category];
-  const preset = presetTags.find(
-    tag => tag.category === category && tagKey(tag.label) === tagKey(icon.name),
-  );
-  return preset
-    ? { category, code: preset.code, label: preset.label }
-    : {
-        category,
-        code: null,
-        label: icon.name,
-        customTagId: String(icon.myIconId),
-      };
-}
+// 기본 태그도 서버의 내 아이콘이라 모든 아이콘을 같은 모양으로 보여 준다.
+export const iconTag = (icon: MyIcon): DiaryTag => ({
+  category: tagCategoryOf[icon.category],
+  code: null,
+  label: icon.name,
+  customTagId: String(icon.myIconId),
+});
 const iconOrder: IconCategory[] = ['WHAT', 'WHERE', 'WHO'];
 const generationOf = (status: ImageStatus | undefined): GenerationStatus =>
   status === 'PENDING'

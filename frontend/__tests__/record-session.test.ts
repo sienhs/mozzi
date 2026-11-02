@@ -12,9 +12,11 @@ import { useTagStore } from '@/stores/useTagStore';
 import { mozziKeys } from '@/services/mozziApi';
 import { emptyPicks } from '@/types/companion';
 import { useRewardStore } from '@/stores/useRewardStore';
+import type { SelectableTag } from '@/types/diary';
 import type { HomeResponse } from '@/types/server';
 import {
   createFakeServer,
+  defaultIcons,
   fail,
   timeout,
   type FakeServer,
@@ -26,13 +28,17 @@ jest.mock('@/services/authConfig', () => ({
 }));
 
 const MEMBER = 7;
-const tag = (id: string) => presetTag(id)!;
+// 날씨는 앱의 고정 태그 ID, 나머지는 내 태그 이름으로 찾는다.
+const tag = (key: string): SelectableTag =>
+  presetTag(key) ??
+  useTagStore.getState().tags.find(item => item.label === key)!;
 const store = () => useAppStore.getState();
 let server: FakeServer;
 let device: Map<string, string>;
 
 beforeEach(async () => {
   server = createFakeServer(todayKey());
+  server.signUpIcons();
   api.defaults.adapter = server.adapter;
   // 기기 저장소 (앱을 다시 켜도 남는다).
   device = new Map();
@@ -55,13 +61,13 @@ beforeEach(async () => {
 
 function pickDay() {
   store().selectEmotion('calm');
-  store().toggleTag(tag('activity.cooking'));
-  store().toggleTag(tag('activity.eating'));
-  store().toggleTag(tag('place.home'));
-  store().toggleTag(tag('companion.family'));
-  store().toggleTag(tag('companion.friend'));
+  store().toggleTag(tag('요리'));
+  store().toggleTag(tag('식사'));
+  store().toggleTag(tag('집'));
+  store().toggleTag(tag('가족'));
+  store().toggleTag(tag('친구'));
   store().toggleTag(tag('weather.rainy'));
-  store().selectMainActivity('activity.eating');
+  store().selectMainActivity(tag('식사').id);
 }
 const homeData = () =>
   queryClient.getQueryData<HomeResponse>(diaryKeys.home(MEMBER));
@@ -88,24 +94,20 @@ test('one tap creates the diary without a line, then requests the picture with t
   const result = await first;
   await settle();
   expect(result).toEqual({ diaryId: 500, existing: false });
-  // 기본 태그는 같은 이름의 내 아이콘으로 만들어 쓴다.
+  // 기본 태그는 가입 때 서버가 만든 내 아이콘을 그대로 쓴다. 새로 만들지 않는다.
+  expect(server.callsTo('POST', '/my-icons')).toHaveLength(0);
   const icons = Object.fromEntries(
     server.state.icons.map(icon => [icon.name, icon]),
   );
-  expect(server.state.icons.map(icon => [icon.name, icon.category])).toEqual([
-    ['요리', 'WHAT'],
-    ['식사', 'WHAT'],
-    ['집', 'WHERE'],
-    ['가족', 'WHO'],
-    ['친구', 'WHO'],
-  ]);
   const [create] = server.callsTo('POST', '/diaries');
   expect(server.callsTo('POST', '/diaries')).toHaveLength(1);
   expect(create.key).toBeTruthy();
   expect(create.body).toEqual({
     emoticonId: 2,
     content: null,
-    myIconIds: Object.values(icons).map(icon => icon.myIconId),
+    myIconIds: ['요리', '식사', '집', '가족', '친구'].map(
+      name => icons[name].myIconId,
+    ),
   });
   const [image] = server.callsTo('POST', '/diaries/500/image');
   expect(image.key).toBeTruthy();
@@ -130,21 +132,32 @@ test('one tap creates the diary without a line, then requests the picture with t
   expect(device.has(`mozzi.image-requests.v1.${MEMBER}`)).toBe(true);
 });
 
-test('preset icons are reused, hidden from my tags, and count toward the server limit of thirty', async () => {
-  server.icon('요리', 'WHAT');
-  for (let i = 0; i < 29; i++) server.icon(`활동${i}`, 'WHAT');
+test('default tags are ordinary server tags: listed, deletable, and counted toward the limit of thirty', async () => {
+  // 기본 태그도 내 태그 목록에 그대로 보인다.
+  expect(useTagStore.getState().tags.map(item => item.label)).toEqual(
+    defaultIcons.map(([name]) => name),
+  );
+  const cooking = tag('요리');
+  expect(await useTagStore.getState().ensureIcon(cooking)).toBe(
+    Number(cooking.id),
+  );
+  // 지우면 다시 고를 수 없고, 같은 이름으로 다시 만들 수 있다.
+  expect(await useTagStore.getState().remove(cooking.id)).toBe(true);
+  await expect(useTagStore.getState().ensureIcon(cooking)).rejects.toThrow(
+    '지워졌어요',
+  );
+  expect(await useTagStore.getState().add('요리', 'activity')).toMatchObject({
+    kind: 'custom',
+  });
+  // 기본 활동 8개 + 22개 = 30개.
+  for (let i = 0; i < 22; i++) server.icon(`활동${i}`, 'WHAT');
   useTagStore.getState().resetSession();
   await useTagStore.getState().load();
-  // 기본 태그와 같은 이름은 내 태그 목록에 보이지 않는다.
-  expect(useTagStore.getState().tags).toHaveLength(29);
-  expect(await useTagStore.getState().ensureIcon(tag('activity.cooking'))).toBe(
-    server.state.icons[0].myIconId,
-  );
-  expect(server.callsTo('POST', '/my-icons')).toHaveLength(0);
+  const posts = server.callsTo('POST', '/my-icons').length;
   const added = await useTagStore.getState().add('새 활동', 'activity');
   expect(added).toEqual({ kind: 'none' });
   expect(useTagStore.getState().error).toContain('30개');
-  expect(server.callsTo('POST', '/my-icons')).toHaveLength(0);
+  expect(server.callsTo('POST', '/my-icons')).toHaveLength(posts);
   // 다른 카테고리는 따로 센다.
   expect(await useTagStore.getState().add('새 장소', 'place')).toMatchObject({
     kind: 'custom',
@@ -165,7 +178,7 @@ test('a failure before the diary exists keeps the choices and resends with the s
   // 응답이 끊겼고 서버에도 기록이 없다: 실패로 남기고 같은 키를 유지한다.
   expect(await store().startGeneration(MEMBER)).toBeNull();
   expect(server.callsTo('POST', '/diaries')[1].key).toBe(firstKey);
-  store().selectMainActivity('activity.cooking');
+  store().selectMainActivity(tag('요리').id);
   await store().startGeneration(MEMBER);
   expect(server.callsTo('POST', '/diaries')[2].key).not.toBe(firstKey);
 });
@@ -398,13 +411,13 @@ test('same names in different categories remain distinct; deleting the chosen cu
     store().selectCustomTag(result.id);
   }
   expect(new Set(ids).size).toBe(3);
-  expect(server.state.icons.map(icon => icon.category)).toEqual([
+  expect(server.state.icons.slice(-3).map(icon => icon.category)).toEqual([
     'WHAT',
     'WHERE',
     'WHO',
   ]);
   store().selectEmotion('calm');
-  store().toggleTag(tag('activity.cooking'));
+  store().toggleTag(tag('요리'));
   store().selectMainActivity(ids[0]);
   expect(await useTagStore.getState().remove(ids[0])).toBe(true);
   expect(server.callsTo('DELETE', `/my-icons/${ids[0]}`)).toHaveLength(1);
