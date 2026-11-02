@@ -9,6 +9,7 @@ import {
   waitFor,
 } from 'expo-router/testing-library';
 import { router } from 'expo-router';
+import { Share } from 'react-native';
 import RootLayout from '@/app/_layout';
 import Welcome from '@/app/index';
 import Onboarding from '@/app/onboarding';
@@ -484,15 +485,20 @@ test('calendar draws the server month, opens a day by date, and retries a failed
     screen.getByRole('button', { name: '10월 21일 수요일 우울' }),
   );
   await advance(0);
-  await fireEvent.press(
-    screen.getByRole('button', { name: '10월 21일 수요일 조금 늦었던 퇴근' }),
-  );
-  await advance(0);
-  expect(app.getPathname()).toBe('/diary/500');
+  // 상세 화면으로 넘기지 않고 캘린더 아래에 그날 기록을 펼친다.
+  expect(app.getPathname()).toBe('/calendar');
   expect(screen.getByText('조금 늦었던 퇴근')).toBeOnTheScreen();
-  await act(async () => {
-    router.back();
-  });
+  const share = jest
+    .spyOn(Share, 'share')
+    .mockResolvedValue({ action: Share.sharedAction, activityType: undefined });
+  await fireEvent.press(screen.getByRole('button', { name: '기록 공유' }));
+  expect(share).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: expect.stringContaining('조금 늦었던 퇴근'),
+    }),
+    { dialogTitle: '기록 공유' },
+  );
+  share.mockRestore();
   await fireEvent.press(screen.getByRole('button', { name: '이전 달' }));
   await advance(0);
   expect(

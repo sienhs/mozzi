@@ -151,6 +151,15 @@ test('settings gear opens settings while profile card is static, and back return
   expect(screen.getByRole('tab', { name: '마이페이지' })).toBeSelected();
 }, 20000);
 
+test('mypage opens the mochi collection and back returns to mypage', async () => {
+  const app = await openApp('/mypage');
+  await fireEvent.press(screen.getByRole('button', { name: '모찌 도감 보기' }));
+  await advance(0);
+  expect(app.getPathname()).toBe('/gacha/collection');
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  expect(app.getPathname()).toBe('/mypage');
+}, 20000);
+
 test('owned filters go to the server, closing a sheet keeps the old filter, and empty results can be reset', async () => {
   await openApp('/mypage/owned?emotion=sad');
   expect(screen.getByRole('button', { name: '체리 모찌' })).toBeOnTheScreen();

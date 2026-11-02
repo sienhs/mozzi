@@ -3,6 +3,7 @@ import { BookOpen, LockKeyhole } from 'lucide-react-native';
 import { AppText } from '@/components/ui/Text';
 import { cozyColors as colors } from '@/theme/cozy';
 import { tiers, gachaArt } from '@/constants/gacha';
+import { TierBadge } from '@/components/gacha/GachaUI';
 import type { MochiCard } from '@/types/gacha';
 
 export function AlbumCover({ owned, total }: { owned: number; total: number }) {
@@ -108,7 +109,10 @@ export function AlbumCard({
       <View
         style={[
           styles.artwork,
-          { backgroundColor: owned ? tier.badge : colors.line },
+          // 테두리에도 등급 색을 연하게 둘러 배지를 읽지 않아도 등급이 갈린다.
+          owned
+            ? { backgroundColor: tier.badge, borderColor: `${tier.color}59` }
+            : { backgroundColor: colors.line },
         ]}
       >
         {owned ? (
@@ -136,15 +140,7 @@ export function AlbumCard({
       >
         {owned ? state.card.name : '???'}
       </AppText>
-      <View style={[styles.tierBadge, { backgroundColor: tier.badge }]}>
-        <View style={[styles.tierDot, { backgroundColor: tier.color }]} />
-        <AppText
-          variant="caption"
-          style={{ color: tier.color, fontSize: 11, lineHeight: 18 }}
-        >
-          {tier.label}
-        </AppText>
-      </View>
+      <TierBadge tier={state.card.tier} compact />
     </Pressable>
   );
 }
@@ -235,13 +231,4 @@ const styles = StyleSheet.create({
     minHeight: 42,
     textAlign: 'center',
   },
-  tierBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  tierDot: { width: 4, height: 4, borderRadius: 2 },
 });

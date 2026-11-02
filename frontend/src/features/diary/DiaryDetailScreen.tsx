@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { View } from 'react-native';
+import { Platform, Share, View } from 'react-native';
 import {
   CozyScreen as Screen,
   CozyButton as Button,
@@ -8,7 +7,6 @@ import {
 import { AppText } from '@/components/ui/Text';
 import { DiaryArtwork, DiaryMeta } from '@/components/ui/DiaryCard';
 import { Loading, PictureState, StatePanel } from '@/components/ui/Feedback';
-import { Sheet } from '@/components/ui/Sheet';
 import { formatDate, formatTime } from '@/constants/date';
 import { cozyColors as colors } from '@/theme/cozy';
 import type { DiaryEntry } from '@/types/diary';
@@ -66,12 +64,25 @@ function NotFound() {
     </>
   );
 }
+// 그림 주소는 서버가 주는 공개 URL이라 링크로 공유한다.
+// iOS는 url을 따로 넘기면 그림 미리보기가 붙고, Android는 message만 받으므로 본문에 잇는다.
+export function shareDiary(entry: DiaryEntry) {
+  const text = `${formatDate(entry.date)} 모찌 그림일기
+${entry.memo || entry.title}`;
+  const image = entry.generation === 'ready' ? entry.imageUrl : null;
+  return Share.share(
+    image && Platform.OS === 'ios'
+      ? { message: text, url: image }
+      : {
+          message: image
+            ? `${text}
+${image}`
+            : text,
+        },
+    { dialogTitle: '기록 공유' },
+  ).catch(() => undefined);
+}
 function DiaryDetail({ entry }: { entry: DiaryEntry }) {
-  const [share, setShare] = useState(false);
-  const phase = entryPhase(entry, false);
-  // 다시 그리기·한 줄 쓰기는 오늘 기록의 생성 화면에서 한다.
-  const openGeneration = () =>
-    router.push({ pathname: '/record/generation', params: { id: entry.id } });
   return (
     <Screen
       title={formatDate(entry.date)}
@@ -79,10 +90,22 @@ function DiaryDetail({ entry }: { entry: DiaryEntry }) {
       action={{
         icon: 'share',
         label: '기록 공유',
-        onPress: () => setShare(true),
+        onPress: () => void shareDiary(entry),
       }}
       contentStyle={{ gap: 20 }}
     >
+      <DiaryDetailBody entry={entry} />
+    </Screen>
+  );
+}
+// 상세 화면과 캘린더가 같은 내용을 펼쳐 보여 준다.
+export function DiaryDetailBody({ entry }: { entry: DiaryEntry }) {
+  const phase = entryPhase(entry, false);
+  // 다시 그리기·한 줄 쓰기는 오늘 기록의 생성 화면에서 한다.
+  const openGeneration = () =>
+    router.push({ pathname: '/record/generation', params: { id: entry.id } });
+  return (
+    <>
       {entry.generation === 'ready' ? (
         <DiaryArtwork uri={entry.imageUrl} />
       ) : (
@@ -119,16 +142,6 @@ function DiaryDetail({ entry }: { entry: DiaryEntry }) {
       <AppText variant="caption">
         {formatTime(entry.createdAt)}에 남긴 기록
       </AppText>
-      <Sheet title="기록 공유" visible={share} onClose={() => setShare(false)}>
-        <AppText style={{ textAlign: 'center', color: colors.muted }}>
-          그림 공유는 준비 중이에요.
-        </AppText>
-        <Button
-          label="확인"
-          onPress={() => setShare(false)}
-          variant="secondary"
-        />
-      </Sheet>
-    </Screen>
+    </>
   );
 }
