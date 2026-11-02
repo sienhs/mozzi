@@ -54,11 +54,7 @@ export function EmotionScreen() {
         />
       }
     >
-      <Heading
-        eyebrow="1 / 4"
-        title="오늘 기분은 어땠나요?"
-        description="가장 가까운 모찌를 하나 골라 주세요."
-      />
+      <Heading eyebrow="1 / 4" title="오늘 기분은 어땠나요?" />
       <EmotionPicker value={emotion} onChange={selectEmotion} />
     </Screen>
   );
@@ -148,10 +144,7 @@ export function GenerationScreen() {
             description: '그리기 횟수를 모두 썼어요.',
           };
     if (phase === 'completed')
-      return {
-        title: '오늘도 한 장 남겼어요',
-        description: '모찌가 오늘의 장면을 완성했어요.',
-      };
+      return { title: '오늘도 한 장 남겼어요', description: undefined };
     return { title: '그림이 완성됐어요', description: undefined };
   })();
   const footer = (() => {

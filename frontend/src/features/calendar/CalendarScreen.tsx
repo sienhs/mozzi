@@ -214,12 +214,8 @@ export function CalendarScreen() {
           retry={day.refetch}
           retryLabel="다시 불러오기"
         />
-      ) : selectedRecorded ? (
-        <Loading label="기록을 불러오고 있어요" />
       ) : (
-        <AppText variant="small" style={{ textAlign: 'center' }}>
-          모찌가 그린 날을 눌러 보세요.
-        </AppText>
+        selectedRecorded && <Loading label="기록을 불러오고 있어요" />
       )}
       <Sheet
         visible={!!emptyDate}
@@ -227,9 +223,6 @@ export function CalendarScreen() {
         title="이날은 기록이 없어요"
         eyebrow={emptyDate ? formatDate(emptyDate) : undefined}
       >
-        <AppText style={{ textAlign: 'center', color: colors.muted }}>
-          모찌가 그린 다른 날을 눌러 보세요.
-        </AppText>
         <TextButton label="닫기" onPress={() => setEmptyDate(null)} />
       </Sheet>
     </Screen>

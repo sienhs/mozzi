@@ -42,11 +42,7 @@ export function TagScreen() {
         />
       }
     >
-      <Heading
-        eyebrow="2 / 4"
-        title="오늘은 어떤 하루였나요?"
-        description="하루의 태그를 고르고, 다음 화면에서 그림으로 남길 활동 하나를 골라요."
-      />
+      <Heading eyebrow="2 / 4" title="오늘은 어떤 하루였나요?" />
       <View style={{ gap: 28 }}>
         {tagCategoryOrder.map(category => {
           const rule = tagCategories[category];

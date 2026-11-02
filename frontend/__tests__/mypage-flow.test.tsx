@@ -127,7 +127,6 @@ test('mypage tab shows server picks; a refused equip keeps the pick and a retry 
   await fireEvent.press(screen.getByRole('tab', { name: '뽑기' }));
   expect(app.getPathname()).toBe('/gacha');
   expect(screen.getByRole('tab', { name: '뽑기' })).toBeSelected();
-  expect(screen.getByRole('header', { name: '모찌 뽑기' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '확률 보기' })).toBeOnTheScreen();
   expect(server.callsTo('POST', '/gacha/draws')).toHaveLength(0);
 }, 30000);
@@ -153,7 +152,7 @@ test('settings gear opens settings while profile card is static, and back return
 
 test('mypage opens the mochi collection and back returns to mypage', async () => {
   const app = await openApp('/mypage');
-  await fireEvent.press(screen.getByRole('button', { name: '모찌 도감 보기' }));
+  await fireEvent.press(screen.getByRole('button', { name: '모찌 도감' }));
   await advance(0);
   expect(app.getPathname()).toBe('/gacha/collection');
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));

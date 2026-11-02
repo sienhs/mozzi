@@ -225,7 +225,8 @@ test('a new single pull plays the intro, waits for one touch, plays the rest, th
   server.state.drawQueue = [WATERMELON];
   const app = await openApp('/gacha');
   expect(screen.getByText('뽑기권 23')).toBeOnTheScreen();
-  expect(screen.getByText('도감 1 / 5')).toBeOnTheScreen();
+  // 뽑기 탭 상단에는 잔액만 두고 도감 바로가기는 두지 않는다.
+  expect(screen.queryByRole('button', { name: '모찌 도감' })).toBeNull();
 
   await fireEvent.press(screen.getByRole('button', { name: '1장 · 뽑기권 1' }));
   expect(app.getPathname()).toBe('/gacha/opening');
@@ -924,6 +925,17 @@ test('the collection hides missing cards and viewing a new card clears its NEW m
   expect(screen.getByText('NEW')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '미보유' }));
   expect(screen.queryByRole('button', { name: '수박 모찌 영웅' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '보유' }));
+  expect(
+    screen.queryAllByRole('button', { name: '아직 못 만난 모찌' }),
+  ).toHaveLength(0);
+  // 컨셉(시리즈) 칩은 없고 등급 칩으로만 거른다.
+  expect(screen.queryByRole('button', { name: '과일 모찌' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '영웅' }));
+  expect(
+    screen.getByRole('button', { name: '수박 모찌 영웅' }),
+  ).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '영웅' }));
   await fireEvent.press(screen.getByRole('button', { name: '전체' }));
   await fireEvent.press(screen.getByRole('button', { name: '수박 모찌 영웅' }));
   await advance(0);
