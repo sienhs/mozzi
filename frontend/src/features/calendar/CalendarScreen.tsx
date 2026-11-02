@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { useIsFocused } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { CozyScreen as Screen } from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
 import { Icon } from '@/components/ui/Icon';
@@ -17,6 +19,8 @@ import {
   DiaryDetailBody,
   shareDiary,
 } from '@/features/diary/DiaryDetailScreen';
+import { SnowBackdrop } from '@/features/calendar/SnowBackdrop';
+import { ChristmasLights } from '@/features/calendar/ChristmasLights';
 
 export function CalendarDay({
   date,
@@ -93,6 +97,9 @@ export function CalendarScreen() {
   );
   const [selected, setSelected] = useState<string | null>(today);
   const [emptyDate, setEmptyDate] = useState<string | null>(null);
+  // 달 버튼으로 밤하늘로 바꾼다. 탭을 옮겨도 캘린더 화면이 살아 있는 동안은 유지된다.
+  const [night, setNight] = useState(false);
+  const focused = useIsFocused();
   const cells = monthCells(month.getFullYear(), month.getMonth() + 1);
   const selectedRecorded = !!selected && recorded.has(selected);
   const day = useDiary(selectedRecorded ? selected! : undefined);
@@ -104,7 +111,28 @@ export function CalendarScreen() {
     setSelected(null);
   }
   return (
-    <Screen tabbed title="캘린더" contentStyle={{ gap: 24 }}>
+    <Screen
+      tabbed
+      title="캘린더"
+      titleContent={
+        <AppText
+          variant="heading"
+          style={{ color: night ? colors.white : colors.ink }}
+        >
+          캘린더
+        </AppText>
+      }
+      action={{
+        icon: 'moon',
+        label: '밤하늘',
+        selected: night,
+        color: night ? '#F6D77B' : colors.muted,
+        onPress: () => setNight(value => !value),
+      }}
+      backdrop={<SnowBackdrop night={night} />}
+      contentStyle={{ gap: 24 }}
+    >
+      {night && focused && <StatusBar style="light" />}
       <View
         style={{
           gap: 6,
@@ -178,45 +206,55 @@ export function CalendarScreen() {
             )}
           </View>
         ))}
+        <ChristmasLights />
       </View>
-      {monthly.isError ? (
-        <StatePanel
-          compact
-          title="이달의 기록을 불러오지 못했어요"
-          description="연결 상태를 확인하고 다시 시도해 주세요."
-          retry={() => void monthly.refetch()}
-          retryLabel="다시 불러오기"
-        />
-      ) : monthly.isPending ? (
-        <Loading label="이달의 기록을 불러오고 있어요" />
-      ) : entry ? (
-        <View style={{ gap: 20 }}>
-          <View className="flex-row items-center justify-between">
-            <AppText variant="label" style={{ color: colors.ink }}>
-              {formatDate(entry.date)}
-            </AppText>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="기록 공유"
-              onPress={() => void shareDiary(entry)}
-              style={monthButton}
-            >
-              <Icon name="share" size={20} color={colors.muted} />
-            </Pressable>
+      {/* 밤하늘에서는 글자가 묻히지 않게 펼친 기록을 종이 위에 올린다. */}
+      <View
+        style={
+          night &&
+          (monthly.isError || monthly.isPending || selectedRecorded) &&
+          nightPanel
+        }
+      >
+        {monthly.isError ? (
+          <StatePanel
+            compact
+            title="이달의 기록을 불러오지 못했어요"
+            description="연결 상태를 확인하고 다시 시도해 주세요."
+            retry={() => void monthly.refetch()}
+            retryLabel="다시 불러오기"
+          />
+        ) : monthly.isPending ? (
+          <Loading label="이달의 기록을 불러오고 있어요" />
+        ) : entry ? (
+          <View style={{ gap: 20 }}>
+            <View className="flex-row items-center justify-between">
+              <AppText variant="label" style={{ color: colors.ink }}>
+                {formatDate(entry.date)}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="기록 공유"
+                onPress={() => void shareDiary(entry)}
+                style={monthButton}
+              >
+                <Icon name="share" size={20} color={colors.muted} />
+              </Pressable>
+            </View>
+            <DiaryDetailBody entry={entry} />
           </View>
-          <DiaryDetailBody entry={entry} />
-        </View>
-      ) : selectedRecorded && day.isError ? (
-        <StatePanel
-          compact
-          title="기록을 불러오지 못했어요"
-          description="연결 상태를 확인하고 다시 시도해 주세요."
-          retry={day.refetch}
-          retryLabel="다시 불러오기"
-        />
-      ) : (
-        selectedRecorded && <Loading label="기록을 불러오고 있어요" />
-      )}
+        ) : selectedRecorded && day.isError ? (
+          <StatePanel
+            compact
+            title="기록을 불러오지 못했어요"
+            description="연결 상태를 확인하고 다시 시도해 주세요."
+            retry={day.refetch}
+            retryLabel="다시 불러오기"
+          />
+        ) : (
+          selectedRecorded && <Loading label="기록을 불러오고 있어요" />
+        )}
+      </View>
       <Sheet
         visible={!!emptyDate}
         onClose={() => setEmptyDate(null)}
@@ -235,4 +273,9 @@ const monthButton = {
   justifyContent: 'center' as const,
   borderRadius: 16,
   backgroundColor: colors.lavender,
+};
+const nightPanel = {
+  backgroundColor: colors.paper,
+  padding: 16,
+  borderRadius: 28,
 };

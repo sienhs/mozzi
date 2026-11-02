@@ -37,7 +37,14 @@ export function ScreenHeader({
   titleContent?: ReactNode;
   back?: boolean;
   onBack?: () => void;
-  action?: { icon: IconName; label: string; onPress: () => void };
+  // selected를 주면 켜고 끄는 버튼으로 읽힌다.
+  action?: {
+    icon: IconName;
+    label: string;
+    onPress: () => void;
+    color?: string;
+    selected?: boolean;
+  };
   onTitleLongPress?: () => void;
   appearance?: 'cozy';
 }) {
@@ -71,10 +78,15 @@ export function ScreenHeader({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={action.label}
+          accessibilityState={
+            action.selected === undefined
+              ? undefined
+              : { selected: action.selected }
+          }
           onPress={action.onPress}
           style={styles.trailing}
         >
-          <Icon name={action.icon} />
+          <Icon name={action.icon} color={action.color} />
         </Pressable>
       )}
     </View>
@@ -94,9 +106,12 @@ export function Screen({
   tabbed = false,
   scrollable = true,
   appearance,
+  backdrop,
 }: {
   children: ReactNode;
   footer?: ReactNode;
+  // 화면 전체 뒤에 깔리는 장식. 터치를 받지 않고 스크롤되지 않는다.
+  backdrop?: ReactNode;
   header?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   // Inside the tab navigator the tab bar already owns the bottom inset.
@@ -114,6 +129,11 @@ export function Screen({
         appearance === 'cozy' && { backgroundColor: cozyColors.bg },
       ]}
     >
+      {backdrop && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          {backdrop}
+        </View>
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.frame}
