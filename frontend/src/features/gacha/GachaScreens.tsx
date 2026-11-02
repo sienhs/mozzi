@@ -46,7 +46,7 @@ import {
   type OpeningClip,
 } from '@/constants/gacha';
 import { colors } from '@/theme/tokens';
-import type { MochiCard as Card } from '@/types/gacha';
+import type { MochiCard as Card, Tier } from '@/types/gacha';
 import { useGachaStore } from '@/stores/useGachaStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { gachaApi, gachaKeys } from '@/services/gachaApi';
@@ -774,18 +774,19 @@ function CollectionState({
 // P-06 모찌 도감 (GET /gacha/collection). 없는 카드는 "?" 칸으로 가린다.
 export function CollectionScreen() {
   const collection = useCollection();
-  const [filter, setFilter] = useState<'all' | 'missing'>('all');
-  const [series, setSeries] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'owned' | 'missing'>('all');
+  const [tier, setTier] = useState<Tier | null>(null);
   const data = collection.data;
-  const seriesList = [
-    ...new Set((data?.cards ?? []).map(card => card.series).filter(Boolean)),
-  ];
+  // 도감에 있는 등급만 칩으로 둔다. 컨셉(시리즈)별로는 거르지 않는다.
+  const tierList = tierOrder.filter(id =>
+    (data?.cards ?? []).some(card => card.tier === id),
+  );
   // Sort a filtered copy for the album only; keep the shared API cache untouched.
   const list = (data?.cards ?? [])
     .filter(
       card =>
-        (filter === 'all' || !card.owned) &&
-        (!series || card.series === series),
+        (filter === 'all' || card.owned === (filter === 'owned')) &&
+        (!tier || card.tier === tier),
     )
     .sort(
       (a, b) =>
@@ -828,18 +829,24 @@ export function CollectionScreen() {
               onPress={() => setFilter('all')}
             />
             <AlbumChip
+              label="보유"
+              width={62}
+              active={filter === 'owned'}
+              onPress={() => setFilter('owned')}
+            />
+            <AlbumChip
               label="미보유"
               width={72}
               active={filter === 'missing'}
               onPress={() => setFilter('missing')}
             />
-            {seriesList.map(name => (
+            {tierList.map(id => (
               <AlbumChip
-                key={name}
-                label={name}
-                width={100}
-                active={series === name}
-                onPress={() => setSeries(series === name ? null : name)}
+                key={id}
+                label={tiers[id].label}
+                width={62}
+                active={tier === id}
+                onPress={() => setTier(tier === id ? null : id)}
               />
             ))}
           </View>
@@ -862,7 +869,11 @@ export function CollectionScreen() {
             </CardGrid>
           ) : (
             <AppText style={{ color: colors.muted, textAlign: 'center' }}>
-              모든 모찌를 만났어요.
+              {filter === 'owned'
+                ? `아직 만난 ${tier ? `${tiers[tier].label} ` : ''}모찌가 없어요.`
+                : tier
+                  ? `${tiers[tier].label} 모찌는 모두 만났어요.`
+                  : '모든 모찌를 만났어요.'}
             </AppText>
           )}
         </>

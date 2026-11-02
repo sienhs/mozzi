@@ -88,9 +88,6 @@ export function HomeEmptyPage({ onRecord }: { onRecord: () => void }) {
             <EmotionImage emotion="happy" size={152} />
           </MotionReveal>
         </View>
-        <AppText variant="small" style={styles.invitation}>
-          태그 몇 개로, 오늘을 그림 한 장에.
-        </AppText>
         <Button label="오늘 기록하기" onPress={onRecord} />
       </View>
     </HomeJournalPage>
@@ -238,12 +235,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.butter,
   },
   sparkle: { position: 'absolute', left: '19%', top: 28 },
-  invitation: {
-    fontSize: 14,
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
   pictureInset: { paddingHorizontal: 8 },
   diaryCaption: {
     paddingHorizontal: 16,

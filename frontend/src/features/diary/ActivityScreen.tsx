@@ -67,11 +67,7 @@ export function ActivityScreen() {
         />
       }
     >
-      <Heading
-        eyebrow="3 / 4"
-        title="어떤 장면을 그릴까요?"
-        description="앞에서 고른 활동 중 하나를 골라 주세요. 이 활동 하나를 그림으로 남겨요."
-      />
+      <Heading eyebrow="3 / 4" title="어떤 장면을 그릴까요?" />
       <View
         pointerEvents={busy ? 'none' : 'auto'}
         style={{ gap: 24, opacity: busy ? 0.6 : 1 }}
@@ -104,10 +100,6 @@ export function ActivityScreen() {
           {!!weather && (
             <AppText variant="small">날씨 · {weather.label}</AppText>
           )}
-          <AppText variant="caption">
-            장소와 동행은 앞에서 고른 내용이에요. 바꾸려면 이전 화면으로 돌아가
-            주세요.
-          </AppText>
         </View>
         {!selected && choices.length > 0 && (
           <AppText variant="caption">

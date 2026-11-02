@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import { Check, Leaf } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { cozyColors as colors } from '@/theme/cozy';
 import { AppText } from '@/components/ui/Text';
 import type { Companion, OwnedMozzi } from '@/types/companion';
@@ -33,21 +33,13 @@ export function EquippedBadge() {
     </View>
   );
 }
-export function CompanionNotice({ success = false }: { success?: boolean }) {
+// 대표 모찌를 바꾼 직후에만 잠깐 보여 주는 완료 알림.
+export function CompanionNotice() {
   return (
-    <View
-      style={styles.notice}
-      accessibilityRole={success ? 'alert' : undefined}
-    >
-      {success ? (
-        <Check size={24} color={colors.sage} />
-      ) : (
-        <Leaf size={24} color={colors.sage} />
-      )}
+    <View style={styles.notice} accessibilityRole="alert">
+      <Check size={24} color={colors.sage} />
       <AppText variant="small" style={{ flex: 1, color: colors.ink }}>
-        {success
-          ? '장착 완료!'
-          : '새로 작성하는 일기부터 적용돼요.\n감정별로 선택한 모찌가 함께해요!'}
+        장착 완료!
       </AppText>
     </View>
   );

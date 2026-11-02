@@ -129,13 +129,8 @@ export function SearchScreen() {
     >
       {!question ? (
         <>
-          <Heading
-            eyebrow="모찌와 찾는 기억"
-            title={'지난 마음을 물어보세요'}
-            description="남긴 기록에서 모찌가 찾아 드려요."
-          />
+          <Heading title="지난 마음을 물어보세요" />
           <View style={{ gap: 8 }}>
-            <AppText variant="small">이렇게 물어볼 수 있어요</AppText>
             {suggestions.isPending && memberId !== undefined && (
               <Loading label="추천 질문을 불러오고 있어요" />
             )}

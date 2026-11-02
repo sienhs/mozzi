@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { ChevronRight, Sparkles, Star, Ticket } from 'lucide-react-native';
+import { Sparkles, Star, Ticket } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -21,12 +21,12 @@ import type { MochiCard } from '@/types/gacha';
 import { useGachaStatus } from './useGachaQueries';
 import { GachaOddsSheet } from './GachaOddsSheet';
 
-const openCollection = () => router.push('/gacha/collection');
 const startPull = (count: number) =>
   router.push({ pathname: '/gacha/opening', params: { count: String(count) } });
 
 // Figma 05 · P-01 / P-01B / P-01C 뽑기 홈, P-05 확률 시트, P-12 중복 별조각.
-// 잔액·도감 진행도는 서버(GET /gacha/status) 값이다. 받기 전에는 뽑기 버튼을 열지 않는다.
+// 잔액은 서버(GET /gacha/status) 값이다. 받기 전에는 뽑기 버튼을 열지 않는다.
+// 상단에는 뽑기권·별조각만 두고, 도감은 마이페이지에서 연다.
 export function GachaHomeScreen() {
   const status = useGachaStatus();
   const wallet = useGachaStore(state => state.wallet);
@@ -55,47 +55,18 @@ export function GachaHomeScreen() {
           contentContainerStyle={roomStyles.content}
           showsVerticalScrollIndicator={false}
         >
-          <View style={roomStyles.information}>
-            <View style={roomStyles.header}>
-              <AppText
-                variant="heading"
-                accessibilityRole="header"
-                style={roomStyles.title}
-              >
-                모찌 뽑기
-              </AppText>
-              <View style={roomStyles.balances}>
-                <RoomBalance
-                  kind="ticket"
-                  label={`뽑기권 ${wallet ? wallet.tickets : '-'}`}
-                />
-                <View ref={target} collapsable={false}>
-                  <RoomBalance
-                    kind="star"
-                    label={`별조각 ${wallet ? wallet.shards : '-'}`}
-                    onPress={() => router.push('/gacha/exchange')}
-                  />
-                </View>
-              </View>
+          <View style={roomStyles.balances}>
+            <RoomBalance
+              kind="ticket"
+              label={`뽑기권 ${wallet ? wallet.tickets : '-'}`}
+            />
+            <View ref={target} collapsable={false}>
+              <RoomBalance
+                kind="star"
+                label={`별조각 ${wallet ? wallet.shards : '-'}`}
+                onPress={() => router.push('/gacha/exchange')}
+              />
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="모찌 도감"
-              onPress={openCollection}
-              style={roomStyles.collection}
-            >
-              <AppText variant="caption" style={roomStyles.progress}>
-                {status.data
-                  ? `도감 ${status.data.collection.owned} / ${status.data.collection.total}`
-                  : '도감 — / —'}
-              </AppText>
-              <View style={roomStyles.collectionLink}>
-                <AppText variant="caption" style={roomStyles.ink}>
-                  모찌 도감
-                </AppText>
-                <ChevronRight size={16} color={roomInk} />
-              </View>
-            </Pressable>
           </View>
           <View style={roomStyles.machineSpace} pointerEvents="none">
             {pending && (
@@ -186,20 +157,11 @@ const roomStyles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 16,
   },
-  information: { gap: 10 },
-  header: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: 10,
-    rowGap: 8,
-  },
-  title: { flexGrow: 1, color: roomInk },
   balances: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   balance: {
     flexDirection: 'row',
@@ -215,21 +177,6 @@ const roomStyles = StyleSheet.create({
     backgroundColor: 'rgba(255, 249, 245, 0.88)',
   },
   ink: { color: roomInk },
-  collection: {
-    minHeight: 44,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 249, 245, 0.85)',
-    backgroundColor: 'rgba(255, 249, 245, 0.82)',
-  },
-  progress: { flexGrow: 1, color: roomInk },
-  collectionLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   machineSpace: {
     flex: 1,
     minHeight: 240,

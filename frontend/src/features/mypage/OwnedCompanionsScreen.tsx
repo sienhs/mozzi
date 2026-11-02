@@ -99,9 +99,6 @@ export function OwnedCompanionsScreen() {
               {emotions[emotion].label}에 함께할 모찌
             </AppText>
             <EmotionSlotPicker value={emotion} onChange={setEmotion} />
-            <AppText variant="caption">
-              고르지 않은 감정은 기본 모찌가 함께해요.
-            </AppText>
             <View style={{ position: 'relative' }}>
               <Input
                 accessibilityLabel="모찌 이름 검색"
