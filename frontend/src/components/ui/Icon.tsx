@@ -2,6 +2,7 @@ import {
   ArrowUp,
   ChevronLeft,
   ChevronRight,
+  Moon,
   Pencil,
   RotateCw,
   Settings,
@@ -24,6 +25,7 @@ const icons = {
   pencil: Pencil,
   google: GoogleLogo,
   profile: UserRound,
+  moon: Moon,
 };
 export type IconName = keyof typeof icons;
 export function Icon({
