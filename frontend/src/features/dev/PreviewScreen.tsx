@@ -120,20 +120,22 @@ export function PreviewScreen() {
       />
       <AppText variant="heading">02 · 오늘의 기록</AppText>
       <AppText variant="small">
-        홈·그림 상태(H-01~H-03, E-01)는 서버 GET /home을 따르므로 Mock으로
-        만들지 않아요. 실제 서버에 로그인해서 확인해 주세요.
+        기록 전 홈은 화면만 미리 봅니다. 서버 일기와 생성 상태는 바뀌지 않으며,
+        홈 로고를 길게 누르면 실제 홈으로 돌아갑니다.
       </AppText>
       <Button
         label="H-01 홈 · 기록 전"
         variant="secondary"
-        onPress={() => {
-          prepare();
-          useAppStore.setState(state => ({
-            entries: state.entries.filter(entry => entry.date !== todayKey()),
-          }));
-          useAppStore.getState().resetDraft();
-          router.push('/home');
-        }}
+        onPress={() =>
+          router.push({ pathname: '/home', params: { preview: 'empty' } })
+        }
+      />
+      <Button
+        label="H-02 홈 · 완성 카드 미리보기"
+        variant="secondary"
+        onPress={() =>
+          router.push({ pathname: '/home', params: { preview: 'completed' } })
+        }
       />
       <Button
         label="R-01 기분 선택"
