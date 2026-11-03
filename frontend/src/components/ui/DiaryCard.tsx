@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import type { DiaryEntry } from '@/types/diary';
 import { formatDate } from '@/constants/date';
 import { radii } from '@/theme/tokens';
@@ -22,28 +29,44 @@ export function DiaryArtwork({
   rounded = true,
   ratio = DIARY_ARTWORK_RATIO,
   uri,
+  fit = 'cover',
+  style,
 }: {
   rounded?: boolean;
   ratio?: number;
   uri?: string | null;
+  fit?: 'cover' | 'contain';
+  style?: StyleProp<ViewStyle>;
 }) {
   const [loaded, setLoaded] = useState(false);
-  if (uri) return <RemoteArtwork uri={uri} rounded={rounded} ratio={ratio} />;
+  if (uri)
+    return (
+      <RemoteArtwork
+        uri={uri}
+        rounded={rounded}
+        ratio={ratio}
+        fit={fit}
+        style={style}
+      />
+    );
   return (
     <MotionReveal
       ready={loaded}
-      style={{
-        width: '100%',
-        aspectRatio: ratio,
-        borderRadius: rounded ? radii.card : 0,
-        overflow: 'hidden',
-      }}
+      style={[
+        {
+          width: '100%',
+          aspectRatio: ratio,
+          borderRadius: rounded ? radii.card : 0,
+          overflow: 'hidden',
+        },
+        style,
+      ]}
     >
       <Image
         onLoad={() => setLoaded(true)}
         source={diaryArtwork}
         accessibilityLabel="따뜻한 방에서 오므라이스를 먹는 모찌의 그림일기"
-        resizeMode="cover"
+        resizeMode={fit}
         style={{ width: '100%', height: '100%' }}
       />
     </MotionReveal>
@@ -53,10 +76,14 @@ function RemoteArtwork({
   uri,
   rounded,
   ratio,
+  fit,
+  style,
 }: {
   uri: string;
   rounded: boolean;
   ratio: number;
+  fit: 'cover' | 'contain';
+  style?: StyleProp<ViewStyle>;
 }) {
   const [state, setState] = useState<'loading' | 'loaded' | 'failed'>(
     'loading',
@@ -65,15 +92,18 @@ function RemoteArtwork({
   const [attempt, setAttempt] = useState(0);
   return (
     <View
-      style={{
-        width: '100%',
-        aspectRatio: ratio,
-        borderRadius: rounded ? radii.card : 0,
-        overflow: 'hidden',
-        backgroundColor: colors.sageSoft,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      style={[
+        {
+          width: '100%',
+          aspectRatio: ratio,
+          borderRadius: rounded ? radii.card : 0,
+          overflow: 'hidden',
+          backgroundColor: colors.sageSoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        style,
+      ]}
     >
       {state !== 'failed' && (
         <MotionReveal
@@ -84,7 +114,7 @@ function RemoteArtwork({
           <Image
             source={{ uri }}
             accessibilityLabel="오늘의 그림일기"
-            resizeMode="cover"
+            resizeMode={fit}
             onLoad={() => setState('loaded')}
             onError={() => setState('failed')}
             style={{ width: '100%', height: '100%' }}

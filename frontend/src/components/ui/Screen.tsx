@@ -9,6 +9,7 @@ import {
   type StyleProp,
   type TextStyle,
   type ViewStyle,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -107,11 +108,14 @@ export function Screen({
   scrollable = true,
   appearance,
   backdrop,
+  onViewportLayout,
 }: {
   children: ReactNode;
   footer?: ReactNode;
   // 화면 전체 뒤에 깔리는 장식. 터치를 받지 않고 스크롤되지 않는다.
   backdrop?: ReactNode;
+  // Optional measurement of the scroll viewport, after header/footer/safe areas.
+  onViewportLayout?: (event: LayoutChangeEvent) => void;
   header?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
   // Inside the tab navigator the tab bar already owns the bottom inset.
@@ -151,6 +155,7 @@ export function Screen({
         )}
         {scrollable ? (
           <ScrollView
+            onLayout={onViewportLayout}
             style={{ flex: 1 }}
             contentContainerStyle={[
               styles.content,

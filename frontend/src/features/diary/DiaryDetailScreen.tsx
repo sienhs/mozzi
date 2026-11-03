@@ -17,16 +17,30 @@ import {
   useAppStore,
 } from '@/stores/useAppStore';
 import { useDiary } from './useDiaryQueries';
+import { completedDiaryPreview } from '@/mocks/diaryPreview';
 
 // 서버 기록은 날짜로 조회한다 (GET /diaries/daily — 서버에 ID 단건 조회가 없다).
 // 날짜 없이 들어오면 검색이 아직 쓰는 로컬 샘플 기록에서 찾는다.
 export function DiaryDetailScreen() {
-  const { id, date } = useLocalSearchParams<{ id: string; date?: string }>();
+  const { id, date, preview, previewImage } = useLocalSearchParams<{
+    id: string;
+    date?: string;
+    preview?: string;
+    previewImage?: string;
+  }>();
   const local = useAppStore(state =>
     date ? undefined : state.entries.find(item => item.id === id),
   );
   const server = useDiary(date);
-  if (date && !server.entry) {
+  const previewEntry =
+    __DEV__ && preview === 'completed'
+      ? completedDiaryPreview(
+          server.entry ?? local,
+          date,
+          previewImage === 'portrait',
+        )
+      : null;
+  if (date && !server.entry && !previewEntry) {
     return (
       <Screen title={formatDate(date)} back>
         {server.isPending ? (
@@ -44,7 +58,7 @@ export function DiaryDetailScreen() {
       </Screen>
     );
   }
-  const entry = date ? server.entry : local;
+  const entry = previewEntry ?? (date ? server.entry : local);
   if (!entry)
     return (
       <Screen title="기록 상세" back>

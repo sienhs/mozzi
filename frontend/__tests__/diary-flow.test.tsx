@@ -9,7 +9,7 @@ import {
   waitFor,
 } from 'expo-router/testing-library';
 import { router } from 'expo-router';
-import { Share } from 'react-native';
+import { Image, Share } from 'react-native';
 import RootLayout from '@/app/_layout';
 import Welcome from '@/app/index';
 import Onboarding from '@/app/onboarding';
@@ -61,7 +61,14 @@ const routes = {
 };
 const TODAY = '2026-10-26';
 let server: FakeServer;
+let imageSize: jest.SpyInstance;
 beforeEach(() => {
+  imageSize = jest
+    .spyOn(Image, 'getSize')
+    .mockImplementation((_uri, success) => {
+      success?.(768, 512);
+      return Promise.resolve({ width: 768, height: 512 });
+    });
   jest.useFakeTimers();
   jest.setSystemTime(new Date('2026-10-26T12:00:00Z'));
   setAuthPreview('signedOut');
@@ -77,6 +84,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await cleanup();
+  imageSize.mockRestore();
   queryClient.clear();
   jest.clearAllTimers();
   jest.useRealTimers();
@@ -147,7 +155,53 @@ async function drawPicture(app: Awaited<ReturnType<typeof renderApp>>) {
   await waitFor(() => expect(app.getPathname()).toBe('/record/generation'));
 }
 
-test('completed home uses the server image and keeps previous diary navigation', async () => {
+test.each([
+  '/home?preview=empty',
+  '/home?preview=completed&previewImage=portrait',
+  '/home',
+])('home never contains a scroll view: %s', async url => {
+  const asset = jest.spyOn(Image, 'resolveAssetSource').mockReturnValue({
+    uri: 'asset:/diary-preview.png',
+    width: 768,
+    height: 1280,
+    scale: 1,
+  });
+  setAuthPreview();
+  seedToday('PENDING');
+  await renderApp(url);
+  await screen.findByText('오늘의 한 페이지');
+  expect(JSON.stringify(screen.toJSON())).not.toMatch(
+    /"type":"[^"]*ScrollView/,
+  );
+  asset.mockRestore();
+});
+
+test('completed preview leaves the pending server diary intact and opens a preview detail', async () => {
+  const asset = jest.spyOn(Image, 'resolveAssetSource').mockReturnValue({
+    uri: 'asset:/diary-preview.png',
+    width: 768,
+    height: 512,
+    scale: 1,
+  });
+  setAuthPreview();
+  seedToday('PENDING');
+  const app = await renderApp('/home?preview=completed');
+  await screen.findByLabelText('오늘의 그림일기');
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  expect(server.state.images.get(700)!.status).toBe('PENDING');
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
+  );
+  expect(app.getPathname()).toBe('/diary/700');
+  expect(
+    await screen.findByText('따뜻한 하루를 모찌와 그림으로 남겼어요.'),
+  ).toBeOnTheScreen();
+  expect(server.state.images.get(700)!.status).toBe('PENDING');
+  expect(server.callsTo('PATCH', '/diaries/700/content')).toHaveLength(0);
+  asset.mockRestore();
+}, 20000);
+
+test('completed home uses the server image without the previous diary section', async () => {
   setAuthPreview();
   server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
     ['요리', 'WHAT'],
@@ -156,19 +210,19 @@ test('completed home uses the server image and keeps previous diary navigation',
     ['산책', 'WHAT'],
   ]);
   const app = await renderApp('/home');
-  expect(await screen.findByText('일기 펼쳐보기')).toBeOnTheScreen();
-  expect(screen.getByText('오므라이스를 만들었어')).toBeOnTheScreen();
+  expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
+  expect(screen.queryByText('산책하며 남긴 하루')).toBeNull();
+  expect(screen.queryByText('오므라이스를 만들었어')).toBeNull();
+  expect(screen.queryByText('지난 기록')).toBeNull();
   expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
     uri: `https://cdn.example.test/diary/${todayId}.webp`,
   });
-  expect(screen.queryByRole('button', { name: '오늘 기록하기' })).toBeNull();
-  await fireEvent.press(
-    screen.getByRole('button', { name: '지난 기록 모두 보기' }),
+  expect(screen.getByLabelText('오늘의 그림일기').props.resizeMode).toBe(
+    'contain',
   );
-  expect(app.getPathname()).toBe('/calendar');
-  await fireEvent.press(screen.getByRole('tab', { name: '홈' }));
+  expect(screen.queryByRole('button', { name: '일기 쓰기' })).toBeNull();
   await fireEvent.press(
-    screen.getByRole('button', { name: /산책하며 남긴 하루/ }),
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
   );
   expect(app.getPathname()).toBe(`/diary/${todayId}`);
   expect(await screen.findByText('산책하며 남긴 하루')).toBeOnTheScreen();
@@ -181,9 +235,11 @@ test('tags create the diary, the picture is polled until done, and the one-line 
     ['요리', 'WHAT'],
   ]);
   const app = await renderApp('/home');
-  expect(await screen.findByText('지난 기록')).toBeOnTheScreen();
+  await screen.findByRole('button', { name: '일기 쓰기' });
+  expect(screen.queryByText('지난 기록')).toBeNull();
   expect(screen.getByLabelText('10월 26일 월요일')).toBeOnTheScreen();
-  await fireEvent.press(screen.getByRole('button', { name: '오늘 기록하기' }));
+  expect(screen.queryByText('오늘의 일기를 써볼까요?')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '일기 쓰기' }));
   await chooseDay();
   await fireEvent.press(
     screen.getByRole('button', { name: '무엇을 태그 추가' }),
@@ -199,9 +255,7 @@ test('tags create the diary, the picture is polled until done, and the one-line 
   const [created] = server.callsTo('POST', '/diaries');
   expect(created.body.content).toBeNull();
   expect(server.callsTo('POST', '/diaries/501/image')).toHaveLength(1);
-  expect(
-    await screen.findByText('오늘의 모찌를 그리고 있어요'),
-  ).toBeOnTheScreen();
+  expect(await screen.findByText(/모찌가 오늘의 마음을/)).toBeOnTheScreen();
   expect(screen.getByText('요리 · 집 · 가족')).toBeOnTheScreen();
   await fireEvent.press(
     screen.getByRole('button', { name: '홈에서 기다리기' }),
@@ -211,11 +265,17 @@ test('tags create the diary, the picture is polled until done, and the one-line 
   server.finish(501, 'SUCCEEDED');
   await advance(4000);
   expect(server.callsTo('GET', '/home').length).toBeGreaterThan(before);
-  expect(await screen.findByText('그림이 완성됐어요')).toBeOnTheScreen();
+  expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
+  expect(screen.queryByText('오늘의 모찌를 그리고 있어요')).toBeNull();
+  expect(screen.queryByRole('progressbar')).toBeNull();
   // 그림이 끝나면 더 묻지 않는다.
   const settled = server.callsTo('GET', '/home').length;
   await advance(30000);
   expect(server.callsTo('GET', '/home').length).toBe(settled);
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
+  );
+  expect(app.getPathname()).toBe('/diary/501');
   await fireEvent.press(
     screen.getByRole('button', { name: '한 줄 남기고 저장하기' }),
   );
@@ -247,7 +307,7 @@ test('after the diary is created, back goes home and the tag screens cannot be r
   setAuthPreview();
   const app = await renderApp('/home');
   await fireEvent.press(
-    await screen.findByRole('button', { name: '오늘 기록하기' }),
+    await screen.findByRole('button', { name: '일기 쓰기' }),
   );
   await chooseDay();
   await drawPicture(app);
@@ -256,7 +316,7 @@ test('after the diary is created, back goes home and the tag screens cannot be r
   });
   expect(app.getPathname()).toBe('/home');
   await advance(0);
-  expect(screen.queryByRole('button', { name: '오늘 기록하기' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '일기 쓰기' })).toBeNull();
   await act(async () => {
     router.push('/record/tags');
   });
@@ -271,23 +331,28 @@ test('home shows each server status: pending, completed with and without a line,
   setAuthPreview();
   seedToday('PENDING');
   await renderApp('/home');
-  expect(
-    await screen.findByText('오늘의 모찌를 그리고 있어요'),
-  ).toBeOnTheScreen();
-  expect(screen.getByLabelText('그림 생성 진행률')).toBeOnTheScreen();
+  expect(await screen.findByLabelText('그림 생성 중')).toBeOnTheScreen();
+  expect(screen.getByLabelText('그림 생성 중')).toBeOnTheScreen();
+  expect(screen.queryByText('오늘의 모찌를 그리고 있어요')).toBeNull();
+  expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({
+    text: '기록 접수 완료, 그림 그리는 중',
+  });
+  expect(screen.queryByLabelText('오늘의 그림일기')).toBeNull();
+  expect(screen.queryByRole('button', { name: /그림일기 보기/ })).toBeNull();
 
   server.finish(700, 'SUCCEEDED');
   await reopenHome();
-  // 서버 COMPLETED여도 한 줄이 없으면 작성 완료가 아니다.
-  expect(await screen.findByText('그림이 완성됐어요')).toBeOnTheScreen();
+  // 한 줄이 없어도 서버 그림이 완성되면 홈에는 완성 카드를 표시한다.
+  expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
+  expect(screen.queryByText('오늘의 모찌를 그리고 있어요')).toBeNull();
   expect(
-    screen.getByRole('button', { name: '한 줄 남기고 저장하기' }),
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
   ).toBeOnTheScreen();
 
   server.state.diaries[0].content = '비 오는 날 오므라이스';
   await reopenHome();
-  expect(await screen.findByText('일기 펼쳐보기')).toBeOnTheScreen();
-  expect(screen.getByText('비 오는 날 오므라이스')).toBeOnTheScreen();
+  expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
+  expect(screen.queryByText('비 오는 날 오므라이스')).toBeNull();
 
   server.state.diaries[0].content = null;
   server.state.images.get(700)!.status = 'FAILED';
@@ -318,9 +383,7 @@ test('a lost picture request is recovered with 다시 보내기; without a saved
   await advance(0);
   const [sent] = server.callsTo('POST', '/diaries/700/image');
   expect(sent.body.whatMyIconId).toBe(what.myIconId);
-  expect(
-    await screen.findByText('오늘의 모찌를 그리고 있어요'),
-  ).toBeOnTheScreen();
+  expect(await screen.findByLabelText('그림 생성 중')).toBeOnTheScreen();
 });
 
 test('a diary that lost its activity icon cannot request a picture', async () => {
@@ -345,9 +408,7 @@ test('IMAGE_ALREADY_REQUESTED from another device refreshes home instead of fail
   });
   await fireEvent.press(screen.getByRole('button', { name: '다시 그리기' }));
   await advance(0);
-  expect(
-    await screen.findByText('오늘의 모찌를 그리고 있어요'),
-  ).toBeOnTheScreen();
+  expect(await screen.findByLabelText('그림 생성 중')).toBeOnTheScreen();
   expect(screen.queryByText(/IMAGE_ALREADY_REQUESTED/)).toBeNull();
 });
 
@@ -365,7 +426,7 @@ test('first load shows progress, a failed home load offers a retry, and the date
   expect(screen.getByText('오늘의 기록을 불러오고 있어요')).toBeOnTheScreen();
   await act(async () => release());
   expect(
-    await screen.findByRole('button', { name: '오늘 기록하기' }),
+    await screen.findByRole('button', { name: '일기 쓰기' }),
   ).toBeOnTheScreen();
 
   await cleanup();
@@ -379,7 +440,7 @@ test('first load shows progress, a failed home load offers a retry, and the date
   ).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '다시 불러오기' }));
   expect(
-    await screen.findByRole('button', { name: '오늘 기록하기' }),
+    await screen.findByRole('button', { name: '일기 쓰기' }),
   ).toBeOnTheScreen();
   // 서울 자정이 지나면 다시 읽는다 (지금은 서울 21시).
   const before = server.callsTo('GET', '/home').length;
@@ -394,12 +455,7 @@ test('detail reads the server diary by date with its image, tags and line, and h
     ['집', 'WHERE'],
     ['동생', 'WHO'],
   ]);
-  const app = await renderApp('/home');
-  await fireEvent.press(
-    await screen.findByRole('button', {
-      name: '10월 22일 목요일 오므라이스를 만들었어',
-    }),
-  );
+  const app = await renderApp('/diary/500?date=2026-10-22');
   expect(app.getPathname()).toBe('/diary/500');
   expect(await screen.findByText('오므라이스를 만들었어')).toBeOnTheScreen();
   expect(screen.getByText('요리 · 집 · 동생')).toBeOnTheScreen();

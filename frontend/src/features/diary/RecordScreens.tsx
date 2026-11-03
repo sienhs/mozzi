@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/CozyUI';
 import {
   ErrorBanner,
-  GenerationProgress,
   Loading,
   PictureState,
   StatePanel,
@@ -36,6 +35,7 @@ import {
 import { tagSummary } from './tagRules';
 import { useHome } from './useDiaryQueries';
 import { useRecordGuard } from './useRecordGuard';
+import { DiaryDrawingState } from '@/features/home/HomeJournal';
 
 export function EmotionScreen() {
   const locked = useRecordGuard();
@@ -196,26 +196,30 @@ export function GenerationScreen() {
       action={{ icon: 'close', label: '홈으로', onPress: goHome }}
       footer={footer}
     >
-      <Heading
-        eyebrow={
-          phase === 'reviewing' || phase === 'saving' ? '4 / 4' : undefined
-        }
-        title={copy.title}
-        description={copy.description}
-      />
+      {phase === 'generating' ? (
+        <AppText variant="caption">화면을 나가도 계속 그려요.</AppText>
+      ) : (
+        <Heading
+          eyebrow={
+            phase === 'reviewing' || phase === 'saving' ? '4 / 4' : undefined
+          }
+          title={copy.title}
+          description={copy.description}
+        />
+      )}
       {phase === 'completed' ? (
         <DiaryCard entry={entry} />
       ) : phase === 'reviewing' || phase === 'saving' ? (
         <DiaryArtwork uri={entry.imageUrl} />
+      ) : phase === 'generating' ? (
+        <DiaryDrawingState />
       ) : (
         <PictureState
           emotion={entry.emotion}
           companion={entry.companion}
-          generating={phase === 'generating'}
           tone="sage"
         />
       )}
-      {phase === 'generating' && <GenerationProgress />}
       {(phase === 'failed' || phase === 'notRequested') && (
         <>
           <ScenePicker request={request} whatIcons={whatIcons} />

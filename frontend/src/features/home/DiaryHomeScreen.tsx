@@ -1,18 +1,9 @@
-import { router } from 'expo-router';
-import { Pressable, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { View } from 'react-native';
 import { Heading } from '@/components/ui/Screen';
-import {
-  CozyScreen as Screen,
-  CozyButton as Button,
-} from '@/components/ui/CozyUI';
-import { DiaryArtwork } from '@/components/ui/DiaryCard';
-import {
-  GenerationProgress,
-  Loading,
-  PictureState,
-  StatePanel,
-} from '@/components/ui/Feedback';
-import { canResend, canRetry, entryPhase } from '@/stores/useAppStore';
+import { CozyScreen as Screen } from '@/components/ui/CozyUI';
+import { Loading, PictureState, StatePanel } from '@/components/ui/Feedback';
+import { canResend, canRetry } from '@/stores/useAppStore';
 import type { DiaryEntry } from '@/types/diary';
 import {
   ImageRequestButton,
@@ -24,20 +15,20 @@ import { useHome } from '@/features/diary/useDiaryQueries';
 import {
   HomeCompletedPage,
   HomeEmptyPage,
+  HomeGeneratingPage,
   HomeJournalPage,
   HomeMasthead,
-  HomeRecentRecord,
 } from './HomeJournal';
+import { ChristmasCard, WinterBackdrop } from './HomeChristmas';
+import { completedDiaryPreview } from '@/mocks/diaryPreview';
+import { spacing } from '@/theme/tokens';
 
 // 홈 상태는 서버 todayStatus를 따른다.
-//   NOT_RECORDED → H-01 · IMAGE_PENDING → H-03 · COMPLETED → H-02(한 줄이 없으면 G-02로 이어짐)
+//   NOT_RECORDED → EMPTY · IMAGE_PENDING → GENERATING · COMPLETED → 완성 카드
 //   IMAGE_FAILED → E-01 다시 그리기 · IMAGE_NOT_REQUESTED → E-01 구조에 다시 보내기
-// 서버 COMPLETED는 '그림 완성'이다. 한 줄까지 남겨야(content) 작성 완료로 본다.
-function homeCopy(entry: DiaryEntry | null) {
-  if (!entry) return { title: '오늘은 어떤 하루였나요?' };
-  const phase = entryPhase(entry, false);
-  if (phase === 'generating') return { title: '오늘의 모찌를 그리고 있어요' };
-  if (phase === 'notRequested')
+// 한 줄 작성 여부와 무관하게 그림이 완성되면 완성 카드를 표시한다.
+function recoveryCopy(entry: DiaryEntry) {
+  if (entry.generation === 'notRequested')
     return canResend(entry)
       ? {
           title: '그림 요청이 전달되지 않았어요',
@@ -47,50 +38,78 @@ function homeCopy(entry: DiaryEntry | null) {
           title: '지금은 그림을 요청할 수 없어요',
           description: '그림으로 남길 활동 태그가 기록에 남아 있지 않아요.',
         };
-  if (phase === 'failed')
-    return canRetry(entry)
-      ? {
-          title: '이번 그림은 완성하지 못했어요',
-          description: '고른 장면으로 다시 그려요.',
-        }
-      : { title: '오늘은 그림을 더 그릴 수 없어요' };
-  if (phase === 'reviewing') return { title: '그림이 완성됐어요' };
-  return { title: '오늘도 한 장 남겼어요' };
+  return canRetry(entry)
+    ? {
+        title: '이번 그림은 완성하지 못했어요',
+        description: '고른 장면으로 다시 그려요.',
+      }
+    : { title: '오늘은 그림을 더 그릴 수 없어요' };
 }
 
 export function DiaryHomeScreen() {
+  const { preview, previewImage } = useLocalSearchParams<{
+    preview?: string;
+    previewImage?: string;
+  }>();
+  const previewEmpty = __DEV__ && preview === 'empty';
+  const previewCompleted = __DEV__ && preview === 'completed';
+  const isPreview = previewEmpty || previewCompleted;
   const home = useHome();
-  const entry = home.today;
-  const recent = home.recent;
+  // Presentation only: never change the server diary or its query cache.
+  const entry = previewEmpty
+    ? null
+    : previewCompleted
+      ? completedDiaryPreview(
+          home.today,
+          home.data?.today,
+          previewImage === 'portrait',
+        )
+      : home.today;
   const whatIcons = home.data?.todayDiary?.myIcons.WHAT ?? [];
   const request = useImageRequest(entry, whatIcons);
-  const phase = entry ? entryPhase(entry, false) : null;
+  // Image completion is independent of the optional one-line writing step.
+  const completed =
+    (previewCompleted || home.data?.todayStatus === 'COMPLETED') &&
+    entry?.generation === 'ready' &&
+    !!entry.imageUrl;
+  const generating =
+    home.data?.todayStatus === 'IMAGE_PENDING' &&
+    entry?.generation === 'generating';
+  const empty =
+    previewEmpty || (home.data?.todayStatus === 'NOT_RECORDED' && !entry);
+  const recovering =
+    entry?.generation === 'failed' || entry?.generation === 'notRequested';
   const openEntry = (item: DiaryEntry) =>
     router.push({
       pathname: '/diary/[id]',
-      params: { id: item.id, date: item.date },
+      params: {
+        id: item.id,
+        date: item.date,
+        ...(previewCompleted ? { preview: 'completed', previewImage } : {}),
+      },
     });
-  const openGeneration = (id: string) =>
-    router.push({ pathname: '/record/generation', params: { id } });
-  const copy = homeCopy(entry);
-  const loaded = !!home.data;
+  const loaded = isPreview || !!home.data;
   const footer =
-    !loaded || !entry ? undefined : phase === 'failed' ||
-      phase === 'notRequested' ? (
-      <ImageRequestButton request={request} />
-    ) : phase === 'reviewing' ? (
-      <Button
-        label="한 줄 남기고 저장하기"
-        onPress={() => openGeneration(entry.id)}
-      />
-    ) : undefined;
+    loaded && recovering ? <ImageRequestButton request={request} /> : undefined;
   return (
     <Screen
       tabbed
+      scrollable={false}
       title="오늘의 모찌"
+      backdrop={<WinterBackdrop />}
       titleContent={<HomeMasthead date={home.data?.today} />}
-      contentStyle={{ paddingTop: 8, gap: 18 }}
-      onTitleLongPress={__DEV__ ? () => router.push('/dev') : undefined}
+      contentStyle={{
+        paddingHorizontal: spacing.page,
+        paddingTop: 0,
+        paddingBottom: 12,
+        gap: 8,
+        overflow: 'hidden',
+      }}
+      onTitleLongPress={
+        __DEV__
+          ? () => (isPreview ? router.replace('/home') : router.push('/dev'))
+          : undefined
+      }
       footer={footer}
     >
       {!loaded ? (
@@ -106,66 +125,38 @@ export function DiaryHomeScreen() {
         )
       ) : (
         <>
-          {!entry && (
+          {empty && (
             <HomeEmptyPage onRecord={() => router.push('/record/emotion')} />
           )}
-          {entry && phase === 'completed' && (
+          {entry && completed && (
             <HomeCompletedPage entry={entry} onOpen={() => openEntry(entry)} />
           )}
-          {entry && phase !== 'completed' && (
+          {entry && generating && <HomeGeneratingPage />}
+          {entry && recovering && (
             <HomeJournalPage>
-              <View
-                style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 14 }}
-              >
-                <Heading
-                  titleStyle={{ fontSize: 28, lineHeight: 38 }}
-                  title={copy.title}
-                  description={copy.description}
-                />
-                {phase === 'reviewing' && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="완성된 그림 보기"
-                    onPress={() => openGeneration(entry.id)}
-                  >
-                    <DiaryArtwork uri={entry.imageUrl} />
-                  </Pressable>
-                )}
-                {phase === 'generating' && (
-                  <>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="그림 생성 화면 보기"
-                      onPress={() => openGeneration(entry.id)}
-                    >
-                      <PictureState
-                        emotion={entry.emotion}
-                        companion={entry.companion}
-                        generating
-                        tone="sage"
-                      />
-                    </Pressable>
-                    <GenerationProgress home />
-                  </>
-                )}
-                {(phase === 'failed' || phase === 'notRequested') && (
-                  <>
-                    <PictureState
-                      emotion={entry.emotion}
-                      companion={entry.companion}
-                    />
-                    <ScenePicker request={request} whatIcons={whatIcons} />
-                    <ImageRequestStatus request={request} />
-                  </>
-                )}
-              </View>
+              <ChristmasCard>
+                <View style={{ paddingBottom: 12, gap: 14 }}>
+                  <Heading
+                    titleStyle={{ fontSize: 24, lineHeight: 34 }}
+                    {...recoveryCopy(entry)}
+                  />
+                  <PictureState
+                    emotion={entry.emotion}
+                    companion={entry.companion}
+                    ratio={3}
+                  />
+                  <ScenePicker request={request} whatIcons={whatIcons} />
+                  <ImageRequestStatus request={request} />
+                </View>
+              </ChristmasCard>
             </HomeJournalPage>
           )}
-          {(!entry || phase === 'completed') && recent && (
-            <HomeRecentRecord
-              entry={recent}
-              onOpen={() => openEntry(recent)}
-              onBrowse={() => router.push('/calendar')}
+          {!empty && !completed && !generating && !recovering && (
+            <StatePanel
+              title="오늘의 그림을 확인하고 있어요"
+              description="최신 그림 상태를 다시 불러와 주세요."
+              retry={home.refetch}
+              retryLabel="다시 불러오기"
             />
           )}
         </>
