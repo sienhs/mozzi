@@ -20,10 +20,8 @@ import { spacing } from '@/theme/tokens';
 import type { DiaryEntry, Emotion } from '@/types/diary';
 import { toAppEmotion } from '@/features/diary/serverDiary';
 import { useDiary, useMonthly } from '@/features/diary/useDiaryQueries';
-import {
-  DiaryDetailBody,
-  shareDiary,
-} from '@/features/diary/DiaryDetailScreen';
+import { DiaryDetailBody } from '@/features/diary/DiaryDetailScreen';
+import { useDiaryImageActions } from '@/features/diary/useDiaryImageActions';
 import { SnowBackdrop } from '@/features/calendar/SnowBackdrop';
 import { ChristmasLights } from '@/features/calendar/ChristmasLights';
 
@@ -319,6 +317,7 @@ function DayPopup({
   const { width, height } = useWindowDimensions();
   const day = useDiary(date && recorded ? date : undefined);
   const entry = date && recorded ? day.entry : null;
+  const actions = useDiaryImageActions(entry);
   // 팝업 안쪽 폭(최대 420 - 여백 36)과 남는 높이(머리줄·감정·한 줄·시각·버튼 약 340) 중 작은 쪽.
   const artworkSize = Math.max(
     150,
@@ -366,17 +365,51 @@ function DayPopup({
           <Loading label="기록을 불러오고 있어요" />
         </View>
       )}
+      {actions.notice && (
+        <AppText
+          accessibilityLiveRegion="polite"
+          variant="small"
+          style={{ textAlign: 'center', color: colors.muted }}
+        >
+          {actions.notice}
+        </AppText>
+      )}
       <View style={{ flexDirection: 'row', gap: 10 }}>
+        {recorded && actions.canSave && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="그림 저장"
+            accessibilityState={{ busy: actions.busy === 'save' }}
+            onPress={actions.save}
+            style={[popupAction, { backgroundColor: colors.lavender }]}
+          >
+            {actions.busy === 'save' ? (
+              <ActivityIndicator size="small" color={colors.muted} />
+            ) : (
+              <Icon name="download" size={18} color={colors.muted} />
+            )}
+            <AppText variant="small" style={{ color: colors.ink }}>
+              저장
+            </AppText>
+          </Pressable>
+        )}
         {recorded ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="기록 공유"
-            accessibilityState={{ disabled: !entry }}
+            accessibilityState={{
+              disabled: !entry,
+              busy: actions.busy === 'share',
+            }}
             disabled={!entry}
-            onPress={() => entry && void shareDiary(entry)}
+            onPress={actions.share}
             style={[popupAction, { backgroundColor: colors.lavender }]}
           >
-            <Icon name="share" size={18} color={colors.muted} />
+            {actions.busy === 'share' ? (
+              <ActivityIndicator size="small" color={colors.muted} />
+            ) : (
+              <Icon name="share" size={18} color={colors.muted} />
+            )}
             <AppText variant="small" style={{ color: colors.ink }}>
               공유
             </AppText>

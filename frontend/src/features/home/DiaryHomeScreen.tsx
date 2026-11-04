@@ -85,15 +85,6 @@ export function DiaryHomeScreen() {
     previewEmpty || (home.data?.todayStatus === 'NOT_RECORDED' && !entry);
   const recovering =
     entry?.generation === 'failed' || entry?.generation === 'notRequested';
-  const openEntry = (item: DiaryEntry) =>
-    router.push({
-      pathname: '/diary/[id]',
-      params: {
-        id: item.id,
-        date: item.date,
-        ...(previewCompleted ? { preview: 'completed', previewImage } : {}),
-      },
-    });
   const loaded = isPreview || !!home.data;
   // 오늘 장 머리줄 끝: 지난 기록이 있으면 넘겨 볼 수 있다고 알린다(버튼으로도 넘어간다).
   const olderHint = (controls: PagerControls) =>
@@ -111,11 +102,7 @@ export function DiaryHomeScreen() {
           />
         )}
         {entry && completed && (
-          <HomeCompletedPage
-            entry={entry}
-            trailing={trailing}
-            onOpen={() => openEntry(entry)}
-          />
+          <HomeCompletedPage entry={entry} trailing={trailing} />
         )}
         {entry && generating && <HomeGeneratingPage trailing={trailing} />}
         {entry && recovering && (
@@ -199,7 +186,6 @@ export function DiaryHomeScreen() {
                 <HomeCompletedPage
                   entry={past.entries[page - 1]}
                   label="지난 한 페이지"
-                  onOpen={() => openEntry(past.entries[page - 1])}
                   trailing={
                     <PageHint label="오늘로" onPress={() => controls.goTo(0)} />
                   }

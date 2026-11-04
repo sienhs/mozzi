@@ -10,11 +10,11 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator,
   BackHandler,
-  Image,
   Keyboard,
   Pressable,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Heading } from '@/components/ui/Screen';
 import { CozyScreen as Screen } from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
@@ -33,7 +33,6 @@ import {
   searchApi,
   searchKeys,
 } from '@/services/searchApi';
-import { searchHistory } from '@/services/searchHistory';
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
   toAppEmotion,
@@ -45,7 +44,7 @@ import type { SearchFilter, ServerEmotion } from '@/types/server';
 
 // 감정 검색 (POST /emotion-search). 서버가 질문을 해석해 기록을 찾고 답을 만든다.
 // 결과는 FOUND(답 + 큰 카드 + 기록 행), EMPTY(기록 없음), STATS_ONLY(감정별 날 수) 중 하나다.
-// 화면은 두 단계다: 처음(감정별·최근·추천 질문) → 질문과 답. 뒤로 가기(머리줄·기기 버튼)는 처음으로 돌아온다.
+// 화면은 두 단계다: 처음(감정별·추천 질문) → 질문과 답. 뒤로 가기(머리줄·기기 버튼)는 처음으로 돌아온다.
 
 // 감정 하나로 바로 물어보는 질문. 서버가 감정 조건으로 알아듣기 쉬운 말로 둔다.
 const emotionQuestion = (emotion: Emotion) =>
@@ -65,7 +64,6 @@ export function SearchScreen() {
   }>();
   const [input, setInput] = useState('');
   const [question, setQuestion] = useState('');
-  const [recent, setRecent] = useState<string[]>([]);
   const pending = useRef(false);
   const suggestions = useQuery({
     queryKey: searchKeys.suggestions(memberId ?? 0),
@@ -76,17 +74,6 @@ export function SearchScreen() {
   const search = useMutation({ mutationFn: searchApi.ask, retry: false });
   const { mutateAsync, reset } = search;
 
-  useEffect(() => {
-    if (memberId === undefined) return;
-    let active = true;
-    void searchHistory.read(memberId).then(list => {
-      if (active) setRecent(list);
-    });
-    return () => {
-      active = false;
-    };
-  }, [memberId]);
-
   const ask = useCallback(
     async (value: string) => {
       const query = value.trim();
@@ -95,8 +82,6 @@ export function SearchScreen() {
       pending.current = true;
       setQuestion(query);
       setInput('');
-      if (memberId !== undefined)
-        void searchHistory.add(memberId, query).then(setRecent);
       try {
         await mutateAsync(query);
       } catch {
@@ -105,7 +90,7 @@ export function SearchScreen() {
         pending.current = false;
       }
     },
-    [mutateAsync, memberId],
+    [mutateAsync],
   );
   // 처음 화면으로 돌아간다. 지난 답은 지워 다음 질문에 섞이지 않게 한다.
   const restart = useCallback(() => {
@@ -145,14 +130,6 @@ export function SearchScreen() {
   const followUps = [...(suggestions.data ?? []), ...periodQuestions]
     .filter(text => text !== question)
     .slice(0, 3);
-  const removeRecent = (text: string) => {
-    if (memberId !== undefined)
-      void searchHistory.remove(memberId, text).then(setRecent);
-  };
-  const clearRecent = () => {
-    if (memberId !== undefined)
-      void searchHistory.clear(memberId).then(setRecent);
-  };
   const trimmed = input.trim();
   return (
     <Screen
@@ -220,12 +197,15 @@ export function SearchScreen() {
     >
       {!question ? (
         <>
-          <Heading
-            title="지난 마음을 물어보세요"
-            description="날짜, 감정, 함께한 사람으로 물어보면 기록을 찾아 줘요."
-          />
-          <Section title="감정으로 찾기">
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Heading title="지난 마음을 물어보세요" />
+          {/* 물어볼 거리는 내가 보낼 말처럼 오른쪽 말풍선으로 둔다. 누르면 그대로 물어본다. */}
+          <View style={{ alignItems: 'flex-end', gap: 8 }}>
+            <AppText variant="caption" style={{ color: colors.muted }}>
+              감정으로 찾기
+            </AppText>
+            <View
+              style={[bubble, { flexDirection: 'row', gap: 6, padding: 8 }]}
+            >
               {emotionOrder.map(emotion => (
                 <Pressable
                   key={emotion}
@@ -234,110 +214,45 @@ export function SearchScreen() {
                   onPress={() => void ask(emotionQuestion(emotion))}
                   style={({ pressed }) => [
                     {
-                      flex: 1,
+                      width: 52,
                       alignItems: 'center',
-                      gap: 4,
-                      paddingVertical: 10,
-                      borderRadius: 18,
+                      gap: 2,
+                      paddingVertical: 8,
+                      borderRadius: 14,
                       backgroundColor: emotions[emotion].color,
                     },
                     pressed && { transform: [{ scale: 0.95 }] },
                   ]}
                 >
-                  <EmotionImage emotion={emotion} size={36} />
+                  <EmotionImage emotion={emotion} size={32} />
                   <AppText variant="caption" style={{ color: colors.ink }}>
                     {emotions[emotion].label}
                   </AppText>
                 </Pressable>
               ))}
             </View>
-          </Section>
-          {!!recent.length && (
-            <Section
-              title="최근 물어본 질문"
-              action={
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="최근 질문 모두 지우기"
-                  onPress={clearRecent}
-                  hitSlop={8}
-                >
-                  <AppText variant="caption" style={{ color: colors.muted }}>
-                    모두 지우기
-                  </AppText>
-                </Pressable>
-              }
-            >
-              <View>
-                {recent.map(text => (
-                  <View
-                    key={text}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`최근 질문 ${text}`}
-                      onPress={() => void ask(text)}
-                      style={{
-                        flex: 1,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 10,
-                        minHeight: 44,
-                        paddingHorizontal: 4,
-                      }}
-                    >
-                      <Icon name="refresh" size={16} color={colors.muted} />
-                      <AppText numberOfLines={1} style={{ flex: 1 }}>
-                        {text}
-                      </AppText>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${text} 지우기`}
-                      onPress={() => removeRecent(text)}
-                      hitSlop={8}
-                      style={{
-                        width: 36,
-                        height: 36,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Icon name="close" size={16} color={colors.muted} />
-                    </Pressable>
-                  </View>
-                ))}
-              </View>
-            </Section>
-          )}
-          <Section title="이렇게 물어볼 수 있어요">
-            <View style={{ gap: 8 }}>
-              {suggestions.isPending && memberId !== undefined && (
-                <Loading label="추천 질문을 불러오고 있어요" />
-              )}
-              {suggestions.isError && (
-                <StatePanel
-                  compact
-                  title="추천 질문을 불러오지 못했어요"
-                  description="궁금한 날을 직접 물어볼 수도 있어요."
-                  retry={() => void suggestions.refetch()}
-                  retryLabel="다시 불러오기"
-                />
-              )}
-              {[...(suggestions.data ?? []), ...periodQuestions].map(text => (
-                <SuggestionCard
-                  key={text}
-                  text={text}
-                  onPress={() => void ask(text)}
-                />
-              ))}
-            </View>
-          </Section>
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 8 }}>
+            {suggestions.isPending && memberId !== undefined && (
+              <Loading label="추천 질문을 불러오고 있어요" />
+            )}
+            {suggestions.isError && (
+              <StatePanel
+                compact
+                title="추천 질문을 불러오지 못했어요"
+                description="궁금한 날을 직접 물어볼 수도 있어요."
+                retry={() => void suggestions.refetch()}
+                retryLabel="다시 불러오기"
+              />
+            )}
+            {[...(suggestions.data ?? []), ...periodQuestions].map(text => (
+              <SuggestionBubble
+                key={text}
+                text={text}
+                onPress={() => void ask(text)}
+              />
+            ))}
+          </View>
         </>
       ) : (
         <>
@@ -470,35 +385,16 @@ export function SearchScreen() {
   );
 }
 
-function Section({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <View style={{ gap: 10 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <AppText variant="label" style={{ color: colors.ink }}>
-          {title}
-        </AppText>
-        {action}
-      </View>
-      {children}
-    </View>
-  );
-}
-
-function SuggestionCard({
+// 오른쪽 말풍선(내가 보낼 말) 모양. 꼬리 쪽 아래 오른쪽 모서리만 덜 둥글다.
+const bubble = {
+  maxWidth: '86%' as const,
+  backgroundColor: colors.paper,
+  borderWidth: 1,
+  borderColor: colors.paperEdge,
+  borderRadius: 20,
+  borderBottomRightRadius: 6,
+};
+function SuggestionBubble({
   text,
   onPress,
 }: {
@@ -510,20 +406,18 @@ function SuggestionCard({
       accessibilityRole="button"
       accessibilityLabel={text}
       onPress={onPress}
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? colors.roseWash : colors.paper,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: colors.paperEdge,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        minHeight: 52,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-      })}
+      style={({ pressed }) => [
+        bubble,
+        {
+          backgroundColor: pressed ? colors.roseWash : colors.paper,
+          paddingHorizontal: 16,
+          paddingVertical: 11,
+          minHeight: 44,
+          justifyContent: 'center',
+        },
+      ]}
     >
-      <AppText style={{ flex: 1 }}>{text}</AppText>
+      <AppText style={{ color: colors.ink }}>{text}</AppText>
     </Pressable>
   );
 }
@@ -545,7 +439,7 @@ function AnswerBubble({ children }: { children: ReactNode }) {
         <Image
           source={gachaArt.mochi}
           accessible={false}
-          resizeMode="contain"
+          contentFit="contain"
           style={{ width: 30, height: 30 }}
         />
       </View>

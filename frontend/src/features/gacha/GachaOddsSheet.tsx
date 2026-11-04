@@ -1,4 +1,5 @@
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Sparkles, Star } from 'lucide-react-native';
 import { Sheet } from '@/components/ui/Sheet';
 import { AppText } from '@/components/ui/Text';
@@ -132,7 +133,7 @@ function OddsTitle() {
         <Image
           accessible={false}
           source={emotions.neutral.source}
-          resizeMode="contain"
+          contentFit="contain"
           style={styles.mozzi}
         />
         <View style={styles.cloud} />
@@ -152,7 +153,7 @@ function OddsTitle() {
         <Image
           accessible={false}
           source={gachaArt.mochi}
-          resizeMode="contain"
+          contentFit="contain"
           style={[styles.mozzi, { transform: [{ rotate: '8deg' }] }]}
         />
         <View style={styles.cloud} />

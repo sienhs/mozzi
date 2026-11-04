@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 import { DiaryArtwork } from '@/components/ui/DiaryCard';
 
@@ -171,21 +171,10 @@ export function StampFrame({ uri }: { uri?: string | null }) {
   const [image, setImage] = useState({ uri, ratio: 1 });
   const [size, setSize] = useState({ width: 300, height: 300 });
   const [space, setSpace] = useState({ width: 0, height: 0 });
-  useEffect(() => {
-    let active = true;
-    if (uri)
-      Image.getSize(
-        uri,
-        (width, height) => {
-          if (active && width > 0 && height > 0)
-            setImage({ uri, ratio: width / height });
-        },
-        () => undefined,
-      );
-    return () => {
-      active = false;
-    };
-  }, [uri]);
+  // 그림을 받으면 원본 비율로 틀을 맞춘다(따로 크기를 묻느라 그림을 두 번 받지 않는다).
+  const measure = (width: number, height: number) => {
+    if (width > 0 && height > 0) setImage({ uri, ratio: width / height });
+  };
   const ratio = image.uri === uri ? image.ratio : 1;
   // Fit the entire image and its paper edge inside the remaining card space.
   const availableWidth = Math.max(0, space.width - 16);
@@ -242,7 +231,13 @@ export function StampFrame({ uri }: { uri?: string | null }) {
             <Path d={edge} fill={paper} stroke="#EED8CD" strokeWidth="0.8" />
           </Svg>
         </View>
-        <DiaryArtwork uri={uri} ratio={ratio} fit="contain" rounded={false} />
+        <DiaryArtwork
+          uri={uri}
+          ratio={ratio}
+          fit="contain"
+          rounded={false}
+          onSize={measure}
+        />
         <View
           pointerEvents="none"
           style={styles.tape}

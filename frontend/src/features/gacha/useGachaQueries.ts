@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { gachaApi, gachaKeys } from '@/services/gachaApi';
 import { mozziApi, mozziKeys, type OwnedQuery } from '@/services/mozziApi';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { prefetchImages } from '@/services/imagePrefetch';
+import { cardImageUrls } from '@/components/gacha/CardImage';
 import { useGachaStore } from '@/stores/useGachaStore';
 import { emptyPicks } from '@/types/companion';
 
@@ -54,7 +56,15 @@ export function useMozziPicks() {
     enabled: memberId !== undefined,
     staleTime: 0,
   });
-  return { ...query, picks: query.data ?? emptyPicks() };
+  const { data } = query;
+  // 고른 모찌 그림은 기록 쓰기·마이페이지 곳곳에 나온다. 받자마자 미리 받아 두어 화면마다 기다리지 않게 한다.
+  useEffect(() => {
+    const urls = Object.values(data ?? {}).flatMap(item =>
+      item?.imageUrl ? cardImageUrls(item.imageUrl) : [],
+    );
+    if (urls.length) void prefetchImages(urls);
+  }, [data]);
+  return { ...query, picks: data ?? emptyPicks() };
 }
 export function useOwnedMozzis(query: OwnedQuery) {
   const memberId = useAuthStore(state => state.member?.memberId);

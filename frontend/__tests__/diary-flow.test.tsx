@@ -9,7 +9,10 @@ import {
   waitFor,
 } from 'expo-router/testing-library';
 import { router } from 'expo-router';
-import { Image, Share } from 'react-native';
+import { Image } from 'react-native';
+import { File } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import RootLayout from '@/app/_layout';
 import Welcome from '@/app/index';
 import Onboarding from '@/app/onboarding';
@@ -176,7 +179,7 @@ test.each([
   asset.mockRestore();
 });
 
-test('completed preview leaves the pending server diary intact and opens a preview detail', async () => {
+test('completed preview leaves the pending server diary intact and flips to its line on home', async () => {
   const asset = jest.spyOn(Image, 'resolveAssetSource').mockReturnValue({
     uri: 'asset:/diary-preview.png',
     width: 768,
@@ -190,11 +193,11 @@ test('completed preview leaves the pending server diary intact and opens a previ
   expect(screen.queryByRole('progressbar')).toBeNull();
   expect(server.state.images.get(700)!.status).toBe('PENDING');
   await fireEvent.press(
-    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기' }),
   );
-  expect(app.getPathname()).toBe('/diary/700');
+  expect(app.getPathname()).toBe('/home');
   expect(
-    await screen.findByText('따뜻한 하루를 모찌와 그림으로 남겼어요.'),
+    screen.getByRole('button', { name: '10월 26일 월요일 한 줄 일기' }),
   ).toBeOnTheScreen();
   expect(server.state.images.get(700)!.status).toBe('PENDING');
   expect(server.callsTo('PATCH', '/diaries/700/content')).toHaveLength(0);
@@ -214,30 +217,44 @@ test('completed home uses the server image without the previous diary section', 
   expect(screen.queryByText('산책하며 남긴 하루')).toBeNull();
   expect(screen.queryByText('오므라이스를 만들었어')).toBeNull();
   expect(screen.queryByText('지난 기록')).toBeNull();
-  expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
+  expect(screen.getByLabelText('오늘의 그림일기').props.source[0]).toEqual({
     uri: `https://cdn.example.test/diary/${todayId}.webp`,
   });
-  expect(screen.getByLabelText('오늘의 그림일기').props.resizeMode).toBe(
+  expect(screen.getByLabelText('오늘의 그림일기').props.contentFit).toBe(
     'contain',
   );
   expect(screen.queryByRole('button', { name: '일기 쓰기' })).toBeNull();
+  // 앞면은 그림만 둔다.
+  expect(screen.queryByRole('button', { name: '그림 공유' })).toBeNull();
+  // 카드를 누르면 다른 화면으로 가지 않고 뒤집혀 한 줄·태그·시각을 보여 준다.
   await fireEvent.press(
-    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기' }),
   );
-  expect(app.getPathname()).toBe(`/diary/${todayId}`);
-  expect(await screen.findByText('산책하며 남긴 하루')).toBeOnTheScreen();
+  expect(app.getPathname()).toBe('/home');
+  // 뒷면 위에 저장·공유가 있고, 저장은 공유 왼쪽이다.
+  const actions = screen
+    .getAllByRole('button')
+    .map(button => button.props.accessibilityLabel)
+    .filter(label => label === '그림 저장' || label === '그림 공유');
+  expect(actions).toEqual(['그림 저장', '그림 공유']);
+  expect(screen.getByText('산책하며 남긴 하루')).toBeOnTheScreen();
+  expect(screen.getByText('산책')).toBeOnTheScreen();
+  expect(screen.getByText(/에 남긴 기록$/)).toBeOnTheScreen();
+  expect(screen.queryByLabelText('오늘의 그림일기')).toBeNull();
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 26일 월요일 한 줄 일기' }),
+  );
+  expect(screen.getByLabelText('오늘의 그림일기')).toBeOnTheScreen();
   expect(server.callsTo('GET', '/home').length).toBeGreaterThan(0);
 }, 20000);
 
-test('home pages back through past records, stays on today at the start, and only the button opens a record', async () => {
+test('home pages back through past records, stays on today at the start, and a past card flips to its line and tags', async () => {
   setAuthPreview();
   server.addDiary('2026-10-20', 'SAD', '비 오는 출근길', [['요리', 'WHAT']]);
   server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
     ['요리', 'WHAT'],
   ]);
-  const todayId = server.addDiary(TODAY, 'CALM', '산책하며 남긴 하루', [
-    ['산책', 'WHAT'],
-  ]);
+  server.addDiary(TODAY, 'CALM', '산책하며 남긴 하루', [['산책', 'WHAT']]);
   const app = await renderApp('/home');
   expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
   await advance(0);
@@ -246,22 +263,23 @@ test('home pages back through past records, stays on today at the start, and onl
   await fireEvent.press(screen.getByRole('button', { name: '지난 날' }));
   await advance(0);
   expect(screen.getByText('지난 한 페이지')).toBeOnTheScreen();
-  expect(screen.getByText('오므라이스를 만들었어')).toBeOnTheScreen();
   expect(server.callsTo('GET', '/diaries').map(call => call.params)).toEqual([
     { size: 10 },
   ]);
-  // 카드를 눌러도 넘어가지 않고 '기록 보기' 버튼만 연다.
+  // 지난 장은 목록 응답이라 뒤집을 때 그날 기록을 받아 태그를 채운다.
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 22일 목요일 그림일기' }),
+  );
+  await advance(0);
   expect(app.getPathname()).toBe('/home');
+  expect(screen.getByText('오므라이스를 만들었어')).toBeOnTheScreen();
+  expect(screen.getByText('요리')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '오늘로' }));
   await advance(0);
   expect(screen.getByText('오늘의 한 페이지')).toBeOnTheScreen();
-  await fireEvent.press(
-    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
-  );
-  expect(app.getPathname()).toBe(`/diary/${todayId}`);
 }, 20000);
 
-test('search answers on the left, the question on the right, and back returns to the suggestions with the recent question', async () => {
+test('search answers on the left, the question on the right, and back returns to the suggestions', async () => {
   setAuthPreview();
   server.addDiary('2026-10-21', 'CALM', '공원에서 천천히 걸었어', [
     ['산책', 'WHAT'],
@@ -284,16 +302,13 @@ test('search answers on the left, the question on the right, and back returns to
   );
   await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
   expect(screen.getByText('지난 마음을 물어보세요')).toBeOnTheScreen();
-  expect(
-    screen.getByRole('button', {
-      name: '최근 질문 평온 모찌를 고른 날을 보여 줘',
-    }),
-  ).toBeOnTheScreen();
-  await fireEvent.press(
-    screen.getByRole('button', { name: '최근 질문 모두 지우기' }),
-  );
-  await advance(0);
+  // 처음 화면은 감정과 추천 질문만 오른쪽 말풍선으로 둔다(최근 질문·안내 문구 없음).
+  expect(screen.getByText('감정으로 찾기')).toBeOnTheScreen();
+  expect(screen.queryByText('이렇게 물어볼 수 있어요')).toBeNull();
   expect(screen.queryByText('최근 물어본 질문')).toBeNull();
+  expect(
+    screen.getByRole('button', { name: '이번 주엔 어떤 기분이 많았어?' }),
+  ).toHaveStyle({ borderBottomRightRadius: 6 });
 }, 20000);
 
 test('tags create the diary, the picture is polled until done, and the one-line step shows the server image without faking a save', async () => {
@@ -339,15 +354,14 @@ test('tags create the diary, the picture is polled until done, and the one-line 
   const settled = server.callsTo('GET', '/home').length;
   await advance(30000);
   expect(server.callsTo('GET', '/home').length).toBe(settled);
+  // 한 줄은 카드 뒷면에서 바로 남긴다.
   await fireEvent.press(
-    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기' }),
   );
-  expect(app.getPathname()).toBe('/diary/501');
-  await fireEvent.press(
-    screen.getByRole('button', { name: '한 줄 남기고 저장하기' }),
-  );
+  expect(app.getPathname()).toBe('/home');
+  await fireEvent.press(screen.getByRole('button', { name: '한 줄 남기기' }));
   expect(app.getPathname()).toBe('/record/generation');
-  expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
+  expect(screen.getByLabelText('오늘의 그림일기').props.source[0]).toEqual({
     uri: 'https://cdn.example.test/diary/501.webp',
   });
   // 빈 한 줄은 서버가 받지 않아 저장할 수 없다. 쓰지 않을 때는 홈으로 나간다.
@@ -405,7 +419,9 @@ test('home shows each server status: pending, completed with and without a line,
     text: '기록 접수 완료, 그림 그리는 중',
   });
   expect(screen.queryByLabelText('오늘의 그림일기')).toBeNull();
-  expect(screen.queryByRole('button', { name: /그림일기 보기/ })).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: '10월 26일 월요일 그림일기' }),
+  ).toBeNull();
 
   server.finish(700, 'SUCCEEDED');
   await reopenHome();
@@ -413,7 +429,7 @@ test('home shows each server status: pending, completed with and without a line,
   expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
   expect(screen.queryByText('오늘의 모찌를 그리고 있어요')).toBeNull();
   expect(
-    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기' }),
   ).toBeOnTheScreen();
 
   server.state.diaries[0].content = '비 오는 날 오므라이스';
@@ -526,11 +542,13 @@ test('detail reads the server diary by date with its image, tags and line, and h
   expect(app.getPathname()).toBe('/diary/500');
   expect(await screen.findByText('오므라이스를 만들었어')).toBeOnTheScreen();
   expect(screen.getByText('요리 · 집 · 동생')).toBeOnTheScreen();
-  expect(screen.getByLabelText('오늘의 그림일기').props.source).toEqual({
+  expect(screen.getByLabelText('오늘의 그림일기').props.source[0]).toEqual({
     uri: 'https://cdn.example.test/diary/500.webp',
   });
   // 그림 주소를 불러오지 못하면 다시 불러오기를 보여 준다.
-  await fireEvent(screen.getByLabelText('오늘의 그림일기'), 'error');
+  await fireEvent(screen.getByLabelText('오늘의 그림일기'), 'error', {
+    nativeEvent: { error: 'not found' },
+  });
   expect(screen.getByText('그림을 불러오지 못했어요')).toBeOnTheScreen();
   await act(async () => {
     router.push({
@@ -612,17 +630,29 @@ test('calendar draws the server month, opens a day by date, and retries a failed
   // 상세 화면으로 넘기지 않고 캘린더 아래에 그날 기록을 펼친다.
   expect(app.getPathname()).toBe('/calendar');
   expect(screen.getByText('조금 늦었던 퇴근')).toBeOnTheScreen();
-  const share = jest
-    .spyOn(Share, 'share')
-    .mockResolvedValue({ action: Share.sharedAction, activityType: undefined });
+  // 공유는 글이 아니라 그림 파일을 보내고, 저장은 공유 왼쪽에서 사진 앱에 넣는다.
+  const saved = 'file:///cache/diary-image/mozzi-2026-10-21.webp';
   await fireEvent.press(screen.getByRole('button', { name: '기록 공유' }));
-  expect(share).toHaveBeenCalledWith(
-    expect.objectContaining({
-      message: expect.stringContaining('조금 늦었던 퇴근'),
-    }),
-    { dialogTitle: '기록 공유' },
+  await advance(0);
+  expect(File.downloadFileAsync).toHaveBeenLastCalledWith(
+    expect.stringContaining('https://cdn.example.test/diary/'),
+    expect.objectContaining({ uri: saved }),
+    { idempotent: true },
   );
-  share.mockRestore();
+  expect(Sharing.shareAsync).toHaveBeenLastCalledWith(saved, {
+    mimeType: 'image/webp',
+    dialogTitle: '그림일기 공유',
+  });
+  const labels = screen
+    .getAllByRole('button')
+    .map(button => button.props.accessibilityLabel);
+  expect(labels.indexOf('그림 저장')).toBeGreaterThan(-1);
+  expect(labels.indexOf('그림 저장')).toBeLessThan(labels.indexOf('기록 공유'));
+  await fireEvent.press(screen.getByRole('button', { name: '그림 저장' }));
+  await advance(0);
+  expect(MediaLibrary.requestPermissionsAsync).toHaveBeenLastCalledWith(true);
+  expect(MediaLibrary.saveToLibraryAsync).toHaveBeenLastCalledWith(saved);
+  expect(screen.getByText('사진 앱에 저장했어요')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '이전 달' }));
   await advance(0);
   expect(

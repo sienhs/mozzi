@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { CardImage } from '@/components/gacha/CardImage';
 import type { MochiCard as Card, PullItem, Tier } from '@/types/gacha';
 import { tiers } from '@/constants/gacha';
 import { colors, fonts } from '@/theme/tokens';
@@ -187,10 +188,9 @@ export function MochiCard({
             justifyContent: 'center',
           }}
         >
-          <Image
+          <CardImage
             accessible={false}
-            source={{ uri: state.card.imageUrl }}
-            resizeMode="contain"
+            uri={state.card.imageUrl}
             style={{ width: 72, height: 72 }}
           />
         </View>

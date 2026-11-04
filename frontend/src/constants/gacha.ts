@@ -1,4 +1,4 @@
-import type { ImageSourcePropType } from 'react-native';
+import type { ImageSource } from 'expo-image';
 import type { Tier } from '@/types/gacha';
 
 // 등급 표시(이름·색). 확률·별조각·교환가는 서버 값(GET /gacha/rates, 카드의 exchangeCost)을 쓴다.
@@ -36,11 +36,11 @@ export interface OpeningClip {
   intro: number;
   continuation: number;
   // 영상이 준비되기 전에 보여 준다(intro의 첫 프레임).
-  start: ImageSourcePropType;
+  start: ImageSource | number;
   // 입력을 기다리는 동안, continuation 첫 프레임이 뜨기 전까지 보여 준다.
-  touch: ImageSourcePropType;
+  touch: ImageSource | number;
   // 마지막 장면. 결과로 넘어갈 때와 재생 실패 시 보여 준다.
-  end: ImageSourcePropType;
+  end: ImageSource | number;
 }
 export const OPENING_INTRO_SECONDS = 3;
 export const OPENING_CONTINUATION_SECONDS = 11;

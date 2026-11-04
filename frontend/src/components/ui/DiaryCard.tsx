@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { Image } from 'expo-image';
 import type { DiaryEntry } from '@/types/diary';
 import { formatDate } from '@/constants/date';
 import { radii } from '@/theme/tokens';
@@ -31,12 +31,15 @@ export function DiaryArtwork({
   uri,
   fit = 'cover',
   style,
+  onSize,
 }: {
   rounded?: boolean;
   ratio?: number;
   uri?: string | null;
   fit?: 'cover' | 'contain';
   style?: StyleProp<ViewStyle>;
+  // 서버 그림을 받으면 원본 크기를 알려 준다(틀 비율을 맞추는 데 쓴다).
+  onSize?: (width: number, height: number) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
   if (uri)
@@ -47,6 +50,7 @@ export function DiaryArtwork({
         ratio={ratio}
         fit={fit}
         style={style}
+        onSize={onSize}
       />
     );
   return (
@@ -66,7 +70,7 @@ export function DiaryArtwork({
         onLoad={() => setLoaded(true)}
         source={diaryArtwork}
         accessibilityLabel="따뜻한 방에서 오므라이스를 먹는 모찌의 그림일기"
-        resizeMode={fit}
+        contentFit={fit}
         style={{ width: '100%', height: '100%' }}
       />
     </MotionReveal>
@@ -78,12 +82,14 @@ function RemoteArtwork({
   ratio,
   fit,
   style,
+  onSize,
 }: {
   uri: string;
   rounded: boolean;
   ratio: number;
   fit: 'cover' | 'contain';
   style?: StyleProp<ViewStyle>;
+  onSize?: (width: number, height: number) => void;
 }) {
   const [state, setState] = useState<'loading' | 'loaded' | 'failed'>(
     'loading',
@@ -114,8 +120,11 @@ function RemoteArtwork({
           <Image
             source={{ uri }}
             accessibilityLabel="오늘의 그림일기"
-            resizeMode={fit}
-            onLoad={() => setState('loaded')}
+            contentFit={fit}
+            onLoad={event => {
+              setState('loaded');
+              onSize?.(event.source.width, event.source.height);
+            }}
             onError={() => setState('failed')}
             style={{ width: '100%', height: '100%' }}
           />

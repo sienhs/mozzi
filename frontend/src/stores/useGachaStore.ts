@@ -4,6 +4,8 @@ import { gachaApi, gachaKeys } from '@/services/gachaApi';
 import { mozziKeys } from '@/services/mozziApi';
 import { apiErrorMessage, isUnknownOutcome } from '@/services/authErrors';
 import { queryClient } from '@/services/queryClient';
+import { prefetchImages } from '@/services/imagePrefetch';
+import { cardImageUrls } from '@/components/gacha/CardImage';
 import { createRequestKey } from '@/utils/requestKey';
 
 // 뽑기 흐름의 화면 상태. 잔액·도감은 서버(GET /gacha/status, /gacha/collection)가 정하고,
@@ -72,6 +74,10 @@ export const useGachaStore = create<GachaState>((set, get) => ({
         shards: result.shards,
         collection: result.collection,
       });
+      // 개봉 영상이 도는 동안 결과 카드 그림을 받아 둔다(공개할 때 바로 보이게).
+      void prefetchImages(
+        result.items.flatMap(item => cardImageUrls(item.card.imageUrl, true)),
+      );
       refresh(memberId);
       return result.items;
     } catch (error) {

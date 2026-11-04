@@ -3,12 +3,13 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { CardImage } from '@/components/gacha/CardImage';
 import { router, useFocusEffect } from 'expo-router';
 import { Sparkles, Star, Ticket } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -46,7 +47,7 @@ export function GachaHomeScreen() {
       <Image
         accessible={false}
         source={require('../../../assets/gacha/Gacha_back.png')}
-        resizeMode="cover"
+        contentFit="cover"
         style={roomStyles.background}
       />
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
@@ -269,12 +270,15 @@ function DuplicateFlight({
       collapsable={false}
       style={{ width: 96, aspectRatio: 1 }}
     >
-      <Animated.Image
-        accessible={false}
-        source={{ uri: duplicate.imageUrl }}
-        resizeMode="contain"
+      <Animated.View
         style={[{ width: '100%', height: '100%' }, flightStyle(0)]}
-      />
+      >
+        <CardImage
+          accessible={false}
+          uri={duplicate.imageUrl}
+          style={{ width: '100%', height: '100%' }}
+        />
+      </Animated.View>
       {[14, 12, 10].map((size, index) => (
         <Animated.Image
           key={size}

@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Platform, Share, View } from 'react-native';
+import { View } from 'react-native';
 import {
   CozyScreen as Screen,
   CozyButton as Button,
@@ -18,6 +18,7 @@ import {
 } from '@/stores/useAppStore';
 import { useDiary } from './useDiaryQueries';
 import { completedDiaryPreview } from '@/mocks/diaryPreview';
+import { shareDiary } from '@/services/diaryImage';
 
 // 서버 기록은 날짜로 조회한다 (GET /diaries/daily — 서버에 ID 단건 조회가 없다).
 // 날짜 없이 들어오면 검색이 아직 쓰는 로컬 샘플 기록에서 찾는다.
@@ -77,24 +78,6 @@ function NotFound() {
       <Button label="캘린더로" onPress={() => router.replace('/calendar')} />
     </>
   );
-}
-// 그림 주소는 서버가 주는 공개 URL이라 링크로 공유한다.
-// iOS는 url을 따로 넘기면 그림 미리보기가 붙고, Android는 message만 받으므로 본문에 잇는다.
-export function shareDiary(entry: DiaryEntry) {
-  const text = `${formatDate(entry.date)} 모찌 그림일기
-${entry.memo || entry.title}`;
-  const image = entry.generation === 'ready' ? entry.imageUrl : null;
-  return Share.share(
-    image && Platform.OS === 'ios'
-      ? { message: text, url: image }
-      : {
-          message: image
-            ? `${text}
-${image}`
-            : text,
-        },
-    { dialogTitle: '기록 공유' },
-  ).catch(() => undefined);
 }
 function DiaryDetail({ entry }: { entry: DiaryEntry }) {
   return (

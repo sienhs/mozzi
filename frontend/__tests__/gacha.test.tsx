@@ -119,7 +119,7 @@ const touchArea = () =>
   screen.getByRole('button', { name: '모찌 볼을 당겨 깨우기' });
 // 여러 장 결과 화면의 입력 영역(화면 전체). 이름에 지금 장의 순서와 카드가 들어 있다.
 const stage = () => screen.getByRole('button', { name: /번째 보상/ });
-const still = () => screen.queryByTestId('opening-still')?.props.source;
+const still = () => screen.queryByTestId('opening-still')?.props.source?.[0];
 // 입력 영역의 처리기를 직접 부른다. 같은 틱의 연속 입력을 렌더 없이 재현할 수 있다.
 const call = (target: { props: object }, name: string, event?: unknown) =>
   (target.props as Record<string, (event?: unknown) => void>)[name](event);
@@ -1091,10 +1091,10 @@ test('small emotion faces use the transparent Figma face', async () => {
       <EmotionImage emotion="happy" size={64} />
     </>,
   );
-  expect(screen.getByLabelText('평온 모찌').props.source).toBe(
+  expect(screen.getByLabelText('평온 모찌').props.source[0]).toBe(
     emotions.calm.face,
   );
-  expect(screen.getByLabelText('행복 모찌').props.source).toBe(
+  expect(screen.getByLabelText('행복 모찌').props.source[0]).toBe(
     emotions.happy.source,
   );
 });

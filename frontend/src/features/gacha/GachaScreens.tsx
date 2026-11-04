@@ -4,12 +4,14 @@ import {
   Animated,
   AppState,
   Easing,
-  Image,
+  FlatList,
   Platform,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { CardImage } from '@/components/gacha/CardImage';
 import { useEventListener } from 'expo';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
@@ -25,12 +27,7 @@ import { CozyScreen, CozyButton } from '@/components/ui/CozyUI';
 import { Screen } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
-import {
-  BalanceChip,
-  CardGrid,
-  GachaChip,
-  TierBadge,
-} from '@/components/gacha/GachaUI';
+import { BalanceChip, GachaChip, TierBadge } from '@/components/gacha/GachaUI';
 import { ErrorBanner, Loading, StatePanel } from '@/components/ui/Feedback';
 import {
   gachaArt,
@@ -43,7 +40,7 @@ import {
   tierOrder,
   type OpeningClip,
 } from '@/constants/gacha';
-import { colors } from '@/theme/tokens';
+import { colors, spacing } from '@/theme/tokens';
 import type { MochiCard as Card, Tier } from '@/types/gacha';
 import { useGachaStore } from '@/stores/useGachaStore';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -440,8 +437,7 @@ export function OpeningScreen() {
             testID="opening-still"
             accessible={false}
             source={still}
-            resizeMode="contain"
-            fadeDuration={0}
+            contentFit="contain"
             // 웹 Image는 에셋의 원본 크기를 기본 width·height로 넣어 absoluteFill만으로는 줄지 않는다.
             style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
           />
@@ -657,7 +653,7 @@ export function RevealScreen() {
         <Image
           accessible={false}
           source={gachaArt.frame}
-          resizeMode="stretch"
+          contentFit="fill"
           style={{
             position: 'absolute',
             left: -2,
@@ -689,10 +685,10 @@ export function RevealScreen() {
             marginTop: 30,
           }}
         >
-          <Image
+          <CardImage
+            full
             accessible={false}
-            source={{ uri: item.card.imageUrl }}
-            resizeMode="contain"
+            uri={item.card.imageUrl}
             style={{ width: '100%', height: '100%' }}
           />
         </View>
@@ -727,7 +723,9 @@ function CollectionState({
 }
 
 // P-06 모찌 도감 (GET /gacha/collection). 없는 카드는 "?" 칸으로 가린다.
+const COLUMN_GAP = 13;
 export function CollectionScreen() {
+  const { width } = useWindowDimensions();
   const collection = useCollection();
   const [filter, setFilter] = useState<'all' | 'owned' | 'missing'>('all');
   const [tier, setTier] = useState<Tier | null>(null);
@@ -748,11 +746,13 @@ export function CollectionScreen() {
         tierOrder.indexOf(b.tier) - tierOrder.indexOf(a.tier) ||
         a.name.localeCompare(b.name, 'ko'),
     );
+  // 세 칸 폭: 화면 폭 - 좌우 여백 - 칸 사이 두 번.
+  const cell = (width - spacing.page * 2 - COLUMN_GAP * 2) / 3;
   return (
     <CozyScreen
       title="모찌 도감"
       back
-      contentStyle={{ gap: 16 }}
+      scrollable={false}
       footer={
         data && (
           <CozyButton
@@ -772,57 +772,74 @@ export function CollectionScreen() {
       }
     >
       {!data ? (
-        <CollectionState query={collection} />
+        <View style={{ flex: 1, paddingHorizontal: spacing.page }}>
+          <CollectionState query={collection} />
+        </View>
       ) : (
-        <>
-          <AlbumCover owned={data.owned} total={data.total} />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <AlbumChip
-              label="전체"
-              width={62}
-              active={filter === 'all'}
-              onPress={() => setFilter('all')}
-            />
-            <AlbumChip
-              label="보유"
-              width={62}
-              active={filter === 'owned'}
-              onPress={() => setFilter('owned')}
-            />
-            <AlbumChip
-              label="미보유"
-              width={72}
-              active={filter === 'missing'}
-              onPress={() => setFilter('missing')}
-            />
-            {tierList.map(id => (
-              <AlbumChip
-                key={id}
-                label={tiers[id].label}
-                width={62}
-                active={tier === id}
-                onPress={() => setTier(tier === id ? null : id)}
-              />
-            ))}
-          </View>
-          {list.length ? (
-            <CardGrid>
-              {list.map(card =>
-                card.owned ? (
-                  <AlbumCard
-                    key={card.cardId}
-                    state={{ kind: 'owned', card, isNew: card.isNew }}
-                    onPress={() => openDetail(card.cardId)}
-                  />
-                ) : (
-                  <AlbumCard
-                    key={card.cardId}
-                    state={{ kind: 'locked', card }}
-                  />
-                ),
+        // 카드가 수백 장이라 보이는 줄만 그린다(한꺼번에 그리면 들어올 때 멈칫한다).
+        <FlatList
+          data={list}
+          numColumns={3}
+          keyExtractor={card => String(card.cardId)}
+          renderItem={({ item: card }) => (
+            <View style={{ width: cell }}>
+              {card.owned ? (
+                <AlbumCard
+                  state={{ kind: 'owned', card, isNew: card.isNew }}
+                  onPress={() => openDetail(card.cardId)}
+                />
+              ) : (
+                <AlbumCard state={{ kind: 'locked', card }} />
               )}
-            </CardGrid>
-          ) : (
+            </View>
+          )}
+          initialNumToRender={9}
+          maxToRenderPerBatch={9}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS === 'android'}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.page,
+            paddingTop: spacing.lg,
+            paddingBottom: spacing.page,
+            gap: 12,
+          }}
+          columnWrapperStyle={{ gap: COLUMN_GAP }}
+          ListHeaderComponent={
+            <View style={{ gap: 16, paddingBottom: 4 }}>
+              <AlbumCover owned={data.owned} total={data.total} />
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <AlbumChip
+                  label="전체"
+                  width={62}
+                  active={filter === 'all'}
+                  onPress={() => setFilter('all')}
+                />
+                <AlbumChip
+                  label="보유"
+                  width={62}
+                  active={filter === 'owned'}
+                  onPress={() => setFilter('owned')}
+                />
+                <AlbumChip
+                  label="미보유"
+                  width={72}
+                  active={filter === 'missing'}
+                  onPress={() => setFilter('missing')}
+                />
+                {tierList.map(id => (
+                  <AlbumChip
+                    key={id}
+                    label={tiers[id].label}
+                    width={62}
+                    active={tier === id}
+                    onPress={() => setTier(tier === id ? null : id)}
+                  />
+                ))}
+              </View>
+            </View>
+          }
+          ListEmptyComponent={
             <AppText style={{ color: colors.muted, textAlign: 'center' }}>
               {filter === 'owned'
                 ? `아직 만난 ${tier ? `${tiers[tier].label} ` : ''}모찌가 없어요.`
@@ -830,8 +847,8 @@ export function CollectionScreen() {
                   ? `${tiers[tier].label} 모찌는 모두 만났어요.`
                   : '모든 모찌를 만났어요.'}
             </AppText>
-          )}
-        </>
+          }
+        />
       )}
     </CozyScreen>
   );
@@ -911,10 +928,10 @@ function MochiFeature({
       }}
     >
       {chip ?? <TierBadge tier={card.tier} />}
-      <Image
+      <CardImage
+        full
         accessibilityLabel={card.name}
-        source={{ uri: card.imageUrl }}
-        resizeMode="contain"
+        uri={card.imageUrl}
         style={{ width: size, height: size }}
       />
       <AppText variant="heading">{card.name}</AppText>
@@ -967,10 +984,9 @@ export function ExchangeScreen() {
                     gap: 16,
                   }}
                 >
-                  <Image
+                  <CardImage
                     accessibilityLabel={card.name}
-                    source={{ uri: card.imageUrl }}
-                    resizeMode="contain"
+                    uri={card.imageUrl}
                     style={{ width: 100, height: 100 }}
                   />
                   <View style={{ flex: 1, gap: 8, alignItems: 'flex-start' }}>

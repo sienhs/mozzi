@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { CardImage } from '@/components/gacha/CardImage';
 import { Check } from 'lucide-react-native';
 import { cozyColors as colors } from '@/theme/cozy';
 import { AppText } from '@/components/ui/Text';
@@ -15,9 +16,8 @@ export function CompanionArtwork({
 }) {
   return (
     <View style={[styles.artwork, { aspectRatio }]}>
-      <Image
-        source={{ uri: companion.imageUrl }}
-        resizeMode="contain"
+      <CardImage
+        uri={companion.imageUrl}
         accessibilityLabel={companion.name}
         style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
       />

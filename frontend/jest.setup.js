@@ -117,6 +117,38 @@ jest.mock('expo-haptics', () => ({
   },
 }));
 
+// 그림 저장·공유: 내려받기는 대상 파일을 그대로 돌려주고, 공유·사진 저장은 호출만 기록한다.
+jest.mock('expo-file-system', () => {
+  const join = parts =>
+    parts.map(part => (typeof part === 'string' ? part : part.uri)).join('/');
+  class Directory {
+    constructor(...parts) {
+      this.uri = join(parts);
+      this.exists = true;
+    }
+    create() {}
+  }
+  class File {
+    constructor(...parts) {
+      this.uri = join(parts);
+    }
+  }
+  File.downloadFileAsync = jest.fn(async (_url, target) => target);
+  return { Directory, File, Paths: { cache: { uri: 'file:///cache' } } };
+});
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: jest.fn(async () => true),
+  shareAsync: jest.fn(async () => undefined),
+}));
+jest.mock('expo-media-library/legacy', () => ({
+  requestPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    canAskAgain: true,
+    status: 'granted',
+  })),
+  saveToLibraryAsync: jest.fn(async () => undefined),
+}));
+
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
