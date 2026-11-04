@@ -30,6 +30,7 @@ import Failed from '@/app/gacha/failed';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { Splash, splashArtwork } from '@/components/ui/Splash';
 import { emotions } from '@/constants/emotions';
+import { CHARGE_LOCK_MS, REVEAL_LOCK_MS } from '@/features/gacha/PullReveal';
 import {
   OPENING_CONTINUATION_SECONDS,
   OPENING_INTRO_SECONDS,
@@ -116,6 +117,8 @@ const emit = (player: FakePlayer, name: string, payload?: unknown) =>
 const settle = () => advance(10);
 const touchArea = () =>
   screen.getByRole('button', { name: '모찌 볼을 당겨 깨우기' });
+// 여러 장 결과 화면의 입력 영역(화면 전체). 이름에 지금 장의 순서와 카드가 들어 있다.
+const stage = () => screen.getByRole('button', { name: /번째 보상/ });
 const still = () => screen.queryByTestId('opening-still')?.props.source;
 // 입력 영역의 처리기를 직접 부른다. 같은 틱의 연속 입력을 렌더 없이 재현할 수 있다.
 const call = (target: { props: object }, name: string, event?: unknown) =>
@@ -402,7 +405,7 @@ test('a single duplicate returns home and lands its shards after the flight', as
   expect(screen.getByText('별조각 141')).toBeOnTheScreen();
 });
 
-test('a 10-pull starts sealed, opens one card, then opens the rest', async () => {
+test('a 10-pull reveals one card per tap, lowest tier first, and holds the legend before and after it opens', async () => {
   server.state.drawQueue = [PEACH, ...Array(9).fill(APPLE)];
   const app = await openApp('/gacha');
 
@@ -416,17 +419,41 @@ test('a 10-pull starts sealed, opens one card, then opens the rest', async () =>
   );
   await playThrough();
   expect(app.getPathname()).toBe('/gacha/results');
-  expect(screen.getByText('10장 뽑기 결과')).toBeOnTheScreen();
-  expect(screen.getAllByRole('button', { name: '열어보기' })).toHaveLength(10);
-
-  await fireEvent.press(screen.getAllByRole('button', { name: '열어보기' })[0]);
-  expect(
-    screen.getByRole('button', { name: '천도복숭아 모찌 전설' }),
-  ).toBeOnTheScreen();
-  await fireEvent.press(
-    screen.getByRole('button', { name: '남은 9장 모두 열기' }),
+  // 가린 카드나 '모두 열기' 없이 첫 장(낮은 등급)부터 바로 보인다.
+  expect(screen.queryByRole('button', { name: /모두 열기/ })).toBeNull();
+  expect(screen.getByText('1 / 10')).toBeOnTheScreen();
+  expect(stage().props.accessibilityLabel).toMatch(
+    /^1번째 보상, 일반 사과 모찌/,
   );
-  expect(screen.queryAllByRole('button', { name: '열어보기' })).toHaveLength(0);
+  for (let i = 0; i < 8; i++) await fireEvent.press(stage());
+  expect(screen.getByText('9 / 10')).toBeOnTheScreen();
+
+  // 마지막 전설은 기운으로 먼저 알리고, 바로 이어진 연타로는 열리지 않는다.
+  await fireEvent.press(stage());
+  expect(screen.getByText('10 / 10')).toBeOnTheScreen();
+  expect(stage().props.accessibilityLabel).toBe(
+    '10번째 보상, 아직 열지 않은 특별한 카드',
+  );
+  await fireEvent.press(stage());
+  await fireEvent.press(stage());
+  expect(screen.queryByText('전설 등급 획득!')).toBeNull();
+  await advance(CHARGE_LOCK_MS);
+  expect(screen.getByText('톡! 눌러서 열기')).toBeOnTheScreen();
+  await fireEvent.press(stage());
+  expect(screen.getByText('전설 등급 획득!')).toBeOnTheScreen();
+  expect(screen.getByText('천도복숭아 모찌')).toBeOnTheScreen();
+  // 공개 직후의 연타는 결과로 넘기지 않는다.
+  await fireEvent.press(stage());
+  await fireEvent.press(stage());
+  expect(screen.queryByText('10장 뽑기 결과')).toBeNull();
+  await advance(REVEAL_LOCK_MS.legend);
+  await fireEvent.press(stage());
+  expect(screen.getByText('10장 뽑기 결과')).toBeOnTheScreen();
+  // 모아 보기는 좋은 등급부터 놓는다.
+  expect(
+    screen.getAllByRole('button', { name: /모찌 (일반|전설)$/ })[0].props
+      .accessibilityLabel,
+  ).toBe('천도복숭아 모찌 전설');
   expect(wallet()).toEqual({ tickets: 13, shards: 149 });
 
   // 확인은 도감이 아니라 원래 뽑기 화면으로 돌아간다.
@@ -765,15 +792,21 @@ test.each([2, 3, 4, 5, 6, 7, 8, 9, 10])(
     expect(intro.play).toHaveBeenCalledTimes(1);
     expect(continuation.play).toHaveBeenCalledTimes(1);
     expect(app.getPathname()).toBe('/gacha/results');
-    expect(screen.getAllByRole('button', { name: '열어보기' })).toHaveLength(
-      count,
+    // 건너뛰기는 아직 열지 않은 전설·신화에서 멈추고, 다시 누르면 그 카드를 연 뒤 결과로 간다.
+    await fireEvent.press(screen.getByRole('button', { name: '건너뛰기' }));
+    expect(screen.getByText(`${count} / ${count}`)).toBeOnTheScreen();
+    expect(stage().props.accessibilityLabel).toBe(
+      `${count}번째 보상, 아직 열지 않은 특별한 카드`,
     );
-    await fireEvent.press(
-      screen.getByRole('button', { name: `남은 ${count}장 모두 열기` }),
-    );
-    expect(screen.queryAllByRole('button', { name: '열어보기' })).toHaveLength(
-      0,
-    );
+    await fireEvent.press(screen.getByRole('button', { name: '건너뛰기' }));
+    expect(
+      screen.getByText(mythic ? '신화 등급 획득!' : '전설 등급 획득!'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '건너뛰기' }));
+    expect(screen.getByText(`${count}장 뽑기 결과`)).toBeOnTheScreen();
+    expect(
+      screen.getAllByRole('button', { name: / (일반|전설|신화)$/ }),
+    ).toHaveLength(count);
     expect(draws()).toHaveLength(1);
     expect(wallet()).toEqual({ tickets: 23 - count, shards: 140 + count - 1 });
     expect(useGachaStore.getState().lastPull.map(item => item.isNew)).toEqual([

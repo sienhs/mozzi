@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 import { Heading } from '@/components/ui/Screen';
 import { CozyScreen as Screen } from '@/components/ui/CozyUI';
@@ -11,14 +12,16 @@ import {
   ScenePicker,
   useImageRequest,
 } from '@/features/diary/ImageRequestActions';
-import { useHome } from '@/features/diary/useDiaryQueries';
+import { useHome, usePastDiaries } from '@/features/diary/useDiaryQueries';
 import {
   HomeCompletedPage,
   HomeEmptyPage,
   HomeGeneratingPage,
   HomeJournalPage,
   HomeMasthead,
+  PageHint,
 } from './HomeJournal';
+import { HomePager, type PagerControls } from './HomePager';
 import { ChristmasCard, WinterBackdrop } from './HomeChristmas';
 import { completedDiaryPreview } from '@/mocks/diaryPreview';
 import { spacing } from '@/theme/tokens';
@@ -55,6 +58,9 @@ export function DiaryHomeScreen() {
   const previewCompleted = __DEV__ && preview === 'completed';
   const isPreview = previewEmpty || previewCompleted;
   const home = useHome();
+  const [page, setPage] = useState(0);
+  // 미리 보기 화면은 서버 기록을 섞지 않는다.
+  const past = usePastDiaries(isPreview ? undefined : home.data?.today);
   // Presentation only: never change the server diary or its query cache.
   const entry = previewEmpty
     ? null
@@ -89,8 +95,64 @@ export function DiaryHomeScreen() {
       },
     });
   const loaded = isPreview || !!home.data;
+  // 오늘 장 머리줄 끝: 지난 기록이 있으면 넘겨 볼 수 있다고 알린다(버튼으로도 넘어간다).
+  const olderHint = (controls: PagerControls) =>
+    past.entries.length ? (
+      <PageHint label="지난 날" onPress={() => controls.goTo(1)} />
+    ) : undefined;
+  const todayPage = (controls: PagerControls) => {
+    const trailing = olderHint(controls);
+    return (
+      <>
+        {empty && (
+          <HomeEmptyPage
+            trailing={trailing}
+            onRecord={() => router.push('/record/emotion')}
+          />
+        )}
+        {entry && completed && (
+          <HomeCompletedPage
+            entry={entry}
+            trailing={trailing}
+            onOpen={() => openEntry(entry)}
+          />
+        )}
+        {entry && generating && <HomeGeneratingPage trailing={trailing} />}
+        {entry && recovering && (
+          <HomeJournalPage trailing={trailing}>
+            <ChristmasCard>
+              <View style={{ paddingBottom: 12, gap: 14 }}>
+                <Heading
+                  titleStyle={{ fontSize: 24, lineHeight: 34 }}
+                  {...recoveryCopy(entry)}
+                />
+                <PictureState
+                  emotion={entry.emotion}
+                  companion={entry.companion}
+                  ratio={3}
+                />
+                <ScenePicker request={request} whatIcons={whatIcons} />
+                <ImageRequestStatus request={request} />
+              </View>
+            </ChristmasCard>
+          </HomeJournalPage>
+        )}
+        {!empty && !completed && !generating && !recovering && (
+          <StatePanel
+            title="오늘의 그림을 확인하고 있어요"
+            description="최신 그림 상태를 다시 불러와 주세요."
+            retry={home.refetch}
+            retryLabel="다시 불러오기"
+          />
+        )}
+      </>
+    );
+  };
+  // 다시 그리기 버튼은 오늘 장을 볼 때만 둔다.
   const footer =
-    loaded && recovering ? <ImageRequestButton request={request} /> : undefined;
+    loaded && recovering && page === 0 ? (
+      <ImageRequestButton request={request} />
+    ) : undefined;
   return (
     <Screen
       tabbed
@@ -99,7 +161,6 @@ export function DiaryHomeScreen() {
       backdrop={<WinterBackdrop />}
       titleContent={<HomeMasthead date={home.data?.today} />}
       contentStyle={{
-        paddingHorizontal: spacing.page,
         paddingTop: 0,
         paddingBottom: 12,
         gap: 8,
@@ -113,54 +174,43 @@ export function DiaryHomeScreen() {
       footer={footer}
     >
       {!loaded ? (
-        home.isError ? (
-          <StatePanel
-            title="오늘의 기록을 불러오지 못했어요"
-            description="연결 상태를 확인하고 다시 시도해 주세요."
-            retry={home.refetch}
-            retryLabel="다시 불러오기"
-          />
-        ) : (
-          <Loading label="오늘의 기록을 불러오고 있어요" />
-        )
-      ) : (
-        <>
-          {empty && (
-            <HomeEmptyPage onRecord={() => router.push('/record/emotion')} />
-          )}
-          {entry && completed && (
-            <HomeCompletedPage entry={entry} onOpen={() => openEntry(entry)} />
-          )}
-          {entry && generating && <HomeGeneratingPage />}
-          {entry && recovering && (
-            <HomeJournalPage>
-              <ChristmasCard>
-                <View style={{ paddingBottom: 12, gap: 14 }}>
-                  <Heading
-                    titleStyle={{ fontSize: 24, lineHeight: 34 }}
-                    {...recoveryCopy(entry)}
-                  />
-                  <PictureState
-                    emotion={entry.emotion}
-                    companion={entry.companion}
-                    ratio={3}
-                  />
-                  <ScenePicker request={request} whatIcons={whatIcons} />
-                  <ImageRequestStatus request={request} />
-                </View>
-              </ChristmasCard>
-            </HomeJournalPage>
-          )}
-          {!empty && !completed && !generating && !recovering && (
+        <View style={pageStyle}>
+          {home.isError ? (
             <StatePanel
-              title="오늘의 그림을 확인하고 있어요"
-              description="최신 그림 상태를 다시 불러와 주세요."
+              title="오늘의 기록을 불러오지 못했어요"
+              description="연결 상태를 확인하고 다시 시도해 주세요."
               retry={home.refetch}
               retryLabel="다시 불러오기"
             />
+          ) : (
+            <Loading label="오늘의 기록을 불러오고 있어요" />
           )}
-        </>
+        </View>
+      ) : (
+        <HomePager
+          count={past.entries.length + 1}
+          onNearEnd={past.loadMore}
+          onIndexChange={setPage}
+          renderPage={(page, controls) =>
+            page === 0 ? (
+              <View style={pageStyle}>{todayPage(controls)}</View>
+            ) : (
+              <View style={pageStyle}>
+                <HomeCompletedPage
+                  entry={past.entries[page - 1]}
+                  label="지난 한 페이지"
+                  onOpen={() => openEntry(past.entries[page - 1])}
+                  trailing={
+                    <PageHint label="오늘로" onPress={() => controls.goTo(0)} />
+                  }
+                />
+              </View>
+            )
+          }
+        />
       )}
     </Screen>
   );
 }
+// 넘기는 장마다 좌우 여백을 넣어 장 전체가 화면 끝까지 밀려 나간다.
+const pageStyle = { flex: 1, paddingHorizontal: spacing.page };

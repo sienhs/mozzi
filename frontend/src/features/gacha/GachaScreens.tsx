@@ -29,9 +29,7 @@ import {
   BalanceChip,
   CardGrid,
   GachaChip,
-  MochiCard,
   TierBadge,
-  pullCardState,
 } from '@/components/gacha/GachaUI';
 import { ErrorBanner, Loading, StatePanel } from '@/components/ui/Feedback';
 import {
@@ -706,51 +704,8 @@ export function RevealScreen() {
   );
 }
 
-// P-04 / P-04B / P-04C: 2~10장은 봉인된 카드로 시작해 하나씩 또는 모두 연다.
-export function ResultsScreen() {
-  const items = useGachaStore(state => state.lastPull);
-  const [opened, setOpened] = useState<boolean[]>(() => items.map(() => false));
-  if (!items.length) return <Redirect href="/gacha" />;
-  const remaining = opened.filter(open => !open).length;
-  return (
-    <Screen
-      title={`${items.length}장 뽑기 결과`}
-      action={{ icon: 'close', label: '닫기', onPress: () => router.back() }}
-      footer={
-        remaining ? (
-          <Button
-            label={`남은 ${remaining}장 모두 열기`}
-            onPress={() => setOpened(items.map(() => true))}
-            style={fixed}
-          />
-        ) : (
-          // 1장 결과(P-03)와 같이 뽑기 화면으로 돌아간다. 도감은 카드를 눌러 상세로 볼 수 있다.
-          <Button label="확인" onPress={() => router.back()} style={fixed} />
-        )
-      }
-    >
-      <CardGrid>
-        {items.map((item, index) =>
-          opened[index] ? (
-            <MochiCard
-              key={index}
-              state={pullCardState(item)}
-              onPress={() => openDetail(item.card.cardId)}
-            />
-          ) : (
-            <MochiCard
-              key={index}
-              state={{ kind: 'sealed' }}
-              onPress={() =>
-                setOpened(value => value.map((open, i) => open || i === index))
-              }
-            />
-          ),
-        )}
-      </CardGrid>
-    </Screen>
-  );
-}
+// P-04 여러 장 결과는 한 장씩 공개한다 (PullReveal.tsx).
+export { ResultsScreen } from './PullReveal';
 
 // 도감 응답을 못 받았을 때. 임의 목록으로 대신하지 않는다.
 function CollectionState({

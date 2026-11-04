@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useIsFocused } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { diaryApi, diaryKeys } from '@/services/diaryApi';
 import { queryClient } from '@/services/queryClient';
 import { useAppStore } from '@/stores/useAppStore';
@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import type { DiaryEntry } from '@/types/diary';
 import type { HomeResponse } from '@/types/server';
 import { todayKey } from '@/constants/date';
-import { toDiaryEntry } from './serverDiary';
+import { toDiaryEntry, toSummaryEntry } from './serverDiary';
 
 // 그림 상태는 SSE가 없어 조회로 확인한다. 생성 중일 때만, 화면이 보이고 앱이 활성일 때만 묻는다.
 // 서버에는 생성 타임아웃이 없어 오래 걸리면 간격을 늘린다.
@@ -157,5 +157,34 @@ export function useDiary(date: string | undefined) {
     isPending: query.isPending,
     isError: query.isError,
     refetch: () => void query.refetch(),
+  };
+}
+
+// 홈에서 옆으로 넘겨 보는 지난 기록 (GET /diaries, 최신순 커서). 오늘 기록은 홈 첫 장이 맡으므로 뺀다.
+// 끝까지 넘기면 다음 페이지를 이어 받는다. 일기를 쓰면 diaryKeys.all로 함께 갱신된다.
+export function usePastDiaries(today: string | undefined) {
+  const memberId = useAuthStore(state => state.member?.memberId);
+  const focused = useIsFocused();
+  const query = useInfiniteQuery({
+    queryKey: diaryKeys.list(memberId ?? 0),
+    queryFn: ({ pageParam }) => diaryApi.page(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: last => last.nextCursor,
+    enabled: memberId !== undefined && !!today,
+    subscribed: focused,
+    staleTime: 60_000,
+  });
+  const entries: DiaryEntry[] = (query.data?.pages ?? [])
+    .flatMap(page => page.items)
+    .filter(item => item.recordDate !== today)
+    .map(item => toSummaryEntry(item, today ?? todayKey()));
+  return {
+    entries,
+    hasMore: !!query.hasNextPage,
+    loadMore: () => {
+      if (query.hasNextPage && !query.isFetchingNextPage)
+        void query.fetchNextPage();
+    },
+    isFetchingMore: query.isFetchingNextPage,
   };
 }

@@ -113,30 +113,48 @@ function DiaryDetail({ entry }: { entry: DiaryEntry }) {
   );
 }
 // 상세 화면과 캘린더가 같은 내용을 펼쳐 보여 준다.
-export function DiaryDetailBody({ entry }: { entry: DiaryEntry }) {
+// artworkSize를 주면 그림을 그 폭(정사각형)으로 줄여 팝업처럼 높이가 정해진 곳에 맞춘다.
+export function DiaryDetailBody({
+  entry,
+  artworkSize,
+  onNavigate,
+}: {
+  entry: DiaryEntry;
+  artworkSize?: number;
+  // 다른 화면으로 넘어가기 직전에 부른다(팝업을 닫는 데 쓴다).
+  onNavigate?: () => void;
+}) {
   const phase = entryPhase(entry, false);
   // 다시 그리기·한 줄 쓰기는 오늘 기록의 생성 화면에서 한다.
-  const openGeneration = () =>
+  const openGeneration = () => {
+    onNavigate?.();
     router.push({ pathname: '/record/generation', params: { id: entry.id } });
+  };
   return (
     <>
-      {entry.generation === 'ready' ? (
-        <DiaryArtwork uri={entry.imageUrl} />
-      ) : (
-        <PictureState
-          emotion={entry.emotion}
-          companion={entry.companion}
-          generating={entry.generation === 'generating'}
-          tone="sage"
-          caption={
-            entry.generation === 'failed'
-              ? '그림을 완성하지 못했어요'
-              : entry.generation === 'notRequested'
-                ? '그림을 요청하지 않았어요'
-                : undefined
-          }
-        />
-      )}
+      <View
+        style={
+          artworkSize ? { width: artworkSize, alignSelf: 'center' } : undefined
+        }
+      >
+        {entry.generation === 'ready' ? (
+          <DiaryArtwork uri={entry.imageUrl} />
+        ) : (
+          <PictureState
+            emotion={entry.emotion}
+            companion={entry.companion}
+            generating={entry.generation === 'generating'}
+            tone="sage"
+            caption={
+              entry.generation === 'failed'
+                ? '그림을 완성하지 못했어요'
+                : entry.generation === 'notRequested'
+                  ? '그림을 요청하지 않았어요'
+                  : undefined
+            }
+          />
+        )}
+      </View>
       <DiaryMeta entry={entry} />
       {entry.status === 'completed' && (
         <AppText>{entry.memo || entry.title}</AppText>

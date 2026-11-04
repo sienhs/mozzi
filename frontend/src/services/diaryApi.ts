@@ -34,6 +34,7 @@ export const diaryKeys = {
   monthly: (memberId: number, yearMonth: string) =>
     ['diary', memberId, 'monthly', yearMonth] as const,
   recent: (memberId: number) => ['diary', memberId, 'recent'] as const,
+  list: (memberId: number) => ['diary', memberId, 'list'] as const,
 };
 
 export class DiaryExistsError extends AuthError {
@@ -142,6 +143,24 @@ export const diaryApi = {
     const { data } = await api.get('/diaries', { params: { size } });
     if (!Array.isArray(data?.items)) throw invalidResponse();
     return data.items.map(parseSummary);
+  },
+  // GET /diaries 한 페이지(최신순). 홈에서 옆으로 밀어 지난 기록을 넘겨 볼 때 쓴다.
+  async page(
+    cursor: string | null,
+    size = 10,
+  ): Promise<{ items: DiarySummary[]; nextCursor: string | null }> {
+    const { data } = await api.get('/diaries', {
+      params: cursor ? { cursor, size } : { size },
+    });
+    if (
+      !Array.isArray(data?.items) ||
+      (data.nextCursor != null && typeof data.nextCursor !== 'string')
+    )
+      throw invalidResponse();
+    return {
+      items: data.items.map(parseSummary),
+      nextCursor: data.nextCursor ?? null,
+    };
   },
   // [테스트·임시] POST /diaries/{id}/image/test (S15P31D102-132). 날짜·완성 여부·실패 횟수를 보지 않고
   // 다시 그린다. 서버는 키 형식만 검사하고 재전송을 첫 응답으로 돌려주지 않는다.
