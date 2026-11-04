@@ -44,6 +44,10 @@ dependencies {
 		exclude group: 'com.google.cloud', module: 'google-cloud-firestore'
 		exclude group: 'com.google.cloud', module: 'google-cloud-storage'
 	}
+	// FirebaseOptions needs JacksonFactory at startup, and the Admin SDK only got it through
+	// the two clients excluded above. Without it the server dies once FIREBASE_SA_KEY is set.
+	// The version matches the google-http-client the Admin SDK resolves.
+	implementation 'com.google.http-client:google-http-client-jackson2:2.1.0'
 	// Renders docs/legal into the public terms pages (LegalDocuments). The documents use
 	// tables, which need the GFM extension.
 	implementation 'org.commonmark:commonmark:0.24.0'
