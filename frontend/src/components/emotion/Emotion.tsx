@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { CardImage } from '@/components/gacha/CardImage';
 import { emotionOrder, emotions } from '@/constants/emotions';
 import type { Emotion } from '@/types/diary';
 import { cozyColors as colors } from '@/theme/cozy';
@@ -19,15 +21,23 @@ export function EmotionImage({
   // 그 감정에 고른 모찌. 없으면 기본 모찌.
   companion?: Companion | null;
 }) {
-  const source = companionEmotionSource(companion, emotion, size <= 32);
+  const source = companionEmotionSource(companion, emotion, size <= 44);
   return (
     <View style={{ width: size, height: size, overflow: 'hidden' }}>
-      <Image
-        accessibilityLabel={`${emotions[emotion].label} 모찌`}
-        source={source}
-        resizeMode="contain"
-        style={{ width: size, height: size }}
-      />
+      {companion ? (
+        <CardImage
+          accessibilityLabel={`${emotions[emotion].label} 모찌`}
+          uri={companion.imageUrl}
+          style={{ width: size, height: size }}
+        />
+      ) : (
+        <Image
+          accessibilityLabel={`${emotions[emotion].label} 모찌`}
+          source={source}
+          contentFit="contain"
+          style={{ width: size, height: size }}
+        />
+      )}
     </View>
   );
 }

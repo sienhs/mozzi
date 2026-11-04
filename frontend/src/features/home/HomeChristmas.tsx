@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react';
-import {
-  Image,
-  StyleSheet,
-  View,
-  type ImageSourcePropType,
-} from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import type { ImageSource } from 'expo-image';
+import { Image } from 'expo-image';
 import Svg, {
   Circle,
   Defs,
@@ -278,7 +275,7 @@ export function ChristmasCard({
   contentSized = false,
 }: {
   children: ReactNode;
-  backgroundImage?: ImageSourcePropType;
+  backgroundImage?: ImageSource | number;
   contentSized?: boolean;
 }) {
   return (
@@ -292,7 +289,7 @@ export function ChristmasCard({
         >
           <Image
             source={backgroundImage}
-            resizeMode="cover"
+            contentFit="cover"
             style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]}
           />
         </View>

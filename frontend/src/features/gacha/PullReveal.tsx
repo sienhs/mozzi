@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
-  Image,
   Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { CardImage } from '@/components/gacha/CardImage';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Redirect, router } from 'expo-router';
@@ -672,7 +673,8 @@ function Sparkles({ burst, color }: { burst: Animated.Value; color: string }) {
           <Image
             source={gachaArt.star}
             accessible={false}
-            style={{ width: spark.size, height: spark.size, tintColor: color }}
+            tintColor={color}
+            style={{ width: spark.size, height: spark.size }}
           />
         </Animated.View>
       ))}
@@ -757,7 +759,7 @@ function PrizeCard({ item, width }: { item: PullItem; width: number }) {
       <Image
         accessible={false}
         source={gachaArt.frame}
-        resizeMode="stretch"
+        contentFit="fill"
         style={styles.frame}
       />
       <View style={styles.cardHead}>
@@ -779,10 +781,10 @@ function PrizeCard({ item, width }: { item: PullItem; width: number }) {
             },
           ]}
         />
-        <Image
+        <CardImage
+          full
           accessibilityLabel={name}
-          source={{ uri: imageUrl }}
-          resizeMode="contain"
+          uri={imageUrl}
           style={{ width: '100%', height: '100%' }}
         />
       </View>

@@ -1,3 +1,4 @@
+import { cardImageUrls, cardThumbUrl } from '@/components/gacha/CardImage';
 import { companionEmotionSource, companionName } from '@/constants/companions';
 import { emotions } from '@/constants/emotions';
 import { api } from '@/services/api';
@@ -115,4 +116,23 @@ test('owned mozzi filters and picks go to the server in its format', async () =>
     cardId: 205,
   });
   await expect(mozziApi.choose('happy', 205)).rejects.toBeDefined();
+});
+
+test('card thumbnails sit next to the S3 original as GACHA/thumb/<name>.webp', () => {
+  const base = 'https://mozzi-dev.s3.ap-northeast-2.amazonaws.com';
+  expect(
+    cardThumbUrl(`${base}/GACHA/S1-01-01_mozzi_mythic_001_happy_r2.png`),
+  ).toBe(`${base}/GACHA/thumb/S1-01-01_mozzi_mythic_001_happy_r2.webp`);
+  // 기본 모찌·다른 경로는 썸네일이 없어 원본을 그대로 쓴다.
+  expect(cardThumbUrl(`${base}/basic/happy.png`)).toBeNull();
+  expect(
+    cardThumbUrl('https://cdn.example.test/cards/S2-04-01.png'),
+  ).toBeNull();
+  expect(cardImageUrls(`${base}/GACHA/a.png`)).toEqual([
+    `${base}/GACHA/thumb/a.webp`,
+  ]);
+  expect(cardImageUrls(`${base}/GACHA/a.png`, true)).toEqual([
+    `${base}/GACHA/a.png`,
+    `${base}/GACHA/thumb/a.webp`,
+  ]);
 });

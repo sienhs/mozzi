@@ -9,16 +9,19 @@ import {
   Animated,
   BackHandler,
   Platform,
+  Pressable,
   StyleSheet,
   View,
   type GestureResponderEvent,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
-// 홈의 가로 넘기기. 0번이 오늘이고, 왼쪽으로 밀면 지난 기록으로 계속 넘어간다.
-// 첫 장에서 오른쪽으로는 가지 않고 살짝 버티다 돌아온다. ScrollView 대신 직접 그려
+// 홈의 가로 넘기기. 0번이 오늘이고, 지난 기록은 왼쪽에 놓여 왼쪽에서 오른쪽으로 끌면 계속 넘어간다.
+// 첫 장에서 반대로는 가지 않고 살짝 버티다 돌아온다. ScrollView 대신 직접 그려
 // 화면 전체가 스크롤 없이 고정되고, 지금 장과 양옆 한 장씩만 그린다.
+// 넘길 장이 있는 쪽 가장자리에 작은 화살표를 두어 밀어서 넘긴다는 걸 알린다(눌러도 넘어간다).
 const SWIPE_RATIO = 0.18;
 // 손을 뗄 때 속도(논리 단위/ms)가 이보다 빠르면 짧게 밀어도 넘긴다.
 const SWIPE_VELOCITY = 0.35;
@@ -36,8 +39,10 @@ export function HomePager({
   renderPage,
   onNearEnd,
   onIndexChange,
+  hintColor = '#B95B58',
 }: {
   count: number;
+  hintColor?: string;
   renderPage: (index: number, controls: PagerControls) => ReactNode;
   // 끝에서 두 장 안쪽에 닿으면 부른다(다음 페이지 받기).
   onNearEnd?: () => void;
@@ -77,7 +82,7 @@ export function HomePager({
       state.index = next;
       setIndex(next);
       Animated.spring(offset, {
-        toValue: -next * state.width,
+        toValue: next * state.width,
         velocity,
         speed: 20,
         bounciness: 0,
@@ -146,10 +151,10 @@ export function HomePager({
     touch.lastT = p.t;
     const dx = p.x - touch.x;
     const edge =
-      (state.index === 0 && dx > 0) ||
-      (state.index === state.count - 1 && dx < 0);
+      (state.index === 0 && dx < 0) ||
+      (state.index === state.count - 1 && dx > 0);
     // 더 갈 곳이 없으면 4분의 1만 따라와 끝이라는 걸 알린다.
-    offset.setValue(-state.index * state.width + (edge ? dx * 0.25 : dx));
+    offset.setValue(state.index * state.width + (edge ? dx * 0.25 : dx));
   };
   const release = (event: GestureResponderEvent) => {
     const state = live.current;
@@ -157,10 +162,11 @@ export function HomePager({
     state.touch = null;
     if (!touch) return goTo(state.index);
     const dx = point(event).x - touch.x;
+    // 오른쪽으로 끌면 지난 기록(다음 장), 왼쪽으로 끌면 최근 쪽(앞 장).
     const step =
-      dx < -state.width * SWIPE_RATIO || touch.vx < -SWIPE_VELOCITY
+      dx > state.width * SWIPE_RATIO || touch.vx > SWIPE_VELOCITY
         ? 1
-        : dx > state.width * SWIPE_RATIO || touch.vx > SWIPE_VELOCITY
+        : dx < -state.width * SWIPE_RATIO || touch.vx < -SWIPE_VELOCITY
           ? -1
           : 0;
     goTo(state.index + step, touch.vx * 1000);
@@ -178,7 +184,7 @@ export function HomePager({
         if (w === live.current.width) return;
         live.current.width = w;
         setWidth(w);
-        offset.setValue(-live.current.index * w);
+        offset.setValue(live.current.index * w);
       }}
       onStartShouldSetResponderCapture={event => {
         startTouch(event);
@@ -214,7 +220,7 @@ export function HomePager({
                   page === index ? 'auto' : 'no-hide-descendants'
                 }
                 pointerEvents={page === index ? 'auto' : 'none'}
-                style={[styles.page, { left: page * width, width }]}
+                style={[styles.page, { left: -page * width, width }]}
               >
                 {renderPage(page, controls)}
               </View>
@@ -222,6 +228,49 @@ export function HomePager({
           )}
         </Animated.View>
       )}
+      {width > 0 && index < count - 1 && (
+        <EdgeHint
+          side="left"
+          color={hintColor}
+          label="지난 기록으로 넘기기"
+          onPress={() => goTo(index + 1)}
+        />
+      )}
+      {width > 0 && index > 0 && (
+        <EdgeHint
+          side="right"
+          color={hintColor}
+          label="최근 기록으로 넘기기"
+          onPress={() => goTo(index - 1)}
+        />
+      )}
+    </View>
+  );
+}
+
+function EdgeHint({
+  side,
+  color,
+  label,
+  onPress,
+}: {
+  side: 'left' | 'right';
+  color: string;
+  label: string;
+  onPress: () => void;
+}) {
+  const Glyph = side === 'left' ? ChevronLeft : ChevronRight;
+  return (
+    <View pointerEvents="box-none" style={[styles.hint, { [side]: 0 }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        hitSlop={{ top: 16, bottom: 16, left: 6, right: 6 }}
+        style={styles.hintButton}
+      >
+        <Glyph size={18} strokeWidth={2.4} color={color} />
+      </Pressable>
     </View>
   );
 }
@@ -229,4 +278,14 @@ export function HomePager({
 const styles = StyleSheet.create({
   viewport: { flex: 1, minHeight: 0, overflow: 'hidden' },
   page: { position: 'absolute', top: 0, bottom: 0 },
+  // 장 좌우 여백(20) 안에 들어가는 작은 화살표. 세로 가운데.
+  hint: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hintButton: { opacity: 0.6, paddingVertical: 10 },
 });

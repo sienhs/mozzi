@@ -1,4 +1,4 @@
-import type { ImageSourcePropType } from 'react-native';
+import type { ImageSource } from 'expo-image';
 import { emotions } from './emotions';
 import type { Emotion } from '@/types/diary';
 import type { Companion } from '@/types/companion';
@@ -12,7 +12,7 @@ export function companionEmotionSource(
   companion: Companion | null | undefined,
   emotion: Emotion,
   small = false,
-): ImageSourcePropType {
+): ImageSource | number {
   if (companion) return { uri: companion.imageUrl };
   return small ? emotions[emotion].face : emotions[emotion].source;
 }

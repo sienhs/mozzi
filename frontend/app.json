@@ -3,7 +3,7 @@
     "name": "오늘의 모찌",
     "slug": "mozzi",
     "platforms": ["ios", "android", "web"],
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FDE680",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -21,11 +21,15 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.ssafy.mozzi",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 1,
+      "versionCode": 2,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.ACCESS_MEDIA_LOCATION",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE"
@@ -51,7 +55,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/android-icon-monochrome.png",
+          "icon": "./assets/notification-icon.png",
           "color": "#A65E46",
           "defaultChannel": "default"
         }

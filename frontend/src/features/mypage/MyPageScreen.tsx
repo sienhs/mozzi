@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { BookOpen, ChevronRight } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import {
-  CozyScreen as Screen,
-  CozyButton as Button,
-} from '@/components/ui/CozyUI';
+import { CozyScreen as Screen } from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
 import { CompanionNotice, MyPageTitle } from '@/components/mypage/CompanionUI';
 import { companionName } from '@/constants/companions';
@@ -57,7 +55,7 @@ export function MyPageScreen() {
           <Image
             source={gachaArt.mochi}
             accessible={false}
-            resizeMode="contain"
+            contentFit="contain"
             style={{ width: 58, height: 58 }}
           />
         </View>
@@ -146,12 +144,6 @@ export function MyPageScreen() {
           })}
         </View>
       </View>
-      {/* [테스트·임시] 그림 테스트 API(S15P31D102-132)가 열려 있는 동안만 둔다. */}
-      <Button
-        label="그림 테스트 페이지로 이동"
-        variant="secondary"
-        onPress={() => router.push('/mypage/image-test')}
-      />
     </Screen>
   );
 }

@@ -1,4 +1,6 @@
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
+import { CardImage } from '@/components/gacha/CardImage';
 import { BookOpen, LockKeyhole } from 'lucide-react-native';
 import { AppText } from '@/components/ui/Text';
 import { cozyColors as colors } from '@/theme/cozy';
@@ -35,7 +37,7 @@ export function AlbumCover({ owned, total }: { owned: number; total: number }) {
         <Image
           accessible={false}
           source={gachaArt.mochi}
-          resizeMode="contain"
+          contentFit="contain"
           style={{ width: 56, height: 56 }}
         />
       </View>
@@ -116,10 +118,9 @@ export function AlbumCard({
         ]}
       >
         {owned ? (
-          <Image
+          <CardImage
             accessible={false}
-            source={{ uri: state.card.imageUrl }}
-            resizeMode="contain"
+            uri={state.card.imageUrl}
             style={{ width: '100%', height: '100%' }}
           />
         ) : (
