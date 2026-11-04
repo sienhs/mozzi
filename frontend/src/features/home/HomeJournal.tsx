@@ -1,13 +1,8 @@
 import type { ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import {
-  BookOpen,
-  CalendarDays,
-  ChevronRight,
-  Pencil,
-} from 'lucide-react-native';
+import { BookOpen, CalendarDays, Pencil } from 'lucide-react-native';
 import { AppText } from '@/components/ui/Text';
-import { EmotionPill } from '@/components/emotion/Emotion';
+import { EmotionImage, EmotionPill } from '@/components/emotion/Emotion';
 import { fonts } from '@/theme/tokens';
 import { formatDate, todayKey } from '@/constants/date';
 import type { DiaryEntry } from '@/types/diary';
@@ -59,19 +54,25 @@ export function HomeJournalPage({
   children,
   minHeight,
   gap = 24,
+  label = '오늘의 한 페이지',
+  trailing,
 }: {
   children: ReactNode;
   minHeight?: number;
   gap?: number;
+  label?: string;
+  // 머리줄 오른쪽 끝(페이지 넘기기 안내 등).
+  trailing?: ReactNode;
 }) {
   return (
     <View style={[styles.page, { minHeight, gap }]}>
       <View style={styles.pageHeading}>
         <BookOpen size={17} color={colors.accent} />
         <AppText variant="label" style={styles.pageLabel}>
-          오늘의 한 페이지
+          {label}
         </AppText>
         <View style={styles.headingRule} />
+        {trailing}
       </View>
       {children}
     </View>
@@ -81,12 +82,14 @@ export function HomeJournalPage({
 export function HomeEmptyPage({
   onRecord,
   minHeight,
+  trailing,
 }: {
   onRecord: () => void;
   minHeight?: number;
+  trailing?: ReactNode;
 }) {
   return (
-    <HomeJournalPage minHeight={minHeight} gap={16}>
+    <HomeJournalPage minHeight={minHeight} gap={16} trailing={trailing}>
       <ChristmasCard
         backgroundImage={require('../../../assets/Mozzi_before.png')}
       >
@@ -113,9 +116,15 @@ export function HomeEmptyPage({
   );
 }
 
-export function HomeGeneratingPage({ minHeight }: { minHeight?: number }) {
+export function HomeGeneratingPage({
+  minHeight,
+  trailing,
+}: {
+  minHeight?: number;
+  trailing?: ReactNode;
+}) {
   return (
-    <HomeJournalPage minHeight={minHeight}>
+    <HomeJournalPage minHeight={minHeight} trailing={trailing}>
       <ChristmasCard>
         <DiaryDrawingState fitToSpace />
       </ChristmasCard>
@@ -175,22 +184,23 @@ function DrawingProgressBar() {
   );
 }
 
+// 카드 자체는 누르지 않는다. 옆으로 밀어 넘기다 실수로 기록 보기로 넘어가지 않도록 '기록 보기' 버튼만 연다.
 export function HomeCompletedPage({
   entry,
   onOpen,
+  label,
+  trailing,
 }: {
   entry: DiaryEntry;
   onOpen: () => void;
+  label?: string;
+  trailing?: ReactNode;
 }) {
+  const past = entry.date !== todayKey();
+  const picture = entry.generation === 'ready' && !!entry.imageUrl;
   return (
-    <HomeJournalPage>
-      <Pressable
-        style={{ flex: 1, minHeight: 0 }}
-        accessibilityRole="button"
-        accessibilityLabel={`${formatDate(entry.date)} 그림일기 보기`}
-        accessibilityHint="그림과 기록 전체를 자세히 볼 수 있어요."
-        onPress={onOpen}
-      >
+    <HomeJournalPage label={label} trailing={trailing}>
+      <View style={{ flex: 1, minHeight: 0 }}>
         <ChristmasCard contentSized>
           <View style={styles.metadata}>
             <View style={styles.diaryDate}>
@@ -219,16 +229,70 @@ export function HomeCompletedPage({
               )}
             </View>
           )}
-          <StampFrame uri={entry.imageUrl} />
-          <View style={styles.viewRecord}>
+          {/* 지난 기록은 태그가 오지 않아(목록 응답) 한 줄 일기를 대신 적는다. */}
+          {past && (
+            <AppText
+              numberOfLines={2}
+              style={[styles.memo, !entry.memo && { color: colors.muted }]}
+            >
+              {entry.memo || entry.title}
+            </AppText>
+          )}
+          {picture ? (
+            <StampFrame uri={entry.imageUrl} />
+          ) : (
+            <View style={styles.noPicture}>
+              <EmotionImage emotion={entry.emotion} size={120} />
+              <AppText variant="small" style={{ color: colors.muted }}>
+                {entry.generation === 'generating'
+                  ? '그림을 그리고 있어요'
+                  : entry.generation === 'failed'
+                    ? '그림을 완성하지 못한 날이에요'
+                    : '그림 없이 남긴 하루예요'}
+              </AppText>
+            </View>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${formatDate(entry.date)} 그림일기 보기`}
+            accessibilityHint="그림과 기록 전체를 자세히 볼 수 있어요."
+            onPress={onOpen}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.viewRecord,
+              pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+            ]}
+          >
             <AppText variant="label" style={styles.viewRecordText}>
               기록 보기
             </AppText>
-            <ChevronRight size={19} color={colors.ink} />
-          </View>
+          </Pressable>
         </ChristmasCard>
-      </Pressable>
+      </View>
     </HomeJournalPage>
+  );
+}
+
+// 머리줄 끝의 작은 버튼(밀어서 넘기는 동작을 버튼으로도 할 수 있게).
+export function PageHint({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={10}
+      style={styles.pageHint}
+    >
+      <AppText variant="caption" style={styles.pageHintText}>
+        {label}
+      </AppText>
+    </Pressable>
   );
 }
 
@@ -372,6 +436,30 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   tags: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  memo: {
+    color: colors.ink,
+    fontFamily: fonts.pen,
+    fontSize: 20,
+    lineHeight: 27,
+    paddingRight: 8,
+  },
+  noPicture: {
+    flex: 1,
+    minHeight: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  pageHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    backgroundColor: colors.pink,
+  },
+  pageHintText: { color: colors.accent, fontSize: 13, lineHeight: 19 },
   tag: {
     backgroundColor: colors.pink,
     borderRadius: 16,

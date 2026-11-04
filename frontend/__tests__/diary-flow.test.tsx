@@ -229,6 +229,73 @@ test('completed home uses the server image without the previous diary section', 
   expect(server.callsTo('GET', '/home').length).toBeGreaterThan(0);
 }, 20000);
 
+test('home pages back through past records, stays on today at the start, and only the button opens a record', async () => {
+  setAuthPreview();
+  server.addDiary('2026-10-20', 'SAD', '비 오는 출근길', [['요리', 'WHAT']]);
+  server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
+    ['요리', 'WHAT'],
+  ]);
+  const todayId = server.addDiary(TODAY, 'CALM', '산책하며 남긴 하루', [
+    ['산책', 'WHAT'],
+  ]);
+  const app = await renderApp('/home');
+  expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
+  await advance(0);
+  // 첫 장(오늘)에는 더 최근으로 가는 버튼이 없다.
+  expect(screen.queryByRole('button', { name: '오늘로' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '지난 날' }));
+  await advance(0);
+  expect(screen.getByText('지난 한 페이지')).toBeOnTheScreen();
+  expect(screen.getByText('오므라이스를 만들었어')).toBeOnTheScreen();
+  expect(server.callsTo('GET', '/diaries').map(call => call.params)).toEqual([
+    { size: 10 },
+  ]);
+  // 카드를 눌러도 넘어가지 않고 '기록 보기' 버튼만 연다.
+  expect(app.getPathname()).toBe('/home');
+  await fireEvent.press(screen.getByRole('button', { name: '오늘로' }));
+  await advance(0);
+  expect(screen.getByText('오늘의 한 페이지')).toBeOnTheScreen();
+  await fireEvent.press(
+    screen.getByRole('button', { name: '10월 26일 월요일 그림일기 보기' }),
+  );
+  expect(app.getPathname()).toBe(`/diary/${todayId}`);
+}, 20000);
+
+test('search answers on the left, the question on the right, and back returns to the suggestions with the recent question', async () => {
+  setAuthPreview();
+  server.addDiary('2026-10-21', 'CALM', '공원에서 천천히 걸었어', [
+    ['산책', 'WHAT'],
+  ]);
+  await renderApp('/search');
+  await fireEvent.press(
+    await screen.findByRole('button', {
+      name: '평온 모찌를 고른 날을 보여 줘',
+    }),
+  );
+  await advance(0);
+  const bubble = screen.getByRole('button', {
+    name: '내 질문 평온 모찌를 고른 날을 보여 줘',
+  });
+  expect(bubble).toHaveStyle({ alignSelf: 'flex-end' });
+  // 말풍선을 누르면 입력창에 다시 넣어 고칠 수 있다.
+  await fireEvent.press(bubble);
+  expect(screen.getByLabelText('궁금한 날을 물어보세요').props.value).toBe(
+    '평온 모찌를 고른 날을 보여 줘',
+  );
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로' }));
+  expect(screen.getByText('지난 마음을 물어보세요')).toBeOnTheScreen();
+  expect(
+    screen.getByRole('button', {
+      name: '최근 질문 평온 모찌를 고른 날을 보여 줘',
+    }),
+  ).toBeOnTheScreen();
+  await fireEvent.press(
+    screen.getByRole('button', { name: '최근 질문 모두 지우기' }),
+  );
+  await advance(0);
+  expect(screen.queryByText('최근 물어본 질문')).toBeNull();
+}, 20000);
+
 test('tags create the diary, the picture is polled until done, and the one-line step shows the server image without faking a save', async () => {
   setAuthPreview();
   server.addDiary('2026-10-22', 'HAPPY', '오므라이스를 만들었어', [
@@ -566,13 +633,16 @@ test('calendar draws the server month, opens a day by date, and retries a failed
   });
 }, 20000);
 
-test('calendar empty-day sheet closes and logout removes protected screen access', async () => {
+test('calendar says an empty day has no record and logout removes protected screen access', async () => {
   setAuthPreview();
   const app = await renderApp('/calendar');
+  // 기록이 없는 날은 없다고만 알리고 공유할 것도 두지 않는다.
+  await advance(0);
   await fireEvent.press(
     screen.getByRole('button', { name: '10월 18일 일요일 기록 없음' }),
   );
   expect(screen.getByText('이날은 기록이 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '기록 공유' })).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
   await act(async () => {
     router.push('/settings');

@@ -63,6 +63,16 @@ export interface SearchResponse {
   // 큰 카드 1장. FOUND일 때만 있다.
   featured: DiaryDetail | null;
   diaries: DiarySummary[];
+  // 서버가 질문을 해석한 조건. 화면에 "이렇게 찾았어요"로 보여 준다. 형식이 어긋나면 null(답은 그대로 쓴다).
+  filter: SearchFilter | null;
+  // 조건에 맞은 기록 수. 없으면 null.
+  matchedCount: number | null;
+}
+export interface SearchFilter {
+  from: string | null;
+  to: string | null;
+  emotions: ServerEmotion[];
+  keyword: string | null;
 }
 // GET /diaries/monthly의 한 칸. 일기를 쓴 날만 온다(한 줄·그림은 없다).
 export interface MonthlyItem {
@@ -226,6 +236,23 @@ export function parseSummary(value: unknown): DiarySummary {
   };
 }
 const resultTypes: SearchResultType[] = ['FOUND', 'EMPTY', 'STATS_ONLY'];
+// 해석 조건은 보여 주기만 하므로 어긋나도 응답 전체를 버리지 않는다.
+function parseFilter(value: unknown): SearchFilter | null {
+  if (!isObject(value)) return null;
+  const date = (item: unknown) => (isDate(item) ? item : null);
+  const list = Array.isArray(value.emotions) ? value.emotions : [];
+  return {
+    from: date(value.from),
+    to: date(value.to),
+    emotions: list.filter((item): item is ServerEmotion =>
+      oneOf(emotions, item),
+    ),
+    keyword:
+      typeof value.keyword === 'string' && value.keyword.trim()
+        ? value.keyword.trim()
+        : null,
+  };
+}
 export function parseSearch(value: unknown): SearchResponse {
   if (
     !isObject(value) ||
@@ -263,6 +290,10 @@ export function parseSearch(value: unknown): SearchResponse {
     featured: value.resultType === 'FOUND' ? featured : null,
     diaries:
       value.resultType === 'FOUND' ? value.diaries.map(parseSummary) : [],
+    filter: parseFilter(value.interpretedFilter),
+    matchedCount: Number.isSafeInteger(stats.matchedCount)
+      ? (stats.matchedCount as number)
+      : null,
   };
 }
 export function parseSuggestions(value: unknown): string[] {
