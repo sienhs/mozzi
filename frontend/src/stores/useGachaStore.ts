@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { feedbackPrompt } from '@/services/feedbackPrompt';
 import type { GachaWallet, MochiCard, PullItem } from '@/types/gacha';
 import { gachaApi, gachaKeys } from '@/services/gachaApi';
 import { mozziKeys } from '@/services/mozziApi';
@@ -60,6 +61,7 @@ export const useGachaStore = create<GachaState>((set, get) => ({
       if (get().session !== session) return [];
       const deferred =
         count === 1 && !result.items[0].isNew ? result.items[0] : null;
+      void feedbackPrompt.markPulled(memberId);
       set({
         draw: null,
         lastPull: result.items,

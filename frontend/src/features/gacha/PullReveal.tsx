@@ -498,7 +498,7 @@ function RevealStage({
                         variant="caption"
                         style={{ color: colors.white }}
                       >
-                        NEW 새로 만난 모찌
+                        NEW
                       </AppText>
                     </View>
                   ) : (
@@ -728,12 +728,6 @@ function SealedCard({
       >
         <View style={[styles.sealedInner, { borderColor: `${glow}88` }]}>
           <AppText style={[styles.sealedMark, { color: glow }]}>✦</AppText>
-          <AppText
-            variant="caption"
-            style={{ color: 'rgba(255,255,255,0.75)', letterSpacing: 2 }}
-          >
-            MOZZI
-          </AppText>
         </View>
       </View>
     </View>
@@ -762,14 +756,7 @@ function PrizeCard({ item, width }: { item: PullItem; width: number }) {
         contentFit="fill"
         style={styles.frame}
       />
-      <View style={styles.cardHead}>
-        <AppText variant="caption" style={{ color: colors.gachaRose }}>
-          {item.isNew ? 'NEW' : ' '}
-        </AppText>
-        <AppText variant="caption" style={{ color: tiers[tier].color }}>
-          {tiers[tier].label}
-        </AppText>
-      </View>
+      {/* 등급과 NEW는 카드 아래 배지에만 둔다(모서리에 두면 테두리에 걸린다). */}
       <View style={styles.art}>
         <View
           style={[
@@ -942,6 +929,7 @@ const styles = StyleSheet.create({
     aspectRatio: 278 / 366,
     backgroundColor: colors.white,
     borderRadius: 24,
+    justifyContent: 'center',
   },
   frame: {
     position: 'absolute',
@@ -950,17 +938,10 @@ const styles = StyleSheet.create({
     width: '101.5%',
     height: '101.1%',
   },
-  cardHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
   art: {
     width: '84%',
     aspectRatio: 1,
     alignSelf: 'center',
-    marginTop: '8%',
   },
   summary: {
     flexDirection: 'row',

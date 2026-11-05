@@ -14,6 +14,8 @@ import { cozyColors as colors } from '@/theme/cozy';
 import { fonts } from '@/theme/tokens';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { apiErrorMessage } from '@/services/authErrors';
+import { FEEDBACK_URL, openLink } from '@/constants/links';
+import { installedAppVersion } from '@/utils/appVersion';
 
 export function SettingsScreen() {
   const profile = useAuthStore(state => state.member);
@@ -65,7 +67,11 @@ export function SettingsScreen() {
           label="개인정보 처리방침"
           onPress={() => setPanel('개인정보 처리방침')}
         />
-        <SettingsRow label="앱 버전" value="1.0.0" />
+        <SettingsRow
+          label="피드백 남기기"
+          onPress={() => void openLink(FEEDBACK_URL)}
+        />
+        <SettingsRow label="앱 버전" value={installedAppVersion() ?? '-'} />
       </View>
       <View>
         <AppText variant="caption">계정</AppText>

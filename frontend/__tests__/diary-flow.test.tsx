@@ -9,6 +9,9 @@ import {
   waitFor,
 } from 'expo-router/testing-library';
 import { router } from 'expo-router';
+import * as Linking from 'expo-linking';
+import { FEEDBACK_URL } from '@/constants/links';
+import { useGachaStore } from '@/stores/useGachaStore';
 import { Image } from 'react-native';
 import { File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -40,6 +43,10 @@ import {
   type FakeServer,
 } from '../test-utils/fakeServer';
 
+jest.mock('expo-linking', () => ({
+  ...jest.requireActual('expo-linking'),
+  openURL: jest.fn(async () => true),
+}));
 jest.mock('@/services/authConfig', () => ({
   ...jest.requireActual('@/services/authConfig'),
   getApiBaseUrl: () => 'https://api.example.test/api/v1',
@@ -838,3 +845,37 @@ test('custom tags are saved as server icons per category, and a custom activity 
     weather: 'NONE',
   });
 }, 30000);
+
+// 회원별 기록이 모듈에 남으므로(memberId 0) 이 파일의 마지막에 둔다.
+test('the feedback popup shows once on home after a diary and a pull, and settings opens the same form', async () => {
+  setAuthPreview();
+  server.addDiary(TODAY, 'CALM', '산책하며 남긴 하루', [['산책', 'WHAT']]);
+  const app = await renderApp('/home');
+  expect(await screen.findByLabelText('오늘의 그림일기')).toBeOnTheScreen();
+  await advance(1500);
+  // 뽑기 전에는 띄우지 않는다.
+  expect(screen.queryByText('모찌 어떠셨어요?')).toBeNull();
+  await act(async () => {
+    await useGachaStore.getState().pull(0, 1);
+  });
+  router.push('/settings');
+  await advance(0);
+  // 설정에서 언제든 남길 수 있고, 앱 버전은 설치된 버전을 보여 준다.
+  await fireEvent.press(screen.getByRole('button', { name: '피드백 남기기' }));
+  expect(Linking.openURL).toHaveBeenLastCalledWith(FEEDBACK_URL);
+  expect(screen.queryByText('1.0.0')).toBeNull();
+  router.back();
+  await advance(0);
+  await advance(600);
+  expect(app.getPathname()).toBe('/home');
+  expect(screen.getByText('모찌 어떠셨어요?')).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다음에 할게요' }));
+  expect(screen.queryByText('모찌 어떠셨어요?')).toBeNull();
+  // 한 번 띄운 뒤에는 다시 돌아와도 뜨지 않는다.
+  router.push('/settings');
+  await advance(0);
+  router.back();
+  await advance(0);
+  await advance(600);
+  expect(screen.queryByText('모찌 어떠셨어요?')).toBeNull();
+}, 20000);

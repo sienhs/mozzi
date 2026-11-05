@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { ONESTORE_URL } from '@/constants/links';
 import { SEMVER } from '@/types/server';
 
 export type UpdateRequirement = 'none' | 'recommended' | 'required';
@@ -10,11 +11,10 @@ export function installedAppVersion(): string | null {
   return version && SEMVER.test(version) ? version : null;
 }
 
-// 업데이트 받을 곳. 스토어 등록·배포 경로가 아직 정해지지 않아 기본값을 두지 않는다.
-// 비어 있으면 안내만 하고 링크 버튼은 숨긴다 (frontend/.env.example 참고).
+// 업데이트 받을 곳. 기본은 원스토어 상세 페이지이고, EXPO_PUBLIC_APP_UPDATE_URL로 바꿀 수 있다.
+// https가 아닌 값이면 안내만 하고 링크 버튼은 숨긴다.
 export function appUpdateUrl(): string | null {
-  const value = process.env.EXPO_PUBLIC_APP_UPDATE_URL?.trim();
-  if (!value) return null;
+  const value = process.env.EXPO_PUBLIC_APP_UPDATE_URL?.trim() || ONESTORE_URL;
   try {
     return new URL(value).protocol === 'https:' ? value : null;
   } catch {

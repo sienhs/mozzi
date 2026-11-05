@@ -24,6 +24,7 @@ import {
 import { HomePager, type PagerControls } from './HomePager';
 import { ChristmasCard, WinterBackdrop } from './HomeChristmas';
 import { completedDiaryPreview } from '@/mocks/diaryPreview';
+import { FeedbackPrompt } from '@/features/feedback/FeedbackPrompt';
 import { spacing } from '@/theme/tokens';
 
 // 홈 상태는 서버 todayStatus를 따른다.
@@ -160,6 +161,14 @@ export function DiaryHomeScreen() {
       }
       footer={footer}
     >
+      {!isPreview && (
+        <FeedbackPrompt
+          recorded={
+            (!!home.data && home.data.todayStatus !== 'NOT_RECORDED') ||
+            past.entries.length > 0
+          }
+        />
+      )}
       {!loaded ? (
         <View style={pageStyle}>
           {home.isError ? (
