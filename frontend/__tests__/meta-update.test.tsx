@@ -12,6 +12,7 @@ import Welcome from '@/app/index';
 import { fetchMeta } from '@/services/metaApi';
 import { useMetaStore } from '@/stores/useMetaStore';
 import { parseMeta } from '@/types/server';
+import { ONESTORE_URL } from '@/constants/links';
 import {
   appUpdateUrl,
   compareVersions,
@@ -115,18 +116,16 @@ test('a failed meta call blocks entry with a retry instead of assuming a normal 
   ).toBeOnTheScreen();
 });
 
-test('below the minimum version the app stops at the update screen; without a configured link no URL is invented', async () => {
+test('below the minimum version the app stops at the update screen and sends members to ONE store', async () => {
   jest.mocked(fetchMeta).mockResolvedValueOnce(meta('99.0.0', '99.0.0'));
   await renderRouter(routes, { initialUrl: '/' });
   expect(await screen.findByText('업데이트가 필요해요')).toBeOnTheScreen();
   expect(
     screen.queryByRole('button', { name: 'Google로 시작하기' }),
   ).toBeNull();
-  expect(screen.queryByRole('button', { name: '업데이트하기' })).toBeNull();
-  expect(
-    screen.getByText(/업데이트 받을 곳이 아직 준비되지 않았어요/),
-  ).toBeOnTheScreen();
-  expect(appUpdateUrl()).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: '업데이트하기' }));
+  expect(Linking.openURL).toHaveBeenCalledWith(ONESTORE_URL);
+  expect(appUpdateUrl()).toBe(ONESTORE_URL);
 });
 
 test('a recommended update can be dismissed and opens the configured link', async () => {

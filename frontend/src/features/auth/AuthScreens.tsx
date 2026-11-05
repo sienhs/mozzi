@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { View } from 'react-native';
+import { Image } from 'expo-image';
 import { Screen, Heading } from '@/components/ui/Screen';
 import { AppText } from '@/components/ui/Text';
 import { Button, TextButton } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Icon } from '@/components/ui/Icon';
 import { ErrorBanner } from '@/components/ui/Feedback';
-import { DiaryArtwork } from '@/components/ui/DiaryCard';
 import { Sheet } from '@/components/ui/Sheet';
 import { LegalDocument, useLegalDocument } from '@/components/ui/LegalDocument';
 import { legalLabels, legalTypes, type LegalType } from '@/constants/legal';
@@ -17,6 +17,10 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { useMetaStore } from '@/stores/useMetaStore';
 import { validNickname } from '@/types/auth';
 
+// 가입하면 서버가 주는 뽑기권(RewardType.SIGNUP). 서버 값이 바뀌면 같이 바꾼다.
+const SIGNUP_TICKETS = 20;
+
+// 첫 화면. 로고, 가입 혜택, 모찌 그림, Google 시작 버튼을 화면 가운데에 모아 둔다.
 export function WelcomeScreen() {
   const { status, pending, error, signIn } = useAuthStore();
   if (status === 'authenticated') return <Redirect href="/home" />;
@@ -24,27 +28,72 @@ export function WelcomeScreen() {
   return (
     <Screen
       header={false}
-      contentStyle={{ paddingTop: 56, gap: 32 }}
-      footer={
-        <>
-          {!!error && <ErrorBanner message={error} />}
-          <Button
-            label={pending ? 'Google 계정 확인 중' : 'Google로 시작하기'}
-            variant="google"
-            loading={pending}
-            onPress={async () => {
-              await signIn();
-              const next = useAuthStore.getState().status;
-              if (next === 'authenticated') router.replace('/home');
-              else if (next === 'signupRequired') router.replace('/onboarding');
-            }}
-          />
-        </>
-      }
+      contentStyle={{
+        flexGrow: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 20,
+        paddingBottom: 48,
+      }}
     >
-      <Heading display title="오늘의 모찌" />
-      {/* 시작 화면 그림은 기록 그림(1:1)과 별개로 기존 3:2를 유지한다. */}
-      <DiaryArtwork ratio={3 / 2} />
+      <Image
+        accessibilityLabel="오늘의 모찌"
+        source={require('../../../assets/Mozzi_Logo2.png')}
+        contentFit="contain"
+        style={{ width: 150, aspectRatio: 420 / 280 }}
+      />
+      <AppText
+        variant="title"
+        accessibilityRole="header"
+        style={{ textAlign: 'center', marginTop: -8 }}
+      >
+        {'지금 가입하면\n'}
+        <AppText variant="title" style={{ color: colors.primary }}>
+          뽑기권 {SIGNUP_TICKETS}장
+        </AppText>
+        을 드려요
+      </AppText>
+      <View
+        style={{
+          width: '64%',
+          maxWidth: 260,
+          aspectRatio: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {/* 그림 뒤 은은한 빛 */}
+        <View
+          style={{
+            position: 'absolute',
+            width: '80%',
+            aspectRatio: 1,
+            borderRadius: 999,
+            backgroundColor: '#F4D8C566',
+            boxShadow: '0 0 48px 24px #F4D8C566',
+          }}
+        />
+        <Image
+          accessible={false}
+          source={require('../../../assets/Mozzi_middle.png')}
+          contentFit="contain"
+          style={{ width: '100%', height: '100%' }}
+        />
+      </View>
+      <View style={{ alignSelf: 'stretch', gap: 12, marginTop: 8 }}>
+        {!!error && <ErrorBanner message={error} />}
+        <Button
+          label={pending ? 'Google 계정 확인 중' : 'Google로 시작하기'}
+          variant="google"
+          loading={pending}
+          onPress={async () => {
+            await signIn();
+            const next = useAuthStore.getState().status;
+            if (next === 'authenticated') router.replace('/home');
+            else if (next === 'signupRequired') router.replace('/onboarding');
+          }}
+        />
+      </View>
     </Screen>
   );
 }
