@@ -45,6 +45,8 @@ export function EmotionScreen() {
   return (
     <Screen
       title="오늘의 기록"
+      scrollable={false}
+      contentStyle={{ flex: 1, minHeight: 0, paddingHorizontal: 20, gap: 12 }}
       back
       footer={
         <Button

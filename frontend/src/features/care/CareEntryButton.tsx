@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { ChevronRight } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -18,6 +19,7 @@ export function CareEntryButton({
   emotion: Emotion;
   companion?: Companion | null;
 }) {
+  const [pressed, setPressed] = useState(false);
   const name = companionName(companion);
   const open = () =>
     router.push({
@@ -33,7 +35,9 @@ export function CareEntryButton({
       accessibilityLabel={`${name}랑 놀기`}
       accessibilityHint="쓰다듬기, 간식, 공놀이를 하면 뽑기권을 받아요."
       onPress={open}
-      style={({ pressed }) => [styles.button, pressed && { opacity: 0.85 }]}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={[styles.button, pressed && { opacity: 0.85 }]}
     >
       <View style={styles.avatar}>
         {companion ? (
@@ -47,12 +51,17 @@ export function CareEntryButton({
         )}
       </View>
       <View style={styles.copy}>
-        <AppText style={styles.title}>모찌랑 놀기</AppText>
+        <AppText numberOfLines={1} style={styles.title}>
+          모찌랑 놀기
+        </AppText>
         <AppText variant="caption" numberOfLines={1} style={styles.caption}>
-          쓰다듬기 · 간식 · 공놀이로 뽑기권 받기
+          놀아 주고 뽑기권 받기
         </AppText>
       </View>
-      <ChevronRight size={22} color={colors.accent} />
+      <View style={styles.cta}>
+        <AppText style={styles.ctaText}>놀러 가기</AppText>
+        <ChevronRight size={16} color="#FFFFFF" strokeWidth={2.5} />
+      </View>
     </Pressable>
   );
 }
@@ -65,7 +74,7 @@ const styles = StyleSheet.create({
     minHeight: 60,
     paddingVertical: 8,
     paddingLeft: 10,
-    paddingRight: 16,
+    paddingRight: 10,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: colors.edge,
@@ -77,7 +86,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  copy: { flex: 1, gap: 2 },
+  copy: { flex: 1, minWidth: 0, gap: 2 },
   title: {
     color: colors.ink,
     fontFamily: fonts.pen,
@@ -85,4 +94,15 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   caption: { color: colors.muted },
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#8B5E46',
+  },
+  ctaText: { color: '#FFFFFF', fontFamily: fonts.medium, fontSize: 14 },
 });

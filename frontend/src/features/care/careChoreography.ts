@@ -655,6 +655,9 @@ export function touchingBallX(
  * skid-out point, height) until they clear the posed silhouette, sampled on the real timeline.
  * `clearance` reports whether a fully on-stage solution was found.
  */
+/** Gap between the stage's left edge and the waiting ball, so its highlight ring stays inside the stage. */
+export const BALL_DOCK_INSET = 22;
+
 export function buildPlayLayout(input: {
   stageWidth: number;
   floor: number;
@@ -679,7 +682,16 @@ export function buildPlayLayout(input: {
   const edge = stageWidth - r - 2;
   const limit = edge - 4 - 18; // leaves room for the ball to skid out after the bump
   const top = Math.min(...bands.map(band => band.top));
-  const dock = { x: 10 + r, y: floor - r };
+  const dock = {
+    x: Math.max(
+      BALL_DOCK_INSET + r,
+      Math.min(
+        stageWidth * 0.25,
+        Math.min(...bands.map(band => band.left)) - r - 40,
+      ),
+    ),
+    y: floor - r,
+  };
   const apex = (a: Point, b: Point, height: number) => {
     let highest = Infinity;
     for (let u = 0; u <= 1; u += 0.02)

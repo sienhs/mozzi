@@ -311,8 +311,6 @@ export function HomeCompletedPage({
           {...hidden(true)}
         >
           <ChristmasCard contentSized>
-            {/* 앞면은 그림만 크게 둔다. 저장·공유는 뒤집었을 때 위에 둔다. */}
-            <ImageActionRow actions={actions} />
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${formatDate(entry.date)} 한 줄 일기`}
@@ -388,6 +386,7 @@ export function HomeCompletedPage({
                 />
               )}
             </Pressable>
+            <ImageActionRow actions={actions} />
           </ChristmasCard>
         </Animated.View>
       </View>
@@ -395,7 +394,7 @@ export function HomeCompletedPage({
   );
 }
 
-// 카드 뒷면 위의 그림 저장·공유. 저장은 공유 왼쪽에 두고, 그림이 없는 날은 공유(글)만 둔다.
+// 카드 뒷면 하단의 그림 저장·공유. 저장은 공유 왼쪽에 두고, 그림이 없는 날은 공유(글)만 둔다.
 function ImageActionRow({
   actions,
 }: {
