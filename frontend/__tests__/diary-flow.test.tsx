@@ -570,10 +570,10 @@ test('signing in shows the daily visit tickets once and the sheet closes', async
   setAuthPreview();
   server.state.rewardsOn = true;
   await renderApp('/home');
-  expect(screen.getByText('뽑기권 10장을 받았어요')).toBeOnTheScreen();
-  expect(screen.getByText('지금 뽑기권 30장')).toBeOnTheScreen();
+  expect(screen.getByText('뽑기권 5장을 받았어요')).toBeOnTheScreen();
+  expect(screen.getByText('지금 뽑기권 25장')).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
-  expect(screen.queryByText('뽑기권 10장을 받았어요')).toBeNull();
+  expect(screen.queryByText('뽑기권 5장을 받았어요')).toBeNull();
 }, 20000);
 
 test('withdrawal asks first, keeps the session when the server fails, and signs out after it succeeds', async () => {

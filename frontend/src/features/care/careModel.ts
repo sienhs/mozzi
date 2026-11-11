@@ -18,9 +18,9 @@ export type CareProgress = {
 
 // 화면 안내용 값. 실제 지급 장수는 서버 응답을 따른다(backend docs/api/gacha.md "돌보기 보상").
 export const CARE_POLICY = {
-  pet: { tickets: 5, durationMs: 1600, distancePx: 130, moves: 6 },
-  feed: { tickets: 5 },
-  play: { tickets: 10, targetHits: 3 },
+  pet: { tickets: 2, durationMs: 1600, distancePx: 130, moves: 6 },
+  feed: { tickets: 2 },
+  play: { tickets: 2, targetHits: 3 },
 } as const;
 
 // 톡 치기, 가만히 누르기, 아주 짧은 문지르기로는 채워지지 않는다.

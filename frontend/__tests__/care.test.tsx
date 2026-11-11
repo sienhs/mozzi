@@ -394,7 +394,7 @@ describe('screens', () => {
     expect(screen.queryByTestId('home-care-entry')).toBeNull();
   });
 
-  test('feeding (keyboard path) pays 5 tickets once a day and shows the reward', async () => {
+  test('feeding (keyboard path) pays 2 tickets once a day and shows the reward', async () => {
     server.state.tickets = 20;
     await openCare('/care?emotion=happy');
     expect(screen.getByTestId('care-mochi-name')).toHaveTextContent(
@@ -410,7 +410,7 @@ describe('screens', () => {
     await advance(4400 + 50);
     expect(careCalls()).toHaveLength(1);
     expect(careCalls()[0]!.body).toEqual({ action: 'FEED' });
-    expect(screen.getByText('뽑기권 5장을 받았어요')).toBeOnTheScreen();
+    expect(screen.getByText('뽑기권 2장을 받았어요')).toBeOnTheScreen();
     expect(
       screen.getByText('모찌에게 간식을 준 선물이에요.'),
     ).toBeOnTheScreen();
@@ -428,7 +428,7 @@ describe('screens', () => {
     expect(screen.getByTestId('care-status')).toHaveTextContent(
       /오늘은 이미 받았어요/,
     );
-    expect(server.state.tickets).toBe(25);
+    expect(server.state.tickets).toBe(22);
   });
 
   test('play pays after the third throw only', async () => {
@@ -446,7 +446,7 @@ describe('screens', () => {
     }
     expect(careCalls()).toHaveLength(1);
     expect(careCalls()[0]!.body).toEqual({ action: 'PLAY' });
-    expect(screen.getByText('뽑기권 10장을 받았어요')).toBeOnTheScreen();
+    expect(screen.getByText('뽑기권 2장을 받았어요')).toBeOnTheScreen();
   });
 
   test('a failed reward call can be retried without replaying', async () => {
@@ -462,7 +462,7 @@ describe('screens', () => {
     await fireEvent.press(screen.getByRole('button', { name: '다시 받기' }));
     await advance(0);
     expect(careCalls()).toHaveLength(2);
-    expect(screen.getByText('뽑기권 5장을 받았어요')).toBeOnTheScreen();
+    expect(screen.getByText('뽑기권 2장을 받았어요')).toBeOnTheScreen();
   });
 
   test('rewardApi.care rejects a malformed response', async () => {

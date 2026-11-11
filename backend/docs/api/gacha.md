@@ -18,10 +18,10 @@
 | 등급 | 확률 | 중복 시 별조각 | 교환가 |
 |---|---|---|---|
 | `COMMON` 일반 | 45% | +1 | 교환 불가 |
-| `RARE` 희귀 | 30% | +2 | 교환 불가 |
+| `RARE` 희귀 | 32.5% | +2 | 교환 불가 |
 | `EPIC` 영웅 | 17% | +5 | 교환 불가 |
-| `LEGENDARY` 전설 | 7% | +15 | 200 |
-| `MYTHIC` 신화 | 1% | +40 | 400 |
+| `LEGENDARY` 전설 | 5% | +15 | 200 |
+| `MYTHIC` 신화 | 0.5% | +40 | 400 |
 
 수치는 서버 설정값(`gacha_tier`)이다. 앱은 `GET /gacha/rates`의 값을 보여 준다. `NONE`은 가중치 0인 행이 있지만 확률표에는 나오지 않는다.
 
@@ -32,11 +32,11 @@
 | type | 조건 | 뽑기권 | 지급 위치 |
 |---|---|---|---|
 | `SIGNUP` | 회원가입 완료 (1회) | 20 | `POST /auth/signup` |
-| `DAILY_LOGIN` | 그날(Asia/Seoul) 첫 접속 | 10 | `POST /rewards/daily-login` |
-| `DAILY_RECORD` | 그날 일기 작성 | 10 | `POST /diaries` |
-| `CARE_PET` | 그날 첫 쓰다듬기 완료 | 5 | `POST /rewards/care` |
-| `CARE_FEED` | 그날 첫 간식 주기 완료 | 5 | `POST /rewards/care` |
-| `CARE_PLAY` | 그날 첫 공놀이(공 세 번) 완료 | 10 | `POST /rewards/care` |
+| `DAILY_LOGIN` | 그날(Asia/Seoul) 첫 접속 | 5 | `POST /rewards/daily-login` |
+| `DAILY_RECORD` | 그날 일기 작성 | 5 | `POST /diaries` |
+| `CARE_PET` | 그날 첫 쓰다듬기 완료 | 2 | `POST /rewards/care` |
+| `CARE_FEED` | 그날 첫 간식 주기 완료 | 2 | `POST /rewards/care` |
+| `CARE_PLAY` | 그날 첫 공놀이(공 세 번) 완료 | 2 | `POST /rewards/care` |
 
 조건을 채우면 바로 지급하고, 받은 보상을 응답에 담는다. 앱은 그 응답으로 얼럿을 띄운다. 따로 받는 API는 없다.
 
@@ -47,7 +47,7 @@
 Response `200`
 
 ```json
-{ "date": "2026-10-29", "granted": true, "tickets": 10, "ticketCount": 30 }
+{ "date": "2026-10-29", "granted": true, "tickets": 5, "ticketCount": 25 }
 ```
 
 - 같은 날 두 번째 호출부터는 `granted: false`, `tickets: 0`으로 `200`을 준다. `ticketCount`는 현재 잔액이다.
@@ -67,7 +67,7 @@ Request
 Response `200`
 
 ```json
-{ "date": "2026-11-09", "action": "PET", "type": "CARE_PET", "granted": true, "tickets": 5, "ticketCount": 35 }
+{ "date": "2026-11-09", "action": "PET", "type": "CARE_PET", "granted": true, "tickets": 2, "ticketCount": 27 }
 ```
 
 - 활동마다 그날(Asia/Seoul) 첫 호출만 지급한다. 이후 호출은 `granted: false`, `tickets: 0`이고 `ticketCount`는 현재 잔액이다.
@@ -77,7 +77,7 @@ Response `200`
 ### `POST /diaries`의 `reward`
 
 ```json
-"reward": { "type": "DAILY_RECORD", "tickets": 10, "ticketCount": 40 }
+"reward": { "type": "DAILY_RECORD", "tickets": 5, "ticketCount": 32 }
 ```
 
 이미 그 날짜로 받았으면 `reward: null`. 자세한 응답은 [diary.md](diary.md#post-diaries--일기-쓰기)에 있다.
@@ -142,10 +142,10 @@ Response `200`
 {
   "rates": [
     { "tier": "COMMON", "rate": 0.45, "duplicateShards": 1 },
-    { "tier": "RARE", "rate": 0.30, "duplicateShards": 2 },
+    { "tier": "RARE", "rate": 0.325, "duplicateShards": 2 },
     { "tier": "EPIC", "rate": 0.17, "duplicateShards": 5 },
-    { "tier": "LEGENDARY", "rate": 0.07, "duplicateShards": 15 },
-    { "tier": "MYTHIC", "rate": 0.01, "duplicateShards": 40 }
+    { "tier": "LEGENDARY", "rate": 0.05, "duplicateShards": 15 },
+    { "tier": "MYTHIC", "rate": 0.005, "duplicateShards": 40 }
   ]
 }
 ```
@@ -347,7 +347,7 @@ Response `201`
 | 동시성 | 같은 회원 뽑기 2건 동시 → 잔액 음수 없음 |
 | 멱등 | 같은 키 재전송 → 같은 결과, 1회 차감 |
 | 교환 | 영웅 이하 409 `CARD_NOT_EXCHANGEABLE`, 보유 카드 409, 조각 부족 409, 전설 −200 · 신화 −400, 얻은 카드 `isNew = true` |
-| 보상 | 가입 +20, 매일 접속 +10 (같은 날 2회 호출 → 1회 지급), 일기 작성 +10 (같은 날짜 1회) |
+| 보상 | 가입 +20, 매일 접속 +5 (같은 날 2회 호출 → 1회 지급), 일기 작성 +5 (같은 날짜 1회), 돌보기 활동마다 +2 (같은 날 1회) |
 | 장부 | 잔액 = 장부 합계 |
 | 탈퇴 | 뽑기 관련 행 0 |
 

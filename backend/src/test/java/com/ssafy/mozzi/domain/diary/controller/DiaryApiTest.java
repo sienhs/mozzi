@@ -145,12 +145,12 @@ class DiaryApiTest {
     }
 
     @Test
-    void theDaysDiaryPaysTenTickets() throws Exception {
+    void theDaysDiaryPaysFiveTickets() throws Exception {
         long diaryId = body(create(me, calm, "null", cooking)
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.reward.type").value("DAILY_RECORD"))
-                .andExpect(jsonPath("$.reward.tickets").value(10))
-                .andExpect(jsonPath("$.reward.ticketCount").value(10)))
+                .andExpect(jsonPath("$.reward.tickets").value(5))
+                .andExpect(jsonPath("$.reward.ticketCount").value(5)))
                 .get("diaryId").asLong();
 
         assertThat(jdbcTemplate.queryForObject(
@@ -163,7 +163,7 @@ class DiaryApiTest {
     void aDateAlreadyRewardedPaysNothing() throws Exception {
         jdbcTemplate.update("""
                 insert into wallet_ledger (member_id, currency, amount, reason, reward_key, created_at)
-                values (?, 'TICKET', 10, 'DAILY_RECORD', ?, now())
+                values (?, 'TICKET', 5, 'DAILY_RECORD', ?, now())
                 """, me, "RECORD:" + today);
 
         create(me, calm, "null", cooking)
@@ -181,8 +181,8 @@ class DiaryApiTest {
         JsonNode second = body(create(me, key, calm, "null", cooking).andExpect(status().isCreated()));
 
         assertThat(second).isEqualTo(first);
-        assertThat(second.get("reward").get("tickets").asInt()).isEqualTo(10);
-        assertThat(new GachaFixtures(jdbcTemplate).tickets(me)).isEqualTo(10);
+        assertThat(second.get("reward").get("tickets").asInt()).isEqualTo(5);
+        assertThat(new GachaFixtures(jdbcTemplate).tickets(me)).isEqualTo(5);
         create(me, key, sad, "null", cooking)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));

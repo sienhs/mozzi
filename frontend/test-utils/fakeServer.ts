@@ -409,10 +409,10 @@ export function createFakeServer(today: string) {
       let reward = null;
       if (state.rewardsOn && !state.rewardedDates.has(recordKey)) {
         state.rewardedDates.add(recordKey);
-        state.tickets += 10;
+        state.tickets += 5;
         reward = {
           type: 'DAILY_RECORD',
-          tickets: 10,
+          tickets: 5,
           ticketCount: state.tickets,
         };
       }
@@ -481,19 +481,19 @@ export function createFakeServer(today: string) {
       const granted = state.rewardsOn && !state.rewardedDates.has(key);
       if (granted) {
         state.rewardedDates.add(key);
-        state.tickets += 10;
+        state.tickets += 5;
       }
       return ok(config, {
         date: state.today,
         granted,
-        tickets: granted ? 10 : 0,
+        tickets: granted ? 5 : 0,
         ticketCount: state.tickets,
       });
     }
     // 돌보기 보상(backend docs/api/gacha.md "돌보기 보상"): 활동마다 하루 한 번.
     // 돌보기 화면만 부르므로 rewardsOn과 무관하게 지급한다.
     if (method === 'POST' && url === '/rewards/care') {
-      const amounts: Record<string, number> = { PET: 5, FEED: 5, PLAY: 10 };
+      const amounts: Record<string, number> = { PET: 2, FEED: 2, PLAY: 2 };
       const action = call.body?.action;
       if (typeof action !== 'string' || !(action in amounts))
         fail(config, 400, 'INVALID_INPUT');
