@@ -150,11 +150,11 @@ Response `201`
 {
   "diaryId": 102,
   "recordDate": "2026-10-28",
-  "reward": { "type": "DAILY_RECORD", "tickets": 10, "ticketCount": 40 }
+  "reward": { "type": "DAILY_RECORD", "tickets": 5, "ticketCount": 32 }
 }
 ```
 
-- `reward`: 그날 첫 일기면 뽑기권 10장을 같은 트랜잭션에서 지급하고 담는다. `ticketCount`는 지급 후 잔액. 이미 그 날짜로 받았으면 `null`. 앱은 이 값으로 보상 얼럿을 띄운다. 규칙은 [gacha.md](gacha.md#뽑기권-지급).
+- `reward`: 그날 첫 일기면 뽑기권 5장을 같은 트랜잭션에서 지급하고 담는다. `ticketCount`는 지급 후 잔액. 이미 그 날짜로 받았으면 `null`. 앱은 이 값으로 보상 얼럿을 띄운다. 규칙은 [gacha.md](gacha.md#뽑기권-지급).
 
 | HTTP | code | 처리 |
 |---|---|---|

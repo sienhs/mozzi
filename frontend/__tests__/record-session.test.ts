@@ -432,14 +432,14 @@ test('the first diary of the day and the first visit of the day show the tickets
   await useRewardStore.getState().checkDailyLogin();
   await useRewardStore.getState().checkDailyLogin();
   expect(useRewardStore.getState().queue).toEqual([
-    { type: 'DAILY_LOGIN', tickets: 10, ticketCount: 30 },
+    { type: 'DAILY_LOGIN', tickets: 5, ticketCount: 25 },
   ]);
   expect(server.callsTo('POST', '/rewards/daily-login')).toHaveLength(2);
   useRewardStore.getState().dismiss();
   pickDay();
   await store().startGeneration(MEMBER);
   expect(useRewardStore.getState().queue).toEqual([
-    { type: 'DAILY_RECORD', tickets: 10, ticketCount: 40 },
+    { type: 'DAILY_RECORD', tickets: 5, ticketCount: 30 },
   ]);
   // 로그아웃·계정 전환 때 남은 알림은 버린다.
   useRewardStore.getState().resetSession();

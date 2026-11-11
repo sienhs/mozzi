@@ -422,13 +422,13 @@ class GachaApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.date").value(today.toString()))
                 .andExpect(jsonPath("$.granted").value(true))
-                .andExpect(jsonPath("$.tickets").value(10))
-                .andExpect(jsonPath("$.ticketCount").value(30));
+                .andExpect(jsonPath("$.tickets").value(5))
+                .andExpect(jsonPath("$.ticketCount").value(25));
         mockMvc.perform(as(me, post("/api/v1/rewards/daily-login")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.granted").value(false))
                 .andExpect(jsonPath("$.tickets").value(0))
-                .andExpect(jsonPath("$.ticketCount").value(30));
+                .andExpect(jsonPath("$.ticketCount").value(25));
 
         assertThat(jdbcTemplate.queryForList(
                 "select reward_key from wallet_ledger where reason = 'DAILY_LOGIN'", String.class))
@@ -446,18 +446,18 @@ class GachaApiTest {
                 .andExpect(jsonPath("$.action").value("PET"))
                 .andExpect(jsonPath("$.type").value("CARE_PET"))
                 .andExpect(jsonPath("$.granted").value(true))
-                .andExpect(jsonPath("$.tickets").value(5))
-                .andExpect(jsonPath("$.ticketCount").value(25));
+                .andExpect(jsonPath("$.tickets").value(2))
+                .andExpect(jsonPath("$.ticketCount").value(22));
         care(me, "PLAY").andExpect(status().isOk())
-                .andExpect(jsonPath("$.tickets").value(10))
-                .andExpect(jsonPath("$.ticketCount").value(35));
+                .andExpect(jsonPath("$.tickets").value(2))
+                .andExpect(jsonPath("$.ticketCount").value(24));
         care(me, "PET").andExpect(status().isOk())
                 .andExpect(jsonPath("$.granted").value(false))
                 .andExpect(jsonPath("$.tickets").value(0))
-                .andExpect(jsonPath("$.ticketCount").value(35));
+                .andExpect(jsonPath("$.ticketCount").value(24));
         care(me, "FEED").andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("CARE_FEED"))
-                .andExpect(jsonPath("$.ticketCount").value(40));
+                .andExpect(jsonPath("$.ticketCount").value(26));
 
         assertThat(jdbcTemplate.queryForList(
                 "select reward_key from wallet_ledger where reason = 'CARE' order by reward_key", String.class))

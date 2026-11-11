@@ -423,7 +423,7 @@ erDiagram
 | 컬럼 | 타입 | 키 | NULL | 설명 |
 |---|---|---|---|---|
 | tier | varchar(10) | PK | | `NONE`(기본 모찌), `COMMON`, `RARE`, `EPIC`, `LEGENDARY`, `MYTHIC` |
-| weight | integer | | | 추첨 가중치. 합 100,000 (45,000 / 30,000 / 17,000 / 7,000 / 1,000). `NONE`은 0 |
+| weight | integer | | | 추첨 가중치. 합 100,000 (45,000 / 32,500 / 17,000 / 5,000 / 500, V20). `NONE`은 0 |
 | duplicate_shards | integer | | | 중복 시 받는 별조각 (1, 2, 5, 15, 40) |
 | exchange_cost | integer | | O | 교환에 드는 별조각. `LEGENDARY` 200, `MYTHIC` 400. 나머지는 `null`(교환 불가) |
 

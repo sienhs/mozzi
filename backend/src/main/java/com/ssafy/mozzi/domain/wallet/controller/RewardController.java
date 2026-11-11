@@ -28,7 +28,7 @@ public class RewardController {
     }
 
     @Operation(summary = "매일 접속 보상",
-            description = "앱이 켜질 때 호출한다. 그날 첫 호출이면 뽑기권 10장을 주고, 이후에는 granted: false.")
+            description = "앱이 켜질 때 호출한다. 그날 첫 호출이면 뽑기권 5장을 주고, 이후에는 granted: false.")
     @PostMapping("/daily-login")
     public DailyLoginResponseDto dailyLogin(@CurrentMember Long memberId) {
         return rewardService.dailyLogin(memberId);
