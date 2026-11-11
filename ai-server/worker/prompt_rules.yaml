@@ -1,0 +1,199 @@
+# 서비스 프롬프트 규칙 (worker/prompt.py 가 읽는다)
+#
+# 조립 순서 (학습 캡션과 같은 순서, ai/scripts/prompt_builder.py):
+#   mochi_char[ {characterPrompt}], {mood}, {what}, {where}, [with {who}], {빛(날씨·시간대)}, [{소품}], {shot}, {inference_style}
+#
+# trigger · inference_style · 활동 caption · 장소 caption · 동행 문구는 학습 캡션과 글자까지 같아야 한다.
+# ai/configs/prompt_rules.yaml (version 1) 에서 옮겨 왔다. 그쪽을 바꾸면 여기도 바꾼다.
+# aliases 는 Java 가 보내는 영어 값을 위 코드로 묶는 목록이다. 비교는 소문자·공백 정리 후 한다.
+
+trigger: mochi_char
+inference_style: warm children's picture-book illustration, crayon and watercolor textures
+shot: medium shot
+
+# ---------------------------------------------------------------------------
+# 감정 (mood). 비어 있으면 default_mood, 모르는 값도 default_mood 로 바꾸고 fixes 에 남긴다
+# ---------------------------------------------------------------------------
+default_mood: neutral
+moods:
+  happy:   [joy, joyful, glad, excited, good, great]
+  calm:    [peaceful, relaxed, comfortable, cozy]
+  neutral: [normal, okay, ok, so-so, soso, fine, default]
+  sad:     [depressed, gloomy, down, blue, lonely, tired]
+  angry:   [mad, annoyed, irritated, upset, frustrated]
+
+# ---------------------------------------------------------------------------
+# 무엇을 (what, 필수). 여러 개면 ", " 로 구분해서 온다: 첫 번째가 메인 활동, 나머지는 소품 (학습 캡션과 같음)
+#   caption: 메인 활동일 때 캡션 문구 / prop: 두 번째 이후일 때 소품 (+ prop_placement)
+#   아래에 없는 값은 영어 문구 그대로 쓴다 (사용자가 추가한 활동). 소품 자리에서도 문구 그대로
+#   TAG_TRANSLATION_RULES.md 프롬프트 용어집(GLOSSARY)의 영어는 모두 여기 caption 이나 aliases 에 있어야 한다
+# ---------------------------------------------------------------------------
+max_activities: 3
+activities:
+  # 학습한 활동 (ai/configs/prompt_rules.yaml)
+  exercise:  {caption: exercising,       prop: a small dumbbell,      aliases: [exercise, workout, working out, gym, stretching]}
+  walk:      {caption: walking,          prop: a small water bottle,  aliases: [walk, stroll, taking a walk, going for a walk]}
+  reading:   {caption: reading,          prop: an open book,          aliases: [read, reading a book]}
+  movie:     {caption: watching a movie, prop: a bowl of popcorn,     aliases: [watching movies, movies, movie, film]}
+  gaming:    {caption: gaming,           prop: a game controller,     aliases: [game, games, playing games, playing video games, video games]}
+  studying:  {caption: studying,         prop: a notebook and pencil, aliases: [study]}
+  work:      {caption: working,          prop: a small laptop,        aliases: [work]}
+  cooking:   {caption: cooking,          prop: a small frying pan,    aliases: [cook]}
+  cleaning:  {caption: cleaning,         prop: a little broom,        aliases: [clean, housework, tidying up]}
+  eating:    {caption: eating,           prop: a bowl of food,        aliases: [eat, meal, having a meal, dining]}
+  shopping:  {caption: shopping,         prop: a shopping bag,        aliases: [shop]}
+  resting:   {caption: resting,          prop: a soft cushion,        aliases: [rest, relaxing]}
+  traveling: {caption: traveling,        prop: a small suitcase,      aliases: [travel, travelling, trip]}
+  # 앱 기본 태그 중 학습하지 않은 활동 (10/28 추가, 시험 전)
+  napping:   {caption: napping,                    prop: a soft pillow,            aliases: [nap, taking a nap, sleeping]}
+  baking:    {caption: baking,                     prop: a tray of fresh cookies,  aliases: [bake]}
+  laundry:   {caption: doing laundry,              prop: a laundry basket,         aliases: [laundry, washing clothes]}
+  writing:   {caption: writing,                    prop: a notebook and pen,       aliases: [write, journaling]}
+  drawing:   {caption: drawing,                    prop: a sketchbook and crayons, aliases: [draw, painting]}
+  music:     {caption: listening to music,         prop: a pair of headphones,     aliases: [music, listening to songs]}
+  photo:     {caption: taking photos,              prop: a small camera,           aliases: [taking pictures, taking a photo, photography]}
+  chatting:  {caption: chatting,                   prop: two cups of tea,          aliases: [chat, talking, having a chat]}
+  plants:    {caption: watering plants,            prop: a small potted plant,     aliases: [gardening, caring for plants, taking care of plants]}
+  show:      {caption: visiting an art exhibition, prop: a small ticket,           aliases: [watching a performance, watching a show, exhibition, concert, going to a concert]}
+  hiking:    {caption: hiking,                     prop: a small backpack,         aliases: [hike, mountain climbing, climbing a mountain]}
+  commuting: {caption: commuting,                  prop: a little tote bag,        aliases: [commute, commuting to work, taking the bus, riding the subway]}
+prop_placement: {indoor: on the table, outdoor: nearby}
+
+# ---------------------------------------------------------------------------
+# 어디서 (where). 앞의 at / in / the / my 등은 떼고 비교한다.
+# 아래에 없는 값은 영어 문구 그대로 쓰고, outdoor_words 가 들어 있으면 바깥으로 본다
+# ---------------------------------------------------------------------------
+default_place: home
+places:
+  home:
+    indoor: true
+    caption: home
+    aliases: [house, my house, my room, room]
+    by_activity:
+      cooking: home kitchen
+      cleaning: home living room
+      reading: home living room
+      movie: home living room sofa
+      gaming: home bedroom
+      studying: home desk
+      work: home desk
+      eating: home dining table
+      shopping: home living room
+      resting: home bedroom
+      exercise: home living room
+  cafe:        {indoor: true,  caption: cozy cafe, aliases: [café, coffee shop]}
+  office:      {indoor: true,  caption: office, aliases: [work, workplace, company]}
+  school:
+    indoor: true
+    caption: school classroom
+    aliases: [classroom, campus, university, college, academy]
+    by_activity:
+      reading: school library
+  park:        {indoor: false, caption: park}
+  restaurant:  {indoor: true,  caption: restaurant, aliases: [diner]}
+  travel_spot: {indoor: false, caption: scenic travel spot, aliases: [travel, travel spot, trip, tourist spot, vacation]}
+  # 앱 기본 태그 중 학습하지 않은 장소 (10/28 추가, 시험 전)
+  library:      {indoor: true,  caption: library}
+  neighborhood: {indoor: false, caption: quiet neighborhood street, aliases: [neighbourhood, town, local streets]}
+  beach:        {indoor: false, caption: beach, aliases: [sea, seaside, ocean]}
+  mountain:     {indoor: false, caption: mountain trail, aliases: [mountains]}
+
+outdoor_words: [park, beach, sea, ocean, mountain, mountains, river, lake, forest, garden, street, road, playground,
+                field, camp, campsite, camping, outside, outdoors, outdoor, trail, zoo, festival, market, bridge,
+                yard, rooftop, island, valley, hill, picnic, stadium]
+
+# ---------------------------------------------------------------------------
+# 누구와 (who). "with mom and dad" → 가족 모찌 2마리. 사람 단어는 절대 그대로 넣지 않는다
+#   (coworker·ID badge 가 직장인 사람으로 그려진 적 있음, 10/23 sweep val_002)
+#   one: 1명을 뜻하는 단어 / two: 여럿을 뜻하는 단어 (2마리로 그린다)
+#   목록에 없는 사람(people_words)은 friend 로 그리고 fixes 에 남긴다. 목록에 없는 동물(parrot 등)은 "a round mochi-style parrot". 최대 2마리
+# ---------------------------------------------------------------------------
+max_companions: 2
+alone: [alone, myself, by myself, me, no one, nobody, none, solo]
+who:
+  family:
+    one: [mom, mother, mum, mommy, mama, dad, father, daddy, papa, sister, brother, sibling, grandma, grandmother,
+          grandpa, grandfather, aunt, uncle, cousin, son, daughter, baby, family member, child, kid, little one]
+    two: [family, parents, siblings, grandparents, sisters, brothers, cousins, kids, children, relatives]
+  friend:
+    one: [friend, best friend, classmate, roommate, neighbor, buddy]
+    two: [friends, classmates, neighbors, buddies]
+  partner:
+    one: [partner, boyfriend, girlfriend, husband, wife, lover, fiance, fiancee, spouse, date]
+    two: []
+  coworker:
+    one: [coworker, co-worker, colleague, boss, manager, teammate, team leader, senior, junior]
+    two: [coworkers, co-workers, colleagues, team, teammates]
+  puppy:
+    one: [dog, puppy, doggy, pet dog]
+    two: [dogs, puppies]
+  kitten:
+    one: [cat, kitten, kitty, pet cat]
+    two: [cats, kittens]
+  bunny:
+    one: [rabbit, bunny, pet rabbit]
+    two: [rabbits, bunnies]
+  hamster:
+    one: [hamster, pet hamster]
+    two: [hamsters]
+default_companion: friend
+companions:
+  family:   {one: a pale yellow family mochi,                two: two pale yellow family mochi of different sizes}
+  friend:   {one: a pale peach friend mochi,                 two: two pale peach friend mochi}
+  partner:  {one: a pale pink partner mochi with a tiny heart, two: two pale pink partner mochi with tiny hearts}
+  coworker: {one: a small pale blue mochi with a tiny ID badge, two: two small pale blue mochi with tiny ID badges}
+  puppy:    {one: a round mochi-style puppy,                 two: two round mochi-style puppies}
+  kitten:   {one: a round mochi-style kitten,                two: two round mochi-style kittens}
+  bunny:    {one: a round mochi-style bunny,                 two: two round mochi-style bunnies}    # 10/28 추가, 시험 전
+  hamster:  {one: a round mochi-style hamster,               two: two round mochi-style hamsters}   # 10/28 추가, 시험 전
+
+# ---------------------------------------------------------------------------
+# 날씨 (weather) + 시간대 (timeOfDay) → 빛. 학습 캡션의 날씨 빛 자리에 들어간다
+#   - 흐림·비·눈: 날씨 문구(학습한 문구) + 저녁·밤이면 time_tag 를 덧붙임
+#       예: rain on the window with soft gray light, at night
+#   - 맑음이거나 날씨 없음: 시간대 문구. 시간대도 없으면 맑음 문구(맑음일 때) 또는 default_light
+#       (맑은 밤에 'bright sunny daylight' 가 들어가는 것을 막는다)
+#   모르는 값은 없는 것으로 보고 fixes 에 남긴다
+# ---------------------------------------------------------------------------
+weather:
+  sunny:  {aliases: [sun, clear, sunshine, hot],          indoor: sunny window light,                      outdoor: bright sunny daylight}
+  cloudy: {aliases: [clouds, cloud, overcast],            indoor: soft overcast light through the window, outdoor: soft cloudy daylight}
+  rainy:  {aliases: [rain, raining, shower, showers, stormy, storm], indoor: rain on the window with soft gray light, outdoor: light rain and wet ground}
+  snowy:  {aliases: [snow, snowing, cold],                indoor: snow falling outside the window,         outdoor: gentle snowfall and snowy ground}
+  # 앱 기본 태그 중 학습하지 않은 날씨 (10/28 추가, 시험 전)
+  windy:  {aliases: [wind, breezy],                       indoor: trees swaying in the wind outside the window, outdoor: a breezy day with leaves blowing in the wind}
+  foggy:  {aliases: [fog, misty, mist, hazy],             indoor: soft misty light through the window,     outdoor: soft misty fog}
+times:
+  morning:   {aliases: [dawn, early morning],             indoor: soft morning light through the window,  outdoor: soft morning sunlight}
+  afternoon: {aliases: [noon, daytime, day, lunch, midday], indoor: bright afternoon window light,        outdoor: bright afternoon daylight}
+  evening:   {aliases: [sunset, dusk],                    indoor: warm sunset light through the window,   outdoor: warm sunset light,      time_tag: in the evening}
+  night:     {aliases: [late night, midnight],            indoor: cozy warm lamp light at night,          outdoor: night sky with soft moonlight, time_tag: at night}
+default_light: {indoor: soft natural window light, outdoor: soft natural daylight}
+
+# ---------------------------------------------------------------------------
+# 사용자가 추가한 장소·활동 문구 (what, where) 에서 빼는 사람 단어. 남기면 사람이 그려진다
+#   예: "at grandma's house" → "house", "playing with friends" → "playing"
+# ---------------------------------------------------------------------------
+max_phrase_chars: 60
+people_words: [mom, mother, mum, mommy, mama, dad, father, daddy, papa, parent, parents, grandma, grandmother,
+               grandpa, grandfather, grandparents, sister, sisters, brother, brothers, sibling, siblings, aunt, uncle,
+               cousin, cousins, son, daughter, husband, wife, boyfriend, girlfriend, partner, friend, friends,
+               classmate, classmates, roommate, neighbor, neighbors, man, men, woman, women, boy, boys, girl, girls,
+               person, people, kid, kids, child, children, baby, babies, teacher, teachers, student, students,
+               coworker, coworkers, colleague, colleagues, boss, family, relatives, lady, gentleman, guy, guys,
+               stranger, someone, somebody, everyone, guest, visitor, member, senior, junior, idol, singer, actor]
+
+# ---------------------------------------------------------------------------
+# 특색 캐릭터 문구 (characterPrompt) 검사. CHARACTER_PROMPT_RULES.md 8장
+#   통과하지 못하면 문구를 빼고 참조 이미지만으로 그린다 (fixes 에 남김)
+# ---------------------------------------------------------------------------
+character_prompt:
+  max_chars: 120
+  pattern: '^(wearing|holding) [a-z][a-z -]*$'   # 들고 있는 것도 허용 (10/29 결정, 활동 소품과 부딪칠 수 있음)
+  banned_words: [wizard, witch, princess, prince, knight, chef, maid, girl, boy, man, woman, person, human, kid,
+                 worker, student, bat, cat, bunny, rabbit, bear, dog, puppy, bird, fox, halloween, christmas,
+                 valentine, event, festival, party, spooky, glow, glowing, aura, sparkle, sparkles, sparkling, wisp,
+                 wisps, magic, magical, shimmer, flame, flames, lit, sticker, cute, kawaii, chibi, 3d, render,
+                 glossy, outline, pixel, anime, smile, smiling, happy, sad, angry, tear, tears, crying, eyes, mouth,
+                 raised, waving, mochi, body, white, blob, cheeks, mythic,
+                 legendary, epic, rare, tier]

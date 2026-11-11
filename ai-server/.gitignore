@@ -1,0 +1,13 @@
+# ai-server 전용 gitignore. 비밀값·가중치·생성 이미지·캐시는 올리지 않는다.
+.env
+outputs/
+logs/
+hf_cache/
+*.safetensors
+*.gguf
+*.pt
+*.ckpt
+*.png
+*.jpg
+__pycache__/
+*.pyc
