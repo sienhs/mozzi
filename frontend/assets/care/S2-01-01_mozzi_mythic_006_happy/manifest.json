@@ -1,0 +1,147 @@
+{
+  "schema": 1,
+  "key": "S2-01-01_mozzi_mythic_006_happy",
+  "provenance": "experiments/mozzi-care-lab assets/originals/mochi-strawberry-crown.png (pixel-identical to the S2-01-01_mozzi_mythic_006_happy card art)",
+  "sourceCanvas": {
+    "width": 512,
+    "height": 512
+  },
+  "aspect": 1.0,
+  "faceKind": "arc-eyes-open-mouth",
+  "anchors": {
+    "mouth": {
+      "x": 0.4668,
+      "y": 0.48828,
+      "width": 0.08984,
+      "height": 0.07617
+    }
+  },
+  "layers": {
+    "mouth-closed": {
+      "file": "mouth-closed.png",
+      "x": 0.44727,
+      "y": 0.46875,
+      "width": 0.12891,
+      "height": 0.11523
+    },
+    "mouth-small": {
+      "file": "mouth-small.png",
+      "x": 0.44727,
+      "y": 0.46875,
+      "width": 0.12891,
+      "height": 0.11523
+    },
+    "mouth-wide": {
+      "file": "mouth-wide.png",
+      "x": 0.44727,
+      "y": 0.46875,
+      "width": 0.12891,
+      "height": 0.13281
+    },
+    "blush": {
+      "file": "blush.png",
+      "x": 0.23242,
+      "y": 0.46094,
+      "width": 0.55859,
+      "height": 0.13867
+    }
+  },
+  "expressions": {
+    "attentive": {
+      "loop": false,
+      "frames": [
+        {
+          "layers": ["mouth-small"],
+          "durationMs": 0
+        }
+      ]
+    },
+    "pet-happy": {
+      "loop": false,
+      "frames": [
+        {
+          "layers": ["mouth-closed", "blush"],
+          "durationMs": 0
+        }
+      ]
+    },
+    "eat-open": {
+      "loop": false,
+      "frames": [
+        {
+          "layers": ["mouth-wide"],
+          "durationMs": 0
+        }
+      ]
+    },
+    "eat-chew": {
+      "loop": true,
+      "frames": [
+        {
+          "layers": ["mouth-closed"],
+          "durationMs": 150
+        },
+        {
+          "layers": ["mouth-small"],
+          "durationMs": 130
+        }
+      ]
+    },
+    "savour": {
+      "loop": false,
+      "frames": [
+        {
+          "layers": ["mouth-closed", "blush"],
+          "durationMs": 0
+        }
+      ]
+    },
+    "play-excited": {
+      "loop": false,
+      "frames": [
+        {
+          "layers": ["mouth-wide"],
+          "durationMs": 0
+        }
+      ]
+    },
+    "happy": {
+      "loop": false,
+      "frames": [
+        {
+          "layers": ["mouth-wide", "blush"],
+          "durationMs": 0
+        }
+      ]
+    }
+  },
+  "notApplicable": {
+    "blink": "Original eyes are closed happy arcs by design; an open-eye variant would change the character and needs authored art."
+  },
+  "review": {
+    "mouth-closed": {
+      "method": "harmonic-fill + skin grain + drawn closed smile",
+      "edgeAlphaMax": 0,
+      "patchColorDelta": 0.59,
+      "horizontalDriftPx": -0.8
+    },
+    "mouth-small": {
+      "method": "harmonic-fill + original mouth scaled 0.60x0.58",
+      "edgeAlphaMax": 0,
+      "patchColorDelta": 0.59,
+      "horizontalDriftPx": -0.45
+    },
+    "mouth-wide": {
+      "method": "harmonic-fill + original mouth scaled 1.14x1.36; occluded by props",
+      "edgeAlphaMax": 0,
+      "patchColorDelta": 0.59,
+      "horizontalDriftPx": -0.16
+    },
+    "blush": {
+      "method": "soft blush over detected cheeks + three short strokes",
+      "edgeAlphaMax": 0,
+      "patchColorDelta": null,
+      "horizontalDriftPx": null
+    }
+  }
+}

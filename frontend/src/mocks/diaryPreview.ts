@@ -1,3 +1,4 @@
+import { Asset } from 'expo-asset';
 import { Image } from 'react-native';
 import { todayKey } from '@/constants/date';
 import type { DiaryEntry } from '@/types/diary';
@@ -22,10 +23,17 @@ export function completedDiaryPreview(
     status: 'completed',
     failure: null,
     canRequestImage: false,
-    imageUrl: Image.resolveAssetSource(
+    imageUrl: assetUri(
       portrait
         ? require('../../assets/Mozzi_before.png')
         : require('../../assets/figma/warm-evening.png'),
-    )!.uri,
+    ),
   };
+}
+
+// React Native Web에는 Image.resolveAssetSource가 없어 웹 미리보기가 멈췄다. 웹은 expo-asset으로 주소를 얻는다.
+function assetUri(module: number) {
+  return typeof Image.resolveAssetSource === 'function'
+    ? Image.resolveAssetSource(module)!.uri
+    : Asset.fromModule(module).uri;
 }

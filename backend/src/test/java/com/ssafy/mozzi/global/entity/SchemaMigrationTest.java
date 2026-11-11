@@ -29,7 +29,7 @@ class SchemaMigrationTest {
         List<String> versions = jdbcTemplate.queryForList(
                 "select version from flyway_schema_history where success order by installed_rank", String.class);
 
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20");
     }
 
     @Test
@@ -221,7 +221,7 @@ class SchemaMigrationTest {
                         + "from gacha_tier order by weight desc", String.class);
 
         assertThat(tiers).containsExactly(
-                "COMMON:45000:1:-", "RARE:30000:2:-", "EPIC:17000:5:-", "LEGENDARY:7000:15:200", "MYTHIC:1000:40:400",
+                "COMMON:45000:1:-", "RARE:32500:2:-", "EPIC:17000:5:-", "LEGENDARY:5000:15:200", "MYTHIC:500:40:400",
                 "NONE:0:0:-");
     }
 

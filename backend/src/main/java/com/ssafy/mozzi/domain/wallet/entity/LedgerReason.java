@@ -8,6 +8,7 @@ public enum LedgerReason {
     SIGNUP,
     DAILY_LOGIN,
     DAILY_RECORD,
+    CARE,
     DRAW,
     DUPLICATE,
     EXCHANGE,

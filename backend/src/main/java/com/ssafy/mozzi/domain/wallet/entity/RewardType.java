@@ -12,7 +12,11 @@ public enum RewardType {
 
     SIGNUP(20, LedgerReason.SIGNUP),
     DAILY_LOGIN(10, LedgerReason.DAILY_LOGIN),
-    DAILY_RECORD(10, LedgerReason.DAILY_RECORD);
+    DAILY_RECORD(10, LedgerReason.DAILY_RECORD),
+    /** Care: petting, feeding and playing with a mochi, each once a day (gacha.md "돌보기 보상"). */
+    CARE_PET(5, LedgerReason.CARE),
+    CARE_FEED(5, LedgerReason.CARE),
+    CARE_PLAY(10, LedgerReason.CARE);
 
     private final int tickets;
     private final LedgerReason reason;
@@ -31,7 +35,7 @@ public enum RewardType {
     }
 
     /**
-     * {@code SIGNUP}, {@code LOGIN:2026-10-29} or {@code RECORD:2026-10-29}.
+     * {@code SIGNUP}, {@code LOGIN:2026-10-29}, {@code RECORD:2026-10-29} or {@code CARE_PET:2026-10-29}.
      *
      * @param date the day the reward is for; ignored for {@link #SIGNUP}
      */
@@ -40,6 +44,7 @@ public enum RewardType {
             case SIGNUP -> "SIGNUP";
             case DAILY_LOGIN -> "LOGIN:" + date;
             case DAILY_RECORD -> "RECORD:" + date;
+            case CARE_PET, CARE_FEED, CARE_PLAY -> name() + ":" + date;
         };
     }
 

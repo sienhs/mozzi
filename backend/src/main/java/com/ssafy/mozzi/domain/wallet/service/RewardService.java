@@ -7,8 +7,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ssafy.mozzi.domain.wallet.dto.CareRewardResponseDto;
 import com.ssafy.mozzi.domain.wallet.dto.DailyLoginResponseDto;
 import com.ssafy.mozzi.domain.wallet.dto.RewardResponseDto;
+import com.ssafy.mozzi.domain.wallet.entity.CareAction;
 import com.ssafy.mozzi.domain.wallet.entity.RewardType;
 
 /**
@@ -31,6 +33,17 @@ public class RewardService {
     public DailyLoginResponseDto dailyLogin(Long memberId) {
         LocalDate today = LocalDate.now(clock);
         return DailyLoginResponseDto.of(today, walletService.grant(memberId, RewardType.DAILY_LOGIN, null, today));
+    }
+
+    /**
+     * A care activity the app finished (petting, feeding, three throws). Each activity pays once a
+     * day; later reports the same day answer {@code granted: false} with the balance as it stands.
+     * The server cannot see the activity itself, the same trust as {@link #dailyLogin}.
+     */
+    @Transactional
+    public CareRewardResponseDto care(Long memberId, CareAction action) {
+        LocalDate today = LocalDate.now(clock);
+        return CareRewardResponseDto.of(today, action, walletService.grant(memberId, action.reward(), null, today));
     }
 
     /**

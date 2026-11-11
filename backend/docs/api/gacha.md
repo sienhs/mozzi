@@ -34,6 +34,9 @@
 | `SIGNUP` | 회원가입 완료 (1회) | 20 | `POST /auth/signup` |
 | `DAILY_LOGIN` | 그날(Asia/Seoul) 첫 접속 | 10 | `POST /rewards/daily-login` |
 | `DAILY_RECORD` | 그날 일기 작성 | 10 | `POST /diaries` |
+| `CARE_PET` | 그날 첫 쓰다듬기 완료 | 5 | `POST /rewards/care` |
+| `CARE_FEED` | 그날 첫 간식 주기 완료 | 5 | `POST /rewards/care` |
+| `CARE_PLAY` | 그날 첫 공놀이(공 세 번) 완료 | 10 | `POST /rewards/care` |
 
 조건을 채우면 바로 지급하고, 받은 보상을 응답에 담는다. 앱은 그 응답으로 얼럿을 띄운다. 따로 받는 API는 없다.
 
@@ -48,6 +51,28 @@ Response `200`
 ```
 
 - 같은 날 두 번째 호출부터는 `granted: false`, `tickets: 0`으로 `200`을 준다. `ticketCount`는 현재 잔액이다.
+
+### `POST /rewards/care` — 돌보기 보상
+
+앱의 모찌 돌보기에서 활동 하나를 끝냈을 때 호출한다. 쓰다듬기·간식은 동작이 끝났을 때, 공놀이는 세 번째 공이 돌아왔을 때다.
+
+Request
+
+```json
+{ "action": "PET" }
+```
+
+- `action`: `PET` · `FEED` · `PLAY`. 없거나 모르는 값이면 `400 INVALID_INPUT`.
+
+Response `200`
+
+```json
+{ "date": "2026-11-09", "action": "PET", "type": "CARE_PET", "granted": true, "tickets": 5, "ticketCount": 35 }
+```
+
+- 활동마다 그날(Asia/Seoul) 첫 호출만 지급한다. 이후 호출은 `granted: false`, `tickets: 0`이고 `ticketCount`는 현재 잔액이다.
+- 지급 키는 `CARE_PET:{date}`·`CARE_FEED:{date}`·`CARE_PLAY:{date}`, 장부 `reason`은 `CARE`다. 접속 보상처럼 서버는 활동 자체를 확인하지 않는다.
+- 어느 모찌와 놀았는지는 보내지 않는다. 보상은 회원 단위다.
 
 ### `POST /diaries`의 `reward`
 
