@@ -3,7 +3,7 @@
     "name": "오늘의 모찌",
     "slug": "mozzi",
     "platforms": ["ios", "android", "web"],
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.ssafy.mozzi",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 3,
+      "versionCode": 4,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",

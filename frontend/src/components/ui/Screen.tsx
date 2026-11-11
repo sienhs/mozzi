@@ -168,7 +168,12 @@ export function Screen({
             {children}
           </ScrollView>
         ) : (
-          <View style={[{ flex: 1 }, contentStyle]}>{children}</View>
+          <View
+            onLayout={onViewportLayout}
+            style={[{ flex: 1, minHeight: 0 }, contentStyle]}
+          >
+            {children}
+          </View>
         )}
         {footer && (
           <View

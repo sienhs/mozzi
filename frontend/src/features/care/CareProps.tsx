@@ -1,6 +1,6 @@
 import Svg, { Circle, Ellipse, G, Mask, Path, Rect } from 'react-native-svg';
 
-/** Hand-drawn vector care props for this lab (not taken from any other app). */
+/** Hand-drawn vector care props (not taken from any other app). */
 
 const CHIPS: readonly (readonly [number, number])[] = [
   [16, 19],
@@ -76,15 +76,15 @@ export function Ball({ size = 40 }: { size?: number }) {
         cx="25"
         cy="25"
         r="23"
-        fill="#F8D787"
-        stroke="#D49D4D"
+        fill="#9BC9CC"
+        stroke="#548D97"
         strokeWidth="1.5"
       />
       <Path
         d="M9 9Q33 10 40 40M4 28Q25 14 42 10"
         fill="none"
-        stroke="#B37757"
-        strokeWidth="7"
+        stroke="#F7FAEF"
+        strokeWidth="3"
       />
       <Ellipse
         cx="16"
@@ -151,23 +151,18 @@ export function Heart({
   );
 }
 
-export function PetHand() {
+export function PetHand({ size = 54 }: { size?: number }) {
   return (
-    <Svg width={54} height={60} viewBox="0 0 54 60">
+    <Svg width={size} height={(size * 60) / 54} viewBox="0 0 54 60">
       <Path
-        d="M16 31V15Q16 10 20 10Q24 10 24 15V26V8Q24 3 28 3Q32 3 32 8V26V12Q32 7 36 7Q40 7 40 12V27V20Q40 15 44 15Q48 15 48 20V38Q48 54 33 56H26Q15 55 10 45L3 33Q1 28 5 26Q9 24 12 28L18 36"
+        d="M48 24L28 15Q24 13 22 16L10 16Q4 16 5 21L24 25L8 24Q3 25 6 29L24 33L12 32Q7 34 12 38L28 43Q35 46 42 43L51 37"
         fill="#F4D6B7"
         stroke="#BB9271"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <Path
-        d="M27 34Q31 30 36 34"
-        fill="none"
-        stroke="#D5AD8C"
-        strokeWidth="1.5"
-      />
+      <Path d="M24 25L34 29" fill="none" stroke="#D5AD8C" strokeWidth="1.5" />
     </Svg>
   );
 }

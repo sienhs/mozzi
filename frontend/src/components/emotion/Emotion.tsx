@@ -154,11 +154,11 @@ export function EmotionPill({ emotion }: { emotion: Emotion }) {
   );
 }
 const styles = StyleSheet.create({
-  grid: { gap: 16 },
-  row: { flexDirection: 'row', gap: 16 },
+  grid: { flex: 1, minHeight: 0, gap: 12 },
+  row: { flex: 1, minHeight: 0, flexDirection: 'row', gap: 12 },
   option: {
     flex: 1,
-    minHeight: 140,
+    minHeight: 96,
     borderRadius: 28,
     borderWidth: 1.5,
     borderColor: colors.paperEdge,

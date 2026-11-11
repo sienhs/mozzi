@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
 import { BookOpen, ChevronRight } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CozyScreen as Screen } from '@/components/ui/CozyUI';
 import { AppText } from '@/components/ui/Text';
 import { CompanionNotice, MyPageTitle } from '@/components/mypage/CompanionUI';
 import { companionName } from '@/constants/companions';
-import { gachaArt } from '@/constants/gacha';
 import { emotionOrder, emotions } from '@/constants/emotions';
 import { EmotionImage } from '@/components/emotion/Emotion';
 import { StatePanel } from '@/components/ui/Feedback';
@@ -37,6 +35,7 @@ export function MyPageScreen() {
   return (
     <Screen
       tabbed
+      scrollable={false}
       title="마이페이지"
       titleContent={
         <View style={{ paddingLeft: 48 }}>
@@ -48,21 +47,11 @@ export function MyPageScreen() {
         label: '설정',
         onPress: () => router.push('/settings'),
       }}
-      contentStyle={{ gap: 20 }}
+      contentStyle={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}
     >
-      <View style={styles.profile}>
-        <View style={styles.avatar}>
-          <Image
-            source={gachaArt.mochi}
-            accessible={false}
-            contentFit="contain"
-            style={{ width: 58, height: 58 }}
-          />
-        </View>
-        <AppText variant="heading" style={{ flex: 1 }}>
-          {profile?.nickname ?? '모찌'} 님
-        </AppText>
-      </View>
+      <AppText variant="heading" numberOfLines={1} style={styles.nickname}>
+        {profile?.nickname ?? '모찌'} 님
+      </AppText>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="모찌 도감"
@@ -76,7 +65,7 @@ export function MyPageScreen() {
         <ChevronRight size={20} color={colors.muted} />
       </Pressable>
       {showSuccess && <CompanionNotice />}
-      <View style={{ gap: 10 }}>
+      <View style={{ flex: 1, minHeight: 0, gap: 8 }}>
         <AppText variant="heading">감정별 함께하는 모찌</AppText>
         {pickQuery.isError && (
           <StatePanel
@@ -124,7 +113,7 @@ export function MyPageScreen() {
                     <EmotionImage
                       emotion={emotion}
                       companion={companion}
-                      size={64}
+                      size={40}
                     />
                   </MotionReveal>
                 </View>
@@ -132,6 +121,7 @@ export function MyPageScreen() {
                   <AppText variant="label">{emotions[emotion].label}</AppText>
                   <AppText
                     variant="small"
+                    numberOfLines={1}
                     textBreakStrategy="balanced"
                     lineBreakStrategyIOS="hangul-word"
                   >
@@ -148,25 +138,15 @@ export function MyPageScreen() {
   );
 }
 const styles = StyleSheet.create({
-  profile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.peachPaper,
-    borderRadius: 26,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: colors.paperEdge,
-    boxShadow: '0 4px 14px rgba(130, 86, 97, 0.04)',
-  },
-  avatar: {
-    borderRadius: 36,
-    backgroundColor: colors.paper,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: colors.paperEdge,
+  nickname: {
+    color: colors.ink,
+    paddingTop: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 4,
   },
   equipmentPanel: {
+    flex: 1,
+    minHeight: 0,
     backgroundColor: colors.paper,
     paddingHorizontal: 14,
     borderRadius: 28,
@@ -175,16 +155,18 @@ const styles = StyleSheet.create({
     boxShadow: '0 4px 14px rgba(130, 86, 97, 0.04)',
   },
   equipmentRow: {
+    flex: 1,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 2,
     gap: 12,
   },
   collectionLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    minHeight: 56,
+    minHeight: 44,
     paddingHorizontal: 18,
     backgroundColor: colors.paper,
     borderRadius: 22,

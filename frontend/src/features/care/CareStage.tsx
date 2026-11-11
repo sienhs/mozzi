@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type {
   GestureResponderEvent,
@@ -9,15 +9,22 @@ import type {
 } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
   withSpring,
   withTiming,
 } from './reanimated';
 import type { SharedValue } from './reanimated';
 import type { CareAction, MotionPhase } from './careModel';
 import type { CareSkin } from './careSkin';
-import { buildPlayLayout, mouthFeedTarget } from './careChoreography';
+import {
+  BALL_DOCK_INSET,
+  buildPlayLayout,
+  mouthFeedTarget,
+} from './careChoreography';
 import type { Band, PlayLayout, Point, SceneLayout } from './careChoreography';
 import { compileExpressionTable, mouthAnchor } from './careExpressions';
 import type { ExpressionLayer } from './careExpressions';
@@ -28,7 +35,8 @@ import { useCareMotion } from './useCareMotion';
 import type { CareMotion } from './useCareMotion';
 import { Ball, ContactBurst, Cookie, Heart, PetHand, Plate } from './CareProps';
 
-const STAGE_HEIGHT = 360;
+// Height used until the stage has been measured (and in tests that only report a width).
+const DEFAULT_HEIGHT = 360;
 const BALL_RADIUS = 20;
 const CRUMBS: readonly (readonly [number, number, number])[] = [
   [-70, -90, 4],
@@ -58,6 +66,8 @@ type Props = {
   onFeed: () => void;
   onThrow: () => void;
   onImageError: () => void;
+  /** The stage fills this box; the parent decides its size. */
+  style?: StyleProp<ViewStyle>;
 };
 
 type Gesture = {
@@ -79,8 +89,19 @@ function insideBands(bands: readonly Band[], x: number, y: number) {
   );
 }
 
+// Starting a stroke just off the outline still counts; only the hearts follow the real silhouette.
+function nearBody(frame: SkinFrame, x: number, y: number) {
+  const slack = 20;
+  return (
+    x >= frame.left - slack &&
+    x <= frame.left + frame.width + slack &&
+    y >= frame.top - slack &&
+    y <= frame.baseline + slack
+  );
+}
+
 function restingPlay(origin: Point, floor: number): PlayLayout {
-  const dock = { x: 10 + BALL_RADIUS, y: floor - BALL_RADIUS };
+  const dock = { x: BALL_DOCK_INSET + BALL_RADIUS, y: floor - BALL_RADIUS };
   return {
     side: 1,
     reach: 0,
@@ -109,7 +130,9 @@ function usableSet(skin: CareSkin) {
 }
 
 export function CareStage(props: Props) {
-  const [width, setWidth] = useState(0);
+  const [box, setBox] = useState({ width: 0, height: 0 });
+  const width = box.width;
+  const height = box.height > 0 ? box.height : DEFAULT_HEIGHT;
   const [loadedId, setLoadedId] = useState<string | null>(null);
   // 썸네일을 받지 못하면 원본 주소로 한 번 다시 시도한다.
   const [useFallback, setUseFallback] = useState(false);
@@ -132,15 +155,12 @@ export function CareStage(props: Props) {
     hot = useSharedValue(0);
   const trail = useHeartTrail();
 
-  const size =
-    props.mode === 'play' || props.phase === 'play'
-      ? playSize(props.skin.geometry, Math.max(1, width), STAGE_HEIGHT)
-      : 0.9;
+  const size = playSize(props.skin.geometry, Math.max(1, width), height);
   const stage = useMemo(() => {
     const frame = fitSkin(
       props.skin.geometry,
       Math.max(1, width),
-      STAGE_HEIGHT,
+      height,
       size,
     );
     const bands = stageBands(props.skin.geometry, frame);
@@ -160,7 +180,10 @@ export function CareStage(props: Props) {
     const target = mouth
       ? mouthFeedTarget(mouth, R)
       : { x: origin.x, y: frame.baseline - R * 0.55 };
-    const dock = { x: 18 + R, y: frame.baseline - R - 6 };
+    const dock = {
+      x: Math.max(18 + R, width * 0.25),
+      y: frame.baseline - R - 6,
+    };
     return {
       frame,
       bands,
@@ -172,7 +195,7 @@ export function CareStage(props: Props) {
       target,
       dock,
     };
-  }, [props.skin, width, size]);
+  }, [props.skin, width, height, size]);
   const { frame, bands, origin, set, R, target, dock } = stage;
 
   const play = useMemo(
@@ -238,7 +261,7 @@ export function CareStage(props: Props) {
     const { locationX: x, locationY: y } = event.nativeEvent;
     const kind =
       props.mode === 'pet'
-        ? insideBands(bands, x, y)
+        ? insideBands(bands, x, y) || nearBody(frame, x, y)
           ? 'pet'
           : null
         : props.mode === 'feed'
@@ -370,10 +393,15 @@ export function CareStage(props: Props) {
   return (
     <View
       testID="mochi-stage"
-      onLayout={(event: LayoutChangeEvent) =>
-        setWidth(event.nativeEvent.layout.width)
-      }
-      style={[styles.stage, { height: STAGE_HEIGHT }]}
+      onLayout={(event: LayoutChangeEvent) => {
+        const { width: w, height: h } = event.nativeEvent.layout;
+        setBox(prev =>
+          prev.width === w && prev.height === h
+            ? prev
+            : { width: w, height: h },
+        );
+      }}
+      style={[styles.stage, props.style]}
     >
       <View style={[styles.floor, { top: frame.baseline + 6 }]} />
       {width > 0 && (
@@ -470,14 +498,22 @@ export function CareStage(props: Props) {
               <Plate />
             </View>
           )}
-          {props.mode === 'feed' && (
+          {props.mode === 'feed' && !stage.mouth && (
             <DropHint
+              waiting={idleIn('feed') && props.phase === 'idle'}
               target={target}
-              size={
-                stage.mouth ? Math.max(R * 2, stage.mouth.width * 1.6) : 120
-              }
+              size={120}
               dragging={dragging}
               hot={hot}
+            />
+          )}
+          {idleIn('feed') && props.phase === 'idle' && canAct && (
+            <Pulse
+              x={dock.x}
+              y={dock.y}
+              r={R + 10}
+              reduced={props.reducedMotion}
+              hidden={dragging}
             />
           )}
           {idleIn('feed') && (
@@ -502,6 +538,14 @@ export function CareStage(props: Props) {
               floor={frame.baseline}
             />
           ))}
+          {props.mode === 'play' && props.phase === 'idle' && canAct && (
+            <Pulse
+              x={play.dock.x}
+              y={play.dock.y}
+              r={BALL_RADIUS + 8}
+              reduced={props.reducedMotion}
+            />
+          )}
           {props.mode === 'play' && !playing && (
             <FocusPressable
               testID="throw-ball"
@@ -521,6 +565,14 @@ export function CareStage(props: Props) {
           )}
           {playing && <SceneBall motion={motion} floor={frame.baseline} />}
           <Hearts motion={motion} origin={origin} top={frame.top} />
+          {props.mode === 'pet' && props.phase === 'idle' && canAct && (
+            <PetCoach
+              x={origin.x}
+              y={frame.top - 28}
+              span={Math.min(56, frame.width * 0.22)}
+              reduced={props.reducedMotion}
+            />
+          )}
           {props.phase === 'pet' && (
             <Animated.View
               testID="pet-hand"
@@ -566,6 +618,96 @@ function FocusPressable({
   );
 }
 
+/** A ring that breathes around the thing to touch. */
+function Pulse({
+  x,
+  y,
+  r,
+  reduced,
+  hidden,
+}: {
+  x: number;
+  y: number;
+  r: number;
+  reduced: boolean;
+  hidden?: SharedValue<number>;
+}) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    t.set(withRepeat(withTiming(1, { duration: 1400 }), -1, false));
+    return () => cancelAnimation(t);
+  }, [t, reduced]);
+  const style = useAnimatedStyle(() => {
+    const away = hidden ? 1 - hidden.value : 1;
+    return {
+      opacity: away * (reduced ? 0.6 : 0.7 * (1 - t.value)),
+      transform: [{ scale: reduced ? 1 : 1 + t.value * 0.45 }],
+    };
+  });
+  return (
+    <Animated.View
+      testID="care-pulse"
+      style={[
+        styles.none,
+        styles.pulse,
+        {
+          left: x - r,
+          top: y - r,
+          width: r * 2,
+          height: r * 2,
+          borderRadius: r,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/** Shows how to pet: a hand rubbing side to side over the mochi until the first touch. */
+function PetCoach({
+  x,
+  y,
+  span,
+  reduced,
+}: {
+  x: number;
+  y: number;
+  span: number;
+  reduced: boolean;
+}) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    t.set(
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 650 }),
+          withTiming(-1, { duration: 650 }),
+        ),
+        -1,
+        false,
+      ),
+    );
+    return () => cancelAnimation(t);
+  }, [t, reduced]);
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: x - 24 + t.value * span },
+      { translateY: y - 8 - Math.abs(t.value) * 4 },
+      { rotate: `${t.value * 10}deg` },
+    ],
+  }));
+  return (
+    <Animated.View
+      testID="pet-coach"
+      style={[styles.none, styles.corner, styles.coach, style]}
+    >
+      <PetHand size={48} />
+    </Animated.View>
+  );
+}
+
 function FaceLayer({
   layer,
   index,
@@ -606,18 +748,23 @@ function FaceLayer({
 }
 
 function DropHint({
+  waiting,
   target,
   size,
   dragging,
   hot,
 }: {
+  waiting: boolean;
   target: Point;
   size: number;
   dragging: SharedValue<number>;
   hot: SharedValue<number>;
 }) {
   const style = useAnimatedStyle(() => ({
-    opacity: dragging.value * (0.45 + hot.value * 0.55),
+    opacity: Math.max(
+      waiting ? 0.35 : 0,
+      dragging.value * (0.45 + hot.value * 0.55),
+    ),
     transform: [{ scale: 1 + hot.value * 0.08 }],
   }));
   return (
@@ -966,7 +1113,9 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
     borderRadius: 24,
-    backgroundColor: '#F8F4EC',
+    backgroundColor: '#EEE5D6',
+    borderWidth: 1,
+    borderColor: '#DED0BB',
   },
   floor: {
     position: 'absolute',
@@ -980,13 +1129,19 @@ const styles = StyleSheet.create({
   },
   shadow: {
     position: 'absolute',
-    height: 14,
+    height: 26,
     borderRadius: 100,
-    backgroundColor: '#B8A991',
+    backgroundColor: '#C8BAA3',
     pointerEvents: 'none',
   },
   none: { pointerEvents: 'none' },
   corner: { position: 'absolute', left: 0, top: 0 },
+  pulse: {
+    position: 'absolute',
+    borderWidth: 3,
+    borderColor: '#A65E46',
+  },
+  coach: { opacity: 0.92 },
   hint: {
     position: 'absolute',
     borderWidth: 2,

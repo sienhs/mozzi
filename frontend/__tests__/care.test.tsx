@@ -168,12 +168,20 @@ describe('play contact on real card shapes', () => {
         : { name: key, imageUrl: `${S3}/GACHA/${key}.png` },
       'happy',
     );
-    for (const width of [300, 340, 706]) {
+    // 무대는 화면에 맞춰 늘고 준다: 작은 폰, 폴드 바깥 화면, 넓은 화면의 무대 크기.
+    for (const [width, height] of [
+      [300, 220],
+      [340, 360],
+      [443, 420],
+      [528, 560],
+      [544, 600],
+      [706, 360],
+    ] as const) {
       const frame = fitSkin(
         skin.geometry,
         width,
-        360,
-        playSize(skin.geometry, width, 360),
+        height,
+        playSize(skin.geometry, width, height),
       );
       const bands = stageBands(skin.geometry, frame);
       const origin = { x: frame.left + frame.width / 2, y: frame.baseline };
@@ -385,7 +393,9 @@ describe('screens', () => {
     await fireEvent.press(screen.getByTestId('home-care-entry'));
     expect(app.getPathname()).toBe('/care');
     expect(app.getSearchParams()).toMatchObject({ emotion: 'calm' });
-    expect(screen.getByText('모찌랑 놀기')).toBeOnTheScreen();
+    expect(screen.getByTestId('care-mochi-name')).toHaveTextContent(
+      '기본 모찌랑 놀기',
+    );
   });
 
   test('home hides the entry before today is recorded', async () => {
@@ -398,11 +408,11 @@ describe('screens', () => {
     server.state.tickets = 20;
     await openCare('/care?emotion=happy');
     expect(screen.getByTestId('care-mochi-name')).toHaveTextContent(
-      '기본 모찌',
+      '기본 모찌랑 놀기',
     );
     await fireEvent.press(screen.getByTestId('care-mode-feed'));
     expect(screen.getByTestId('care-status')).toHaveTextContent(
-      '간식을 모찌 입으로 가져가 주세요',
+      '쿠키를 모찌 입으로 끌어 주세요',
     );
     await fireEvent.press(screen.getByTestId('dock-cookie'));
     // 장면 중에는 다시 줄 수 없다.

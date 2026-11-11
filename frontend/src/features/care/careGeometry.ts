@@ -62,16 +62,26 @@ export function fitSkin(
 export type SkinFrame = ReturnType<typeof fitSkin>;
 
 /** Play needs room on both sides (toy dock on the left, landing spot on the right). */
-export const PLAY_SIDE_ROOM = 84;
+export const PLAY_SIDE_ROOM = 84 + 12; // 12: the ball waits BALL_DOCK_INSET in from the edge
+/**
+ * Play also needs headroom: the ball is lobbed over the body. On a tall stage the body would
+ * otherwise grow to fill the height and no lob could clear it, so it keeps to this share of
+ * the height above the floor.
+ */
+export const PLAY_BODY_SHARE = 0.58;
 export function playSize(
   geometry: RasterGeometry,
   stageWidth: number,
   stageHeight: number,
 ) {
-  const natural = fitSkin(geometry, stageWidth, stageHeight).width;
+  const natural = fitSkin(geometry, stageWidth, stageHeight);
   return Math.max(
     0.5,
-    Math.min(0.8, (stageWidth - 2 * PLAY_SIDE_ROOM) / Math.max(1, natural)),
+    Math.min(
+      0.8,
+      (stageWidth - 2 * PLAY_SIDE_ROOM) / Math.max(1, natural.width),
+      (natural.baseline * PLAY_BODY_SHARE) / Math.max(1, natural.height),
+    ),
   );
 }
 
