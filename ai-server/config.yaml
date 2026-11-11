@@ -1,0 +1,26 @@
+# 워커 설정 (비밀값이 아닌 것). 비밀값·큐 주소는 .env 에 둔다.
+# 경로는 ai-server/ 기준 상대 경로다.
+
+model:
+  repo: black-forest-labs/FLUX.2-klein-4B   # distilled 4B: 4 step, guidance 1.0
+  lora: weights/20261023_train_qfloat8_r16.safetensors
+  lora_scale: 1.0
+
+generate:
+  size: 768
+  steps: 4
+  guidance: 1.0
+  ref_side: 768            # 참조 이미지(특색 캐릭터)를 이 크기 이하로 줄여서 넣는다
+  idle_release_sec: 300    # 요청 없이 5분이 지나면 모델을 GPU → CPU 로 내려 GPU 메모리를 돌려준다
+                           # (GPU 0 을 다른 팀과 같이 쓴다). 0 이면 GPU 에 계속 올려 둔다 (약 16GB)
+
+output:
+  prefix: diary            # S3 키: {prefix}/{userId}/{diaryId}/{요청 ID}.png
+  test_prefix: test-diary  # 요청의 test 가 true 이면 이 폴더에 저장 (백엔드 시험용)
+
+job:
+  expire_sec: 600          # 요청 큐에 들어간 지(SQS SentTimestamp) 이만큼 지나면 그리지 않고 EXPIRED (임시값)
+
+sqs:
+  wait_sec: 20             # long polling
+  visibility_sec: 120      # 처리 중에는 절반마다 자동 연장한다

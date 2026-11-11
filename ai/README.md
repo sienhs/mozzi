@@ -163,6 +163,8 @@ python scripts\make_report.py
 
 ## 5. 데이터셋 사양
 
+구축 과정(생성·검수·빌드), 검증·테스트 세트 기준, 알려진 한계는 [DATASET.md](DATASET.md)에 정리했다.
+
 - **anchors 5장**: 감정별 정면, 단색 배경. 생성할 때 레퍼런스로 쓰고 평가 기준이 된다. **학습에는 넣지 않는다.**
 - **학습 56장**: main_sheet 10 + companion_sheet 6 + scene 40
 - **scene 할당량**: 활동 13종 × 3 + eating 1, 기분 각 8, home 12 / cafe·office_school·park 6 / restaurant·travel_spot 5,

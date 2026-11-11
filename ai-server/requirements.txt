@@ -1,0 +1,18 @@
+# ai-server 의존성. torch 는 setup_server.sh 가 CUDA 빌드(cu128)로 따로 설치한다.
+# 생성 관련 버전은 ai/ (학습·실험 환경) 과 똑같이 맞춘다. LoRA 를 학습한 환경과 결과가 같아야 하기 때문이다.
+#   diffusers: ai-toolkit 이 고정한 git 커밋 (0.39.0.dev0)
+diffusers @ git+https://github.com/huggingface/diffusers.git@c943837899b16cbae2f619b8dd4f7bb6f07dd81a
+transformers==5.5.3
+accelerate==1.15.0
+safetensors==0.8.0
+peft==0.18.1
+gguf==0.19.0
+sentencepiece==0.2.2
+huggingface_hub==1.23.0
+pillow==12.3.0
+pyyaml==6.0.3
+
+# 워커 (SQS · S3, .env 읽기)
+boto3
+python-dotenv
+setproctitle          # ps·nvidia-smi 에 계정 이름이 든 프로세스 이름으로 보이게
