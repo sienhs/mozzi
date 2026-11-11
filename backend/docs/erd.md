@@ -518,6 +518,7 @@ erDiagram
 | `SIGNUP` | TICKET + | null | `SIGNUP` |
 | `DAILY_LOGIN` | TICKET + | null | `LOGIN:{yyyy-MM-dd}` |
 | `DAILY_RECORD` | TICKET + | diary_id | `RECORD:{record_date}` |
+| `CARE` | TICKET + | null | `CARE_PET:{yyyy-MM-dd}` · `CARE_FEED:{yyyy-MM-dd}` · `CARE_PLAY:{yyyy-MM-dd}` |
 | `DRAW` | TICKET − | draw_id | null |
 | `DUPLICATE` | SHARD + | draw_id | null (한 번 뽑기의 조각 합계 1행) |
 | `EXCHANGE` | SHARD − | card_id | null |

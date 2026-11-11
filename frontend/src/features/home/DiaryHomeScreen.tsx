@@ -25,6 +25,7 @@ import { HomePager, type PagerControls } from './HomePager';
 import { ChristmasCard, WinterBackdrop } from './HomeChristmas';
 import { completedDiaryPreview } from '@/mocks/diaryPreview';
 import { FeedbackPrompt } from '@/features/feedback/FeedbackPrompt';
+import { CareEntryButton } from '@/features/care/CareEntryButton';
 import { spacing } from '@/theme/tokens';
 
 // 홈 상태는 서버 todayStatus를 따른다.
@@ -137,9 +138,12 @@ export function DiaryHomeScreen() {
     );
   };
   // 다시 그리기 버튼은 오늘 장을 볼 때만 둔다.
+  // 오늘 기록을 남겼으면(그림이 완성됐거나 그리는 중) 오늘 감정의 모찌와 놀러 갈 수 있다.
   const footer =
     loaded && recovering && page === 0 ? (
       <ImageRequestButton request={request} />
+    ) : loaded && entry && (completed || generating) && page === 0 ? (
+      <CareEntryButton emotion={entry.emotion} companion={entry.companion} />
     ) : undefined;
   return (
     <Screen

@@ -12,7 +12,13 @@ import { useAuthStore } from '@/stores/useAuthStore';
 
 // 로그인한 동안만 붙는다(루트 레이아웃). 앱 시작·로그인 때마다 FCM 토큰을 등록하고,
 // 그림 결과 푸시가 오면 일기를 다시 읽고, 알림을 누르면 그날 기록으로 간다.
+// 푸시 대상(Android)이 아니면 알림 훅까지 붙이지 않는다. 웹에는 useLastNotificationResponse가
+// 쓰는 네이티브 모듈이 없어 로그인하자마자 앱 전체가 멈췄다. 플랫폼은 실행 중에 바뀌지 않는다.
 export function PushNotifications() {
+  return pushSupported() ? <AndroidPushNotifications /> : null;
+}
+
+function AndroidPushNotifications() {
   const memberId = useAuthStore(state => state.member?.memberId);
   const response = Notifications.useLastNotificationResponse();
   const handled = useRef<string | null>(null);

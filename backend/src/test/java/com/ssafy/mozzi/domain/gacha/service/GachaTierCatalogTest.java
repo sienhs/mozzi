@@ -22,10 +22,10 @@ class GachaTierCatalogTest {
 
     private static final List<GachaTier> SEEDED = List.of(
             new GachaTier(CardTier.COMMON, 45_000, 1, null),
-            new GachaTier(CardTier.RARE, 30_000, 2, null),
+            new GachaTier(CardTier.RARE, 32_500, 2, null),
             new GachaTier(CardTier.EPIC, 17_000, 5, null),
-            new GachaTier(CardTier.LEGENDARY, 7_000, 15, 200),
-            new GachaTier(CardTier.MYTHIC, 1_000, 40, 400));
+            new GachaTier(CardTier.LEGENDARY, 5_000, 15, 200),
+            new GachaTier(CardTier.MYTHIC, 500, 40, 400));
 
     private final GachaTierCatalog catalog = new GachaTierCatalog(SEEDED);
 
@@ -68,17 +68,18 @@ class GachaTierCatalogTest {
     }
 
     /**
-     * The same test catches odds that drifted from what is published: rolls from the first
-     * draft's weights (legendary 6.5%, mythic 1.5%) are refused against the published 7% and 1%.
+     * The same test catches odds that drifted from what is published: rolls with a quarter
+     * point moved from legendary to mythic (4.75% and 0.75%) are refused against the published
+     * 5% and 0.5%.
      */
     @Test
     void theChiSquareTestRefusesOddsThatDriftedFromThePublishedOnes() {
         GachaTierCatalog drifted = new GachaTierCatalog(List.of(
                 new GachaTier(CardTier.COMMON, 45_000, 1, null),
-                new GachaTier(CardTier.RARE, 30_000, 2, null),
+                new GachaTier(CardTier.RARE, 32_500, 2, null),
                 new GachaTier(CardTier.EPIC, 17_000, 5, null),
-                new GachaTier(CardTier.LEGENDARY, 6_500, 15, 200),
-                new GachaTier(CardTier.MYTHIC, 1_500, 40, 400)));
+                new GachaTier(CardTier.LEGENDARY, 4_750, 15, 200),
+                new GachaTier(CardTier.MYTHIC, 750, 40, 400)));
         Map<CardTier, Integer> counts = roll(drifted, new Random(42L), 100_000);
 
         assertThat(chiSquare(counts, SEEDED, 100_000)).isGreaterThan(CHI_SQUARE_CRITICAL_DF4_ALPHA_1PCT);
@@ -89,10 +90,12 @@ class GachaTierCatalogTest {
         assertThat(catalog.tierFor(0)).isEqualTo(CardTier.COMMON);
         assertThat(catalog.tierFor(44_999)).isEqualTo(CardTier.COMMON);
         assertThat(catalog.tierFor(45_000)).isEqualTo(CardTier.RARE);
-        assertThat(catalog.tierFor(91_999)).isEqualTo(CardTier.EPIC);
-        assertThat(catalog.tierFor(92_000)).isEqualTo(CardTier.LEGENDARY);
-        assertThat(catalog.tierFor(98_999)).isEqualTo(CardTier.LEGENDARY);
-        assertThat(catalog.tierFor(99_000)).isEqualTo(CardTier.MYTHIC);
+        assertThat(catalog.tierFor(77_499)).isEqualTo(CardTier.RARE);
+        assertThat(catalog.tierFor(77_500)).isEqualTo(CardTier.EPIC);
+        assertThat(catalog.tierFor(94_499)).isEqualTo(CardTier.EPIC);
+        assertThat(catalog.tierFor(94_500)).isEqualTo(CardTier.LEGENDARY);
+        assertThat(catalog.tierFor(99_499)).isEqualTo(CardTier.LEGENDARY);
+        assertThat(catalog.tierFor(99_500)).isEqualTo(CardTier.MYTHIC);
         assertThat(catalog.tierFor(99_999)).isEqualTo(CardTier.MYTHIC);
     }
 

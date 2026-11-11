@@ -114,6 +114,28 @@ test('iOS and web do not register (the server only takes FCM tokens)', async () 
   expect(registrations()).toHaveLength(0);
 });
 
+// 웹에는 알림 네이티브 모듈이 없어 useLastNotificationResponse가 던진다. 로그인 상태로 웹을 열면
+// 루트 레이아웃이 통째로 멈췄던 문제를 막는다.
+test('signed in on web or iOS, the push hooks are not touched', async () => {
+  const hook = jest.mocked(Notifications.useLastNotificationResponse);
+  const original = hook.getMockImplementation();
+  hook.mockImplementation(() => {
+    throw new Error('not available on web');
+  });
+  try {
+    for (const os of ['web', 'ios'] as const) {
+      jest.replaceProperty(Platform, 'OS', os);
+      const view = await render(<PushNotifications />);
+      await act(async () => undefined);
+      await view.unmount();
+    }
+    expect(hook).not.toHaveBeenCalled();
+    expect(Notifications.addPushTokenListener).not.toHaveBeenCalled();
+  } finally {
+    hook.mockImplementation(original ?? (() => null));
+  }
+});
+
 test('only well-formed diary image pushes are recognised', () => {
   expect(diaryImagePush(notification(imagePush))).toEqual({
     diaryId: 501,

@@ -2,14 +2,41 @@ import { invalidResponse } from '@/types/server';
 import { api } from './api';
 
 // 뽑기권 보상 (backend docs/api/gacha.md#뽑기권-지급). 지급은 서버가 하고, 앱은 받은 보상을 알려 주기만 한다.
-export type RewardType = 'SIGNUP' | 'DAILY_LOGIN' | 'DAILY_RECORD';
+export type RewardType =
+  | 'SIGNUP'
+  | 'DAILY_LOGIN'
+  | 'DAILY_RECORD'
+  | 'CARE_PET'
+  | 'CARE_FEED'
+  | 'CARE_PLAY';
 export interface Reward {
   type: RewardType;
   tickets: number;
   // 지급 후 뽑기권 잔액.
   ticketCount: number;
 }
-const rewardTypes: RewardType[] = ['SIGNUP', 'DAILY_LOGIN', 'DAILY_RECORD'];
+const rewardTypes: RewardType[] = [
+  'SIGNUP',
+  'DAILY_LOGIN',
+  'DAILY_RECORD',
+  'CARE_PET',
+  'CARE_FEED',
+  'CARE_PLAY',
+];
+// 모찌 돌보기 활동. 활동마다 그날 처음 끝냈을 때만 지급한다.
+export type CareRewardAction = 'PET' | 'FEED' | 'PLAY';
+export interface CareRewardResult {
+  // 보상 기준 날짜(서울).
+  date: string;
+  // 이번 호출로 지급된 보상. 그날 이미 받았으면 null.
+  reward: Reward | null;
+  ticketCount: number;
+}
+const careRewardTypes: Record<CareRewardAction, RewardType> = {
+  PET: 'CARE_PET',
+  FEED: 'CARE_FEED',
+  PLAY: 'CARE_PLAY',
+};
 const isCount = (value: unknown): value is number =>
   Number.isSafeInteger(value) && (value as number) >= 0;
 
@@ -48,5 +75,28 @@ export const rewardApi = {
           ticketCount: data.ticketCount,
         }
       : null;
+  },
+  // POST /rewards/care. 같은 날 같은 활동을 다시 보내면 granted: false로 잔액만 온다.
+  async care(action: CareRewardAction): Promise<CareRewardResult> {
+    const { data } = await api.post('/rewards/care', { action });
+    if (
+      typeof data?.date !== 'string' ||
+      typeof data?.granted !== 'boolean' ||
+      !isCount(data?.tickets) ||
+      !isCount(data?.ticketCount)
+    )
+      throw invalidResponse();
+    return {
+      date: data.date,
+      ticketCount: data.ticketCount,
+      reward:
+        data.granted && data.tickets > 0
+          ? {
+              type: careRewardTypes[action],
+              tickets: data.tickets,
+              ticketCount: data.ticketCount,
+            }
+          : null,
+    };
   },
 };

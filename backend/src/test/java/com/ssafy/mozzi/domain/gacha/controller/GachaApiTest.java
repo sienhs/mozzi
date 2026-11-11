@@ -56,8 +56,8 @@ import tools.jackson.databind.ObjectMapper;
 class GachaApiTest {
 
     private static final int ROLL_COMMON = 0;
-    private static final int ROLL_EPIC = 75_000;
-    private static final int ROLL_LEGENDARY = 92_000;
+    private static final int ROLL_EPIC = 80_000;
+    private static final int ROLL_LEGENDARY = 95_000;
 
     @Autowired
     private MockMvc mockMvc;
@@ -128,10 +128,12 @@ class GachaApiTest {
                 .andExpect(jsonPath("$.rates[0].tier").value("COMMON"))
                 .andExpect(jsonPath("$.rates[0].rate").value(0.45))
                 .andExpect(jsonPath("$.rates[0].duplicateShards").value(1))
+                .andExpect(jsonPath("$.rates[1].tier").value("RARE"))
+                .andExpect(jsonPath("$.rates[1].rate").value(0.325))
                 .andExpect(jsonPath("$.rates[3].tier").value("LEGENDARY"))
-                .andExpect(jsonPath("$.rates[3].rate").value(0.07))
+                .andExpect(jsonPath("$.rates[3].rate").value(0.05))
                 .andExpect(jsonPath("$.rates[4].tier").value("MYTHIC"))
-                .andExpect(jsonPath("$.rates[4].rate").value(0.01))
+                .andExpect(jsonPath("$.rates[4].rate").value(0.005))
                 .andExpect(jsonPath("$.rates[4].duplicateShards").value(40));
     }
 
@@ -435,6 +437,48 @@ class GachaApiTest {
     }
 
     @Test
+    void eachCareActivityPaysOncePerDay() throws Exception {
+        gacha.wallet(me, 20, 0);
+        LocalDate today = LocalDate.now(clock);
+
+        care(me, "PET").andExpect(status().isOk())
+                .andExpect(jsonPath("$.date").value(today.toString()))
+                .andExpect(jsonPath("$.action").value("PET"))
+                .andExpect(jsonPath("$.type").value("CARE_PET"))
+                .andExpect(jsonPath("$.granted").value(true))
+                .andExpect(jsonPath("$.tickets").value(5))
+                .andExpect(jsonPath("$.ticketCount").value(25));
+        care(me, "PLAY").andExpect(status().isOk())
+                .andExpect(jsonPath("$.tickets").value(10))
+                .andExpect(jsonPath("$.ticketCount").value(35));
+        care(me, "PET").andExpect(status().isOk())
+                .andExpect(jsonPath("$.granted").value(false))
+                .andExpect(jsonPath("$.tickets").value(0))
+                .andExpect(jsonPath("$.ticketCount").value(35));
+        care(me, "FEED").andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("CARE_FEED"))
+                .andExpect(jsonPath("$.ticketCount").value(40));
+
+        assertThat(jdbcTemplate.queryForList(
+                "select reward_key from wallet_ledger where reason = 'CARE' order by reward_key", String.class))
+                .containsExactly("CARE_FEED:" + today, "CARE_PET:" + today, "CARE_PLAY:" + today);
+        assertBalancesMatchLedger(me);
+    }
+
+    @Test
+    void careRewardNeedsAKnownActivity() throws Exception {
+        gacha.wallet(me, 20, 0);
+        for (String body : List.of("{}", "{\"action\": \"DANCE\"}")) {
+            mockMvc.perform(as(me, post("/api/v1/rewards/care"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        }
+        assertThat(gacha.tickets(me)).isEqualTo(20);
+    }
+
+    @Test
     void withdrawalDeletesEveryGachaRow() throws Exception {
         gacha.wallet(me, 10, 0);
         gacha.card("S2-01-01", CardTier.COMMON);
@@ -457,6 +501,12 @@ class GachaApiTest {
                 .header(IdempotencyStore.HEADER, key)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"count\": %d}".formatted(count)));
+    }
+
+    private ResultActions care(Long memberId, String action) throws Exception {
+        return mockMvc.perform(as(memberId, post("/api/v1/rewards/care"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"action\": \"%s\"}".formatted(action)));
     }
 
     private ResultActions exchange(Long memberId, Long cardId) throws Exception {

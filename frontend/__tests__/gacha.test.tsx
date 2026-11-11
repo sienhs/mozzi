@@ -939,7 +939,7 @@ test('the odds sheet shows the server rates for every tier', async () => {
   await advance(0);
 
   expect(screen.getByText('등급별 획득 확률')).toBeOnTheScreen();
-  for (const rate of ['45%', '30%', '17%', '7%', '1%'])
+  for (const rate of ['45%', '32.5%', '17%', '5%', '0.5%'])
     expect(screen.getByText(rate)).toBeOnTheScreen();
   expect(screen.getByText('+40')).toBeOnTheScreen();
 });

@@ -5,6 +5,44 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// Only the mochi care screen uses Reanimated, through src/features/care/reanimated.ts. Jest has
+// no worklet runtime and expo-router/testing-library replaces any 'react-native-reanimated'
+// mock on import, so this stand-in replaces that local module with just the API the screen
+// uses. Animations jump to their target; the care scene math is tested directly.
+jest.mock('./src/features/care/reanimated', () => {
+  const { View } = require('react-native');
+  const shared = initial => {
+    const box = { value: initial };
+    box.get = () => box.value;
+    box.set = next => {
+      box.value = typeof next === 'function' ? next(box.value) : next;
+    };
+    return box;
+  };
+  const target = value => value;
+  const Animated = {
+    View,
+    createAnimatedComponent: component => component,
+  };
+  return {
+    __esModule: true,
+    default: Animated,
+    ...Animated,
+    useSharedValue: initial =>
+      require('react').useState(() => shared(initial))[0],
+    useDerivedValue: updater => ({ value: updater(), get: updater }),
+    useAnimatedStyle: updater => updater(),
+    useAnimatedProps: updater => updater(),
+    withTiming: target,
+    withSpring: target,
+    withRepeat: animation => animation,
+    withSequence: (...steps) => steps[steps.length - 1],
+    cancelAnimation: () => undefined,
+    Easing: { linear: t => t },
+    ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
+  };
+});
+
 // Native font loading is verified by Expo bundles; UI tests can render immediately.
 jest.mock('expo-font', () => ({
   useFonts: () => [true, null],

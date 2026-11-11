@@ -25,6 +25,9 @@ coverage/
 *.log
 *.tsbuildinfo
 
+# Local experiments and QA labs (prototypes, screenshots, browser QA scripts); not shipped
+experiments/
+
 # Packages and deployment outputs
 *.apk
 *.aab

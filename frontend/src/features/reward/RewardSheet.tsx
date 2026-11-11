@@ -9,6 +9,9 @@ const reasons: Record<RewardType, string> = {
   SIGNUP: '가입을 환영하는 선물이에요.',
   DAILY_LOGIN: '오늘 찾아와 준 선물이에요.',
   DAILY_RECORD: '오늘의 기록을 남긴 선물이에요.',
+  CARE_PET: '모찌를 쓰다듬어 준 선물이에요.',
+  CARE_FEED: '모찌에게 간식을 준 선물이에요.',
+  CARE_PLAY: '모찌와 공놀이를 한 선물이에요.',
 };
 // 서버가 지급한 뽑기권을 알린다. 지급은 이미 끝났고, 닫아도 잃지 않는다.
 export function RewardSheet() {
